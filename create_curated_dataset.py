@@ -15,6 +15,8 @@ def main(thisDir, analysis_methods):
     print(session.recordnodes)
     #recordnode = session.recordnodes[0]
     recording = session.recordnodes[0].recordings[0]
+
+    recording_dir=recording.directory
     fs=recording.info["continuous"][0]['sample_rate']
     if analysis_methods.get("Analye_entire_recording")==True:
         data_of_interest=len(recording.continuous[0].sample_numbers)
@@ -22,10 +24,10 @@ def main(thisDir, analysis_methods):
         data_of_interest=int(fs)*3
     data = recording.continuous[0].get_samples(start_sample_index=0, end_sample_index=data_of_interest)  
     times = create_times(data.shape[0]/fs, fs)
-    fig_out=analysis_methods.get("Fig_dir")
+    #fig_out=analysis_methods.get("Fig_dir")
     for i in range(32):
         sig=data[:,i]
-        calculate_psd(sig,fs,times,i,fig_out)
+        calculate_psd(sig,fs,times,i,recording_dir)
 
     
     # print(data)
