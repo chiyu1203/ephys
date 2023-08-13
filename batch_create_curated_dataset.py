@@ -29,6 +29,7 @@ def list_up_dataset(this_database, analysis_methods):
     #     if name.endswith(file_type)]
 
 ##list up all files of this file type under the input path (include subdirectories)
+    
     folder_list=os.listdir(this_database)
     for this_dir in folder_list:
         this_dir_path=os.path.join(this_database,this_dir).replace("\\","/")
@@ -39,9 +40,11 @@ def list_up_dataset(this_database, analysis_methods):
                 if os.path.isdir(this_exp_path):
                     session_list=os.listdir(this_exp_path)
                     if any(os.path.isdir(os.path.join(this_exp_path,this_session).replace("\\","/")) for this_session in session_list):
+                        analysis_methods.update(Data_format="open_ephys")
                         main(os.path.join(this_database,this_dir).replace("\\","/"),analysis_methods)
                     else:
-                        continue
+                        analysis_methods.update(Data_format="nwb")
+                        main(os.path.join(this_database,this_dir).replace("\\","/"),analysis_methods)
                 else:
                     continue
         else:
@@ -55,7 +58,7 @@ if __name__ == "__main__":
     analysis_methods = {
         "Overwrite_curated_dataset": True,
         "Reanalyse_data": True,
-        "Fig_dir":"Z:/DATA/experiment_openEphys",
+        "Data_format":"open_ephys",
         "Analye_entire_recording":True,
         "Plot_trace": False,
         "Debug_mode": True,
