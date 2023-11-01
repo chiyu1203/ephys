@@ -48,6 +48,7 @@ def main(thisDir, analysis_methods):
     print(session.recordnodes)
     # recordnode = session.recordnodes[0]
     recording = session.recordnodes[0].recordings[0]
+    recording_dir = recording.directory
     recording.add_sync_line(
         1,  # TTL line number
         100,  # processor ID
@@ -64,10 +65,10 @@ def main(thisDir, analysis_methods):
         start_sample_index=0, end_sample_index=data_of_interest
     )
     times = create_times(data.shape[0] / fs, fs)
-    fig_out = analysis_methods.get("Fig_dir")
+    # fig_out=analysis_methods.get("Fig_dir")
     for i in range(32):
         sig = data[:, i]
-        calculate_psd(sig, fs, times, i, fig_out)
+        calculate_psd(sig, fs, times, i, recording_dir)
 
     # print(data)
     # plt.close('all')

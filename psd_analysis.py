@@ -24,7 +24,7 @@ def calculate_psd(sig,fs,times,num,fig_dir):
         # Median filtered spectrum
         freq_mf, psd_mf = compute_spectrum(sig, fs, method='medfilt')
         
-        file_name=f"power_spectra_channel{num}.png"
+        file_name=f"power_spectra_{num}.png"
         plot_power_spectra([freq_mean[:200], freq_med[:200], freq_mf[100:10000]],
                    [psd_mean[:200], psd_med[:200], psd_mf[100:10000]],
                    ['Welch', 'Median Welch', 'Median Filter FFT'])
