@@ -1,7 +1,9 @@
 from open_ephys.analysis import Session
 from psd_analysis import calculate_psd
 from neurodsp.utils import create_times
+from pathlib import Path
 import os, fnmatch
+import json
 import time
 import numpy as np
 import matplotlib.pyplot as plt
@@ -16,20 +18,26 @@ def find_file(thisDir, pattern):
         print(f"no {pattern} found in {thisDir}. Let's leave this programme")
         return None
     elif len(file_check) == 1:
-        return os.path.join(thisDir, file_check[0])
+        # return os.path.join(thisDir, file_check[0])
+        return Path(thisDir) / file_check[0]
     else:
         vid_list = []
         for i in range(len(file_check)):
-            vid_list.append(os.path.join(thisDir, file_check[i]))
+            vid_list.append(Path(thisDir) / file_check[i])
         return vid_list
-
 
 def detectTTL(event_dir, analysis_methods):
     this_file = np.load(event_dir)
     print(this_file)
 
 
-def main(thisDir, analysis_methods):
+def main(thisDir, json_file):
+    if isinstance(json_file, dict):
+        analysis_methods = json_file
+    else:
+        with open(json_file, "r") as f:
+            print(f"load analysis methods from file {json_file}")
+            analysis_methods = json.loads(f.read())
     pd_pattern = "PD*.csv"
     this_PD = find_file(thisDir, pd_pattern)
 
@@ -38,26 +46,34 @@ def main(thisDir, analysis_methods):
 
     video_pattern = "video*.avi"
     this_video = find_file(thisDir, video_pattern)
-    path_to_event = r"events\OE_FPGA_Acquisition_Board-100.Rhythm Data\TTL"
-    event_dir = os.path.join(thisDir, path_to_event)
-    event_pattern = "timestamps.npy"
-    this_event = find_file(event_dir, event_pattern)
-    detectTTL(this_event, analysis_methods)
+    
+    #event_dir = thisDir + r"\Record Node 127\experiment1\recording1\events\OE_FPGA_Acquisition_Board-125.Rhythm Data\TTL"
+    #event_pattern = "timestamps.npy"
+    #this_event = find_file(event_dir, event_pattern)
+    #detectTTL(this_event, analysis_methods)
     session = Session(thisDir)
     print(session)
     print(session.recordnodes)
+    print(session.recordnodes[0].recordings[0])
+
     # recordnode = session.recordnodes[0]
     recording = session.recordnodes[0].recordings[0]
+    
     recording_dir = recording.directory
     recording.add_sync_line(
         1,  # TTL line number
-        100,  # processor ID
-        "Probe-A-LFP",  # stream name
+        125,  # processor ID
+        "Rhythm Data",  # stream name
         main=True,
     )  # align to the main stream
     recording.compute_global_timestamps()
+    TTL_transition=recording.events.sample_number
+    ISI_onset=recording.events.sample_number[recording.events.state==1]
+    stim_onset=recording.events.sample_number[recording.events.state==0]
     fs = recording.info["continuous"][0]["sample_rate"]
-    if analysis_methods.get("Analye_entire_recording") == True:
+    data_points=int(fs)*20
+
+    if analysis_methods.get("analye_entire_recording") == True:
         data_of_interest = len(recording.continuous[0].sample_numbers)
     else:
         data_of_interest = int(fs) * 3
@@ -91,18 +107,12 @@ def main(thisDir, analysis_methods):
 
 
 if __name__ == "__main__":
-    # thisDir = "C:/Users/neuroLaptop/Documents/Open Ephys/2023-06-06_21-51-30/"
-    thisDir = r"Z:\Users\chiyu\sync_test"
-    analysis_methods = {
-        "Overwrite_curated_dataset": True,
-        "Reanalyse_data": True,
-        "Fig_dir": "Z:/DATA/experiment_openEphys/GN00001",
-        "Analye_entire_recording": True,
-        "Plot_trace": False,
-        "Debug_mode": True,
-    }
+    #thisDir = "C:/Users/neuroLaptop/Documents/Open Ephys/2023-06-06_21-51-30/"
+    thisDir = r"C:\Users\neuroLaptop\Documents\Open Ephys\P-series-32channels\GN00002\2023-12-01_18-23-27"
+    #thisDir = r"Z:\Users\chiyu\sync_test"
+    json_file = "./analysis_methods_dictionary.json"
     ##Time the function
     tic = time.perf_counter()
-    main(thisDir, analysis_methods)
+    main(thisDir, json_file)
     toc = time.perf_counter()
     print(f"it takes {toc-tic:0.4f} seconds to run the main function")

@@ -1,0 +1,40 @@
+{
+ "fig_dir": "Z:/DATA/experiment_openEphys/GN00001",
+ "analyse_multiple_channels": true,
+ "analyse_entire_recording": true,
+ "overwrite_curated_dataset": true,
+ "save_prepocessed_file": true,
+ "load_prepocessed_file": true,
+ "graph_colour_code": [
+  "r",
+  "y",
+  "m",
+  "c",
+  "k",
+  "b",
+  "g",
+  "r"
+ ],
+ "debug_mode": false,
+ "isi_onset_log": false,
+ "filtering_method": "sg_filter",
+ "plotting_tbt_overview": true,
+ "load_experiment_condition_from_database": true,
+ "select_animals_by_condition": true,
+ "analysis_by_stimulus_type": false,
+ "trackball_radius": 40,
+ "frame_rate": 144,
+ "stim_duration": 20,
+ "interval_duration": 10,
+ "stim_type": [
+  -100,
+  -75,
+  -50,
+  -25,
+  0,
+  25,
+  50,
+  75,
+  100
+ ]
+}

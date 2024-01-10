@@ -8,13 +8,20 @@ f['Citral_1'].attrs['log_file_content']
 '''
 import os, fnmatch
 import time
+import json
 import numpy as np
 import matplotlib.pyplot as plt
 import h5py
 from psd_analysis import calculate_psd
 from neurodsp.utils import create_times
 
-def main(thisDir,analysis_methods):
+def main(thisDir,json_file):
+    if isinstance(json_file, dict):
+        analysis_methods = json_file
+    else:
+        with open(json_file, "r") as f:
+            print(f"load analysis methods from file {json_file}")
+            analysis_methods = json.loads(f.read())
     fs=15000
     file_name="locust20010124b_part1.hdf5"
     thisH5=os.path.join(thisDir,file_name)
@@ -29,16 +36,9 @@ def main(thisDir,analysis_methods):
 
 if __name__ == "__main__":
     thisDir = "C:/Users/neuroLaptop/Documents/Open Ephys/Pouzat2002"
-    analysis_methods = {
-        "Overwrite_curated_dataset": True,
-        "Reanalyse_data": True,
-        "Fig_dir":"Z:/DATA/experiment_openEphys/GN00001",
-        "Analye_entire_recording":True,
-        "Plot_trace": False,
-        "Debug_mode": True,
-    }
+    json_file = "./analysis_methods_dictionary.json"
     ##Time the function
     tic = time.perf_counter()
-    main(thisDir, analysis_methods)
+    main(thisDir, json_file)
     toc = time.perf_counter()
     print(f"it takes {toc-tic:0.4f} seconds to run the main function")
