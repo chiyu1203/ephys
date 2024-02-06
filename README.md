@@ -10,6 +10,6 @@ conda activate tracking_analysis
 conda update -n base -c defaults conda
 conda config --add channels conda-forge
 conda config --set channel_priority strict
-conda install --yes -c conda-forge -v ipython jupyter matplotlib tqdm pandas pytest fooof neurodsp
-pip install open-ephys-python-tools
+conda install --yes -c conda-forge -v ipython jupyter matplotlib tqdm pandas pytest fooof neurodsp ipympl
+pip install open-ephys-python-tools spikeinterface zarr docker cuda-python
 ````
