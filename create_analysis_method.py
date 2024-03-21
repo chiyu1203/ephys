@@ -2,12 +2,16 @@ import json
 
 file_name = "analysis_methods_dictionary.json"
 analysis_methods = {
-    "fig_dir":"Z:/DATA/experiment_openEphys/GN00001",
-    "analyse_multiple_channels":True,
-    "analyse_entire_recording": True,
-    "overwrite_curated_dataset": True,
-    "save_prepocessed_file":True,
+    "experimenter":"chiyu",
+    "sorter_name":"spykingcircus2",
+    "analyse_good_channels_only":True,
+    "load_raw_traces":True,
+    "analyse_entire_recording": False,
+    "save_prepocessed_file":False,
     "load_prepocessed_file":True,
+    "save_sorting_file":False,
+    "load_sorting_file":False,
+    "overwrite_curated_dataset": True,
     "graph_colour_code": ["r", "y", "m", "c", "k", "b", "g", "r"],
     "debug_mode": False,
     "isi_onset_log": False,
