@@ -46,7 +46,13 @@ def main(thisDir, json_file):
             fs = recording_saved.get_sampling_frequency()
         else:
             print("Load meta information from openEphys")
-            full_raw_rec = se.read_openephys(oe_folder)
+            full_raw_rec = se.read_openephys(oe_folder,load_sync_timestamps=True)
+            # To show the start of recording time 
+            # full_raw_rec.get_times()[0]
+            event=se.read_openephys_event(oe_folder)
+            #event_channel_ids=event.channel_ids
+            #events = event.get_events(channel_id=channel_ids[1], segment_index=0)# a complete record of events including [('time', '<f8'), ('duration', '<f8'), ('label', '<U100')]
+            events_times=event.get_event_times(channel_id=channel_ids[1],segment_index=0)# this record ON phase of sync pulse
             fs = full_raw_rec.get_sampling_frequency()
             if analysis_methods.get("load_raw_traces")==True:
                 trace_snippet = full_raw_rec.get_traces(start_frame=int(fs*0), end_frame=int(fs*2))
@@ -56,7 +62,6 @@ def main(thisDir, json_file):
             probe_name = 'ASSY-37-P-2'
             probe = pi.get_probe(manufacturer, probe_name)
             print(probe)
-
             probe.wiring_to_device('ASSY-116>RHD2132')
             probe.to_dataframe(complete=True).loc[:, ["contact_ids", "shank_ids", "device_channel_indices"]]
             #drop AUX channels here
@@ -141,7 +146,7 @@ def main(thisDir, json_file):
 
 if __name__ == "__main__":
     #thisDir = r"C:\Users\neuroLaptop\Documents\Open Ephys\P-series-32channels\GN00003\2023-12-28_14-39-40"
-    thisDir = r"C:\Users\neuroPC\Documents\Open Ephys\2024-02-01_15-25-25"
+    thisDir = r"C:\Users\neuroLaptop\Documents\Open Ephys\2024-02-01_15-25-25"
     json_file = "./analysis_methods_dictionary.json"
     ##Time the function
     tic = time.perf_counter()

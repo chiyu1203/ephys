@@ -5,7 +5,7 @@
  "load_raw_traces": false,
  "analyse_entire_recording": true,
  "save_prepocessed_file": false,
- "load_prepocessed_file": true,
+ "load_prepocessed_file": false,
  "save_sorting_file": false,
  "load_sorting_file": false,
  "overwrite_curated_dataset": true,

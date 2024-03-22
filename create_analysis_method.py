@@ -8,7 +8,7 @@ analysis_methods = {
     "load_raw_traces":False,
     "analyse_entire_recording": True,
     "save_prepocessed_file":False,
-    "load_prepocessed_file":True,
+    "load_prepocessed_file":False,
     "save_sorting_file":False,
     "load_sorting_file":False,
     "overwrite_curated_dataset": True,
