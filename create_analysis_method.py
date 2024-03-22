@@ -3,10 +3,10 @@ import json
 file_name = "analysis_methods_dictionary.json"
 analysis_methods = {
     "experimenter":"chiyu",
-    "sorter_name":"spykingcircus2",
+    "sorter_name":"kilosort3",
     "analyse_good_channels_only":True,
-    "load_raw_traces":True,
-    "analyse_entire_recording": False,
+    "load_raw_traces":False,
+    "analyse_entire_recording": True,
     "save_prepocessed_file":False,
     "load_prepocessed_file":True,
     "save_sorting_file":False,

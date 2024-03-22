@@ -114,8 +114,10 @@ def main(thisDir, json_file):
 
         # update parameters of sorters. For non-kilosort sorters, here is an additional step to correct motion artifact.
         if this_sorter.startswith("kilosort"):
+            kilosort_3_path = r'C:\Users\neuroPC\Documents\GitHub\Kilosort'
+            ss.Kilosort3Sorter.set_kilosort3_path(kilosort_3_path)
             sorter_params=ss.get_default_sorter_params(this_sorter)
-            sorter_params.update({"projection_threshold": [9, 9]})##this is a parameters from Christopher Michael Jernigan's experiences with Wasps
+            #sorter_params.update({"projection_threshold": [9, 9]})##this is a parameters from Christopher Michael Jernigan's experiences with Wasps
         else:
             motion_folder=oe_folder / "motion"
             rec_correct_motion=spre.correct_motion(recording=recording_saved, preset="kilosort_like", folder=motion_folder)
@@ -126,8 +128,7 @@ def main(thisDir, json_file):
         # run spike sorting on recording of interest            
         sorting_spikes = ss.run_sorter(sorter_name=this_sorter, recording=recording_saved, remove_existing_folder=True,
                                     output_folder=oe_folder / result_folder_name,
-                                    verbose=True, **sorter_params)
-        
+                                    verbose=True, **job_kwargs)
         ##this will return a sorting object
     
     w_rs=sw.plot_rasters(sorting_spikes, time_range=(0,30),backend="matplotlib")
@@ -140,7 +141,7 @@ def main(thisDir, json_file):
 
 if __name__ == "__main__":
     #thisDir = r"C:\Users\neuroLaptop\Documents\Open Ephys\P-series-32channels\GN00003\2023-12-28_14-39-40"
-    thisDir = r"C:\Users\neuroLaptop\Documents\Open Ephys\2024-02-01_15-25-25"
+    thisDir = r"C:\Users\neuroPC\Documents\Open Ephys\2024-02-01_15-25-25"
     json_file = "./analysis_methods_dictionary.json"
     ##Time the function
     tic = time.perf_counter()

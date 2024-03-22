@@ -1,9 +1,9 @@
 {
  "experimenter": "chiyu",
- "sorter_name": "spykingcircus2",
+ "sorter_name": "kilosort3",
  "analyse_good_channels_only": true,
- "load_raw_traces": true,
- "analyse_entire_recording": false,
+ "load_raw_traces": false,
+ "analyse_entire_recording": true,
  "save_prepocessed_file": false,
  "load_prepocessed_file": true,
  "save_sorting_file": false,
