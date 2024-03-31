@@ -11,6 +11,8 @@ analysis_methods = {
     "load_prepocessed_file":False,
     "save_sorting_file":False,
     "load_sorting_file":False,
+    "extract_waveform_sparse":False,
+    "export_to_phy":False,
     "overwrite_curated_dataset": True,
     "graph_colour_code": ["r", "y", "m", "c", "k", "b", "g", "r"],
     "debug_mode": False,

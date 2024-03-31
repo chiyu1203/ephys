@@ -1,8 +1,11 @@
 import time, os, json, warnings
-import spikeinterface as si
+import spikeinterface.core as si
 import spikeinterface.extractors as se
 import spikeinterface.preprocessing as spre
+import spikeinterface.postprocessing as spost
 import spikeinterface.sorters as ss
+import spikeinterface.qualitymetrics as sq
+import spikeinterface.exporters as sep
 #import spikeinterface.comparison as sc
 import spikeinterface.widgets as sw
 import matplotlib.pyplot as plt
@@ -29,6 +32,7 @@ def main(thisDir, json_file):
         sorter_suffix="_KC3"
     result_folder_name="results"+sorter_suffix
     sorting_folder_name="sorting"+sorter_suffix
+    
 
     if analysis_methods.get("load_sorting_file")==True:
         if (oe_folder / result_folder_name).is_dir():
@@ -36,13 +40,20 @@ def main(thisDir, json_file):
             #sorting_spikes = si.core.load_extractor(oe_folder/sorting_folder_name)#this acts quite similar than above one line.
         else:
             print(f"no result folder found for {sorter_suffix} sorter")
+        if (oe_folder / "preprocessed_compressed.zarr").is_dir():
+            recording_saved = si.read_zarr(oe_folder / "preprocessed_compressed.zarr")
+        elif (oe_folder / "preprocessed").is_dir():
+            recording_saved = si.load_extractor(oe_folder / "preprocessed")
+        else:
+            print(f"no pre-processed folder found. Unable to extract waveform")
+            return sorting_spikes
     else:
         if analysis_methods.get("load_prepocessed_file")==True and (oe_folder / "preprocessed_compressed.zarr").is_dir():
             recording_saved = si.read_zarr(oe_folder / "preprocessed_compressed.zarr")
             fs = recording_saved.get_sampling_frequency()
         elif analysis_methods.get("load_prepocessed_file")==True and (oe_folder / "preprocessed").is_dir():
             print("Looks like you do not have compressed files. Read the original instead")
-            recording_saved = si.core.load_extractor(oe_folder / "preprocessed")
+            recording_saved = si.load_extractor(oe_folder / "preprocessed")
             fs = recording_saved.get_sampling_frequency()
         else:
             print("Load meta information from openEphys")
@@ -141,8 +152,56 @@ def main(thisDir, json_file):
         sorting_loaded_spikes=sorting_spikes.save(folder=oe_folder / sorting_folder_name)  
     for unit in sorting_spikes.get_unit_ids():
         print(f'with {this_sorter} sorter, Spike train of a unit:{sorting_spikes.get_unit_spike_train(unit_id=unit)}')
+    
+    ##extracting waveform
+    # the extracted waveform based on sparser signals (channels) makes the extraction faster. 
+    # However, if the channels are not dense enough the right waveform can not be properly extracted.
+         
+    if analysis_methods.get("extract_waveform_sparse")==True:
+        waveform_folder_name="waveforms_sparse"+sorter_suffix
+        we = si.extract_waveforms(recording_saved, sorting_spikes, folder=oe_folder / waveform_folder_name, 
+                          sparse=True, **job_kwargs)
+    else:
+        waveform_folder_name="waveforms_dense"+sorter_suffix
+        we = si.extract_waveforms(recording_saved, sorting_spikes, folder=oe_folder / waveform_folder_name, 
+                          sparse=False, overwrite=True, **job_kwargs)
+        sparsity = si.compute_sparsity(we, method='radius', radius_um=100.0)
 
-    return sorting_spikes
+
+    ##curation
+    # the safest way to curate spikes are manual curation, which phy seems to be a good package to deal with that
+    # When exporting spikes data to phy, amplitudes and pc features can also be calculated    
+    # if you do not wish to use phy, we can calculate quality metrics with other packages in spikeinterface.
+    ##exporting to phy 
+    ##still need to check whether methods are used to compute pc features and amplitude when exporting to phy, and whether
+    ## we want those methods to be default methods. 
+    ## If not, we should get some spost methods before this step and turn the two computer options in export_to_phy off. 
+    if analysis_methods.get("export_to_phy")==True:
+        phy_folder_name="phy"+sorter_suffix
+        sep.export_to_phy(we, output_folder=oe_folder / phy_folder_name, 
+                    compute_amplitudes=True, compute_pc_features=True, copy_binary=False,
+                    **job_kwargs)
+    else:
+        pc = spost.compute_principal_components(we, n_components=3, load_if_exists=False, **job_kwargs)
+        all_labels, all_pcs = pc.get_all_projections()
+        print(f"All PC scores shape: {all_pcs.shape}")
+        #we.get_available_extension_names()
+        #pc = we.load_extension("principal_components")
+        #all_labels, all_pcs = pc.get_data()
+        amplitudes = spost.compute_spike_amplitudes(we, outputs="by_unit", load_if_exists=True, **job_kwargs)
+        unit_locations = spost.compute_unit_locations(we, method="monopolar_triangulation", load_if_exists=True)
+        spike_locations = spost.compute_spike_locations(we, method="center_of_mass", load_if_exists=True, **job_kwargs)
+        ccgs, bins = spost.compute_correlograms(we)
+        similarity = spost.compute_template_similarity(we)
+        qm_params = sq.get_default_qm_params()
+        metric_names = sq.get_quality_metric_list()
+        qm = sq.compute_quality_metrics(we, metric_names=metric_names, verbose=True,  qm_params=qm_params, **job_kwargs)
+        print(qm)
+        
+    ##outputing a report
+    report_folder_name="phy"+sorter_suffix
+    sep.export_report(we, output_folder=oe_folder / report_folder_name)
+    return recording_saved,sorting_spikes
 
 if __name__ == "__main__":
     #thisDir = r"C:\Users\neuroLaptop\Documents\Open Ephys\P-series-32channels\GN00003\2023-12-28_14-39-40"
@@ -150,6 +209,6 @@ if __name__ == "__main__":
     json_file = "./analysis_methods_dictionary.json"
     ##Time the function
     tic = time.perf_counter()
-    sorting_spikes=main(thisDir, json_file)
+    recording_saved,sorting_spikes=main(thisDir, json_file)
     toc = time.perf_counter()
     print(f"it takes {toc-tic:0.4f} seconds to run the main function")
