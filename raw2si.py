@@ -15,6 +15,7 @@ import probeinterface as pi
 from probeinterface.plotting import plot_probe
 import numcodecs
 warnings.simplefilter("ignore")
+import spikeinterface.curation as scur
 
 def main(thisDir, json_file):
     oe_folder=Path(thisDir)
@@ -29,9 +30,14 @@ def main(thisDir, json_file):
     if this_sorter.lower() == "spykingcircus2":
         sorter_suffix="_SC2"
     elif this_sorter.lower() == "kilosort3":
-        sorter_suffix="_KC3"
+        sorter_suffix="_KS3"
+    elif this_sorter.lower() == "kilosort4":
+        sorter_suffix="_KS4"
     result_folder_name="results"+sorter_suffix
     sorting_folder_name="sorting"+sorter_suffix
+    n_cpus = os.cpu_count()
+    n_jobs = n_cpus - 4
+    job_kwargs = dict(n_jobs=n_jobs, chunk_duration="1s", progress_bar=True)
     
 
     if analysis_methods.get("load_sorting_file")==True:
@@ -61,9 +67,9 @@ def main(thisDir, json_file):
             # To show the start of recording time 
             # full_raw_rec.get_times()[0]
             event=se.read_openephys_event(oe_folder)
-            #event_channel_ids=event.channel_ids
+            #event_channel_ids=channel_ids
             #events = event.get_events(channel_id=channel_ids[1], segment_index=0)# a complete record of events including [('time', '<f8'), ('duration', '<f8'), ('label', '<U100')]
-            events_times=event.get_event_times(channel_id=channel_ids[1],segment_index=0)# this record ON phase of sync pulse
+            events_times=event.get_event_times(channel_id=event.channel_ids[1],segment_index=0)# this record ON phase of sync pulse
             fs = full_raw_rec.get_sampling_frequency()
             if analysis_methods.get("load_raw_traces")==True:
                 trace_snippet = full_raw_rec.get_traces(start_frame=int(fs*0), end_frame=int(fs*2))
@@ -106,9 +112,6 @@ def main(thisDir, json_file):
         if analysis_methods.get("analyse_entire_recording") ==False:
             rec_of_interest = rec_of_interest.frame_slice(start_frame=0*fs, end_frame=100*fs)#need to check if I can do this online
 
-        n_cpus = os.cpu_count()
-        n_jobs = n_cpus - 4
-        job_kwargs = dict(n_jobs=n_jobs, chunk_duration="1s", progress_bar=True)
         # ideally only saving preprocessed files in compressed format
         compressor_name="zstd"
         if (oe_folder / "preprocessed_compressed.zarr").is_dir():
@@ -130,9 +133,15 @@ def main(thisDir, json_file):
 
         # update parameters of sorters. For non-kilosort sorters, here is an additional step to correct motion artifact.
         if this_sorter.startswith("kilosort"):
-            kilosort_3_path = r'C:\Users\neuroPC\Documents\GitHub\Kilosort'
-            ss.Kilosort3Sorter.set_kilosort3_path(kilosort_3_path)
-            sorter_params=ss.get_default_sorter_params(this_sorter)
+            if this_sorter == "kilosort3":
+                kilosort_3_path = r'C:\Users\neuroPC\Documents\GitHub\Kilosort'
+                ss.Kilosort3Sorter.set_kilosort3_path(kilosort_3_path)
+            else:
+                print("use kilosort4")
+            sorter_params={'dminx': 250,'nearest_templates':10}
+            sorting_spikes = ss.run_sorter(sorter_name=this_sorter, recording=recording_saved, remove_existing_folder=True,
+                                        output_folder=oe_folder / result_folder_name,
+                                        verbose=True, **sorter_params)
             #sorter_params.update({"projection_threshold": [9, 9]})##this is a parameters from Christopher Michael Jernigan's experiences with Wasps
         else:
             motion_folder=oe_folder / "motion"
@@ -142,9 +151,9 @@ def main(thisDir, json_file):
             sorter_params=ss.get_default_sorter_params(this_sorter)
 
         # run spike sorting on recording of interest            
-        sorting_spikes = ss.run_sorter(sorter_name=this_sorter, recording=recording_saved, remove_existing_folder=True,
-                                    output_folder=oe_folder / result_folder_name,
-                                    verbose=True, **job_kwargs)
+            sorting_spikes = ss.run_sorter(sorter_name=this_sorter, recording=recording_saved, remove_existing_folder=True,
+                                        output_folder=oe_folder / result_folder_name,
+                                        verbose=True, **job_kwargs)
         ##this will return a sorting object
     
     w_rs=sw.plot_rasters(sorting_spikes, time_range=(0,30),backend="matplotlib")
@@ -156,11 +165,12 @@ def main(thisDir, json_file):
     ##extracting waveform
     # the extracted waveform based on sparser signals (channels) makes the extraction faster. 
     # However, if the channels are not dense enough the right waveform can not be properly extracted.
-         
+    sorting_wout_excess_spikes = scur.remove_excess_spikes(sorting_spikes, recording_saved)
+    sorting_spikes=sorting_wout_excess_spikes    
     if analysis_methods.get("extract_waveform_sparse")==True:
         waveform_folder_name="waveforms_sparse"+sorter_suffix
         we = si.extract_waveforms(recording_saved, sorting_spikes, folder=oe_folder / waveform_folder_name, 
-                          sparse=True, **job_kwargs)
+                          sparse=True, overwrite=True,**job_kwargs)
     else:
         waveform_folder_name="waveforms_dense"+sorter_suffix
         we = si.extract_waveforms(recording_saved, sorting_spikes, folder=oe_folder / waveform_folder_name, 
@@ -199,13 +209,14 @@ def main(thisDir, json_file):
         print(qm)
         
     ##outputing a report
-    report_folder_name="phy"+sorter_suffix
-    sep.export_report(we, output_folder=oe_folder / report_folder_name)
+    if analysis_methods.get("export_report")==True:
+        report_folder_name="report"+sorter_suffix
+        sep.export_report(we, output_folder=oe_folder / report_folder_name)
     return recording_saved,sorting_spikes
 
 if __name__ == "__main__":
     #thisDir = r"C:\Users\neuroLaptop\Documents\Open Ephys\P-series-32channels\GN00003\2023-12-28_14-39-40"
-    thisDir = r"C:\Users\neuroLaptop\Documents\Open Ephys\2024-02-01_15-25-25"
+    thisDir = r"C:\Users\einat\Documents\Open Ephys\2024-02-01_15-25-25"
     json_file = "./analysis_methods_dictionary.json"
     ##Time the function
     tic = time.perf_counter()

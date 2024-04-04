@@ -1,13 +1,16 @@
 {
  "experimenter": "chiyu",
- "sorter_name": "kilosort3",
- "analyse_good_channels_only": true,
+ "sorter_name": "kilosort4",
+ "analyse_good_channels_only": false,
  "load_raw_traces": false,
  "analyse_entire_recording": true,
  "save_prepocessed_file": false,
  "load_prepocessed_file": false,
  "save_sorting_file": false,
  "load_sorting_file": false,
+ "extract_waveform_sparse": true,
+ "export_to_phy": true,
+ "export_report": false,
  "overwrite_curated_dataset": true,
  "graph_colour_code": [
   "r",
