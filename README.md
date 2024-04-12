@@ -5,11 +5,15 @@ Install the latest anaconda version for your operating system (https://www.anaco
 
 Open the anaconda prompt and create a virtual environment via conda
 ````
-conda create --name tracking_analysis --channel conda-forge python=3.11
+conda create --name tracking_analysis --channel conda-forge python=3.10
 conda activate tracking_analysis
 conda update -n base -c defaults conda
 conda config --add channels conda-forge
 conda config --set channel_priority strict
-conda install --yes -c conda-forge -v ipython jupyter matplotlib tqdm pandas pytest fooof neurodsp ipympl
-pip install open-ephys-python-tools spikeinterface zarr docker cuda-python
+python -m pip install kilosort[gui]
+pip uninstall torch
+conda install pytorch pytorch-cuda=11.8 -c pytorch -c nvidia
+pip install open-ephys-python-tools spikeinterface zarr docker cuda-python numcodecs
 ````
+Probably dont need the bottom command anymore
+conda install --yes -c conda-forge -v ipython jupyter matplotlib tqdm pandas pytest fooof neurodsp ipympl
