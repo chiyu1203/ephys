@@ -108,7 +108,8 @@ def main(thisDir, json_file):
 
 if __name__ == "__main__":
     #thisDir = "C:/Users/neuroLaptop/Documents/Open Ephys/2023-06-06_21-51-30/"
-    thisDir = r"C:\Users\neuroLaptop\Documents\Open Ephys\P-series-32channels\GN00002\2023-12-01_18-23-27"
+    #thisDir = r"C:\Users\neuroLaptop\Documents\Open Ephys\P-series-32channels\GN00002\2023-12-01_18-23-27"
+    thisDir = r"Z:\DATA\experiment_openEphys\P-series-32channels\2024-02-01_18-55-51"
     #thisDir = r"Z:\Users\chiyu\sync_test"
     json_file = "./analysis_methods_dictionary.json"
     ##Time the function

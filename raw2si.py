@@ -109,16 +109,18 @@ def main(thisDir, json_file):
             rec_of_interest = recording_cmr
         else:
             rec_of_interest = recording_saved
+            rec_of_interest.annotate(is_filtered=True)#needed to add this because loading saved-preprocessed data is not labeled as filtered data
         if analysis_methods.get("analyse_entire_recording") ==False:
-            rec_of_interest = rec_of_interest.frame_slice(start_frame=0*fs, end_frame=100*fs)#need to check if I can do this online
-
+            start_sec=0
+            end_sec=3600
+            rec_of_interest = rec_of_interest.frame_slice(start_frame=start_sec*fs, end_frame=end_sec*fs)#need to check if I can do this online
         # ideally only saving preprocessed files in compressed format
         compressor_name="zstd"
         if (oe_folder / "preprocessed_compressed.zarr").is_dir():
             if analysis_methods.get("save_prepocessed_file")==True and analysis_methods.get("overwrite_curated_dataset")==True:
                 compressor = numcodecs.Blosc(cname="zstd", clevel=9, shuffle=numcodecs.Blosc.BITSHUFFLE)
                 recording_saved = rec_of_interest.save(format="zarr", folder=oe_folder / "preprocessed_compressed.zarr",
-                                                    compressor=compressor,
+                                                    compressor=compressor,overwrite=True,
                                                     **job_kwargs)
                 print(f"Overwrite existing file with compressor: {compressor_name}")
             else:
@@ -158,7 +160,7 @@ def main(thisDir, json_file):
     
     w_rs=sw.plot_rasters(sorting_spikes, time_range=(0,30),backend="matplotlib")
     if analysis_methods.get("save_sorting_file")==True and analysis_methods.get("overwrite_curated_dataset")==True:
-        sorting_loaded_spikes=sorting_spikes.save(folder=oe_folder / sorting_folder_name)  
+        sorting_loaded_spikes=sorting_spikes.save(folder=oe_folder / sorting_folder_name, overwrite=True)  
     for unit in sorting_spikes.get_unit_ids():
         print(f'with {this_sorter} sorter, Spike train of a unit:{sorting_spikes.get_unit_spike_train(unit_id=unit)}')
     
@@ -186,10 +188,10 @@ def main(thisDir, json_file):
     ##still need to check whether methods are used to compute pc features and amplitude when exporting to phy, and whether
     ## we want those methods to be default methods. 
     ## If not, we should get some spost methods before this step and turn the two computer options in export_to_phy off. 
-    if analysis_methods.get("export_to_phy")==True:
+    if analysis_methods.get("export_to_phy")==True and analysis_methods.get("overwrite_existing_phy")==True:
         phy_folder_name="phy"+sorter_suffix
         sep.export_to_phy(we, output_folder=oe_folder / phy_folder_name, 
-                    compute_amplitudes=True, compute_pc_features=True, copy_binary=False,
+                    compute_amplitudes=True, compute_pc_features=True, copy_binary=False,remove_if_exists=True,
                     **job_kwargs)
     else:
         pc = spost.compute_principal_components(we, n_components=3, load_if_exists=False, **job_kwargs)
@@ -216,7 +218,7 @@ def main(thisDir, json_file):
 
 if __name__ == "__main__":
     #thisDir = r"C:\Users\neuroLaptop\Documents\Open Ephys\P-series-32channels\GN00003\2023-12-28_14-39-40"
-    thisDir = r"C:\Users\einat\Documents\Open Ephys\2024-02-01_15-25-25"
+    thisDir = r"Z:\DATA\experiment_openEphys\P-series-32channels\2024-02-01_18-55-51"
     json_file = "./analysis_methods_dictionary.json"
     ##Time the function
     tic = time.perf_counter()
