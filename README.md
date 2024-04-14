@@ -13,7 +13,7 @@ conda config --set channel_priority strict
 python -m pip install kilosort[gui]
 pip uninstall torch
 conda install pytorch pytorch-cuda=11.8 -c pytorch -c nvidia
-pip install open-ephys-python-tools spikeinterface zarr docker cuda-python numcodecs
+pip install open-ephys-python-tools spikeinterface zarr docker cuda-python numcodecs hdbscan
 ````
-Probably dont need the bottom command anymore
-conda install --yes -c conda-forge -v ipython jupyter matplotlib tqdm pandas pytest fooof neurodsp ipympl
+Probably dont need the command below anymore
+conda install --yes -c conda-forge -v ipython jupyter matplotlib tqdm pandas pytest fooof neurodsp ipympl 

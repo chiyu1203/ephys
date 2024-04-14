@@ -49,14 +49,17 @@ def main(thisDir, json_file):
         #load recording in case there is a need to extract waveform    
         if (oe_folder / "preprocessed_compressed.zarr").is_dir():
             recording_saved = si.read_zarr(oe_folder / "preprocessed_compressed.zarr")
+            print(recording_saved.get_property_keys())
         elif (oe_folder / "preprocessed").is_dir():
             recording_saved = si.load_extractor(oe_folder / "preprocessed")
         else:
             print(f"no pre-processed folder found. Unable to extract waveform")
             return sorting_spikes
+        recording_saved.annotate(is_filtered=True)
     else:
         if analysis_methods.get("load_prepocessed_file")==True and (oe_folder / "preprocessed_compressed.zarr").is_dir():
             recording_saved = si.read_zarr(oe_folder / "preprocessed_compressed.zarr")
+            print(recording_saved.get_property_keys())
             fs = recording_saved.get_sampling_frequency()
         elif analysis_methods.get("load_prepocessed_file")==True and (oe_folder / "preprocessed").is_dir():
             print("Looks like you do not have compressed files. Read the original instead")
@@ -113,7 +116,7 @@ def main(thisDir, json_file):
             rec_of_interest.annotate(is_filtered=True)#needed to add this because loading saved-preprocessed data is not labeled as filtered data
         if analysis_methods.get("analyse_entire_recording") ==False:
             start_sec=1
-            end_sec=900
+            end_sec=899
             rec_of_interest = rec_of_interest.frame_slice(start_frame=start_sec*fs, end_frame=end_sec*fs)#need to check if I can do this online
         # ideally only saving preprocessed files in compressed format
         compressor_name="zstd"
@@ -170,7 +173,7 @@ def main(thisDir, json_file):
     # the extracted waveform based on sparser signals (channels) makes the extraction faster. 
     # However, if the channels are not dense enough the right waveform can not be properly extracted.
     sorting_wout_excess_spikes = scur.remove_excess_spikes(sorting_spikes, recording_saved)
-    sorting_spikes=sorting_wout_excess_spikes    
+    sorting_spikes=sorting_wout_excess_spikes
     if analysis_methods.get("extract_waveform_sparse")==True:
         waveform_folder_name="waveforms_sparse"+sorter_suffix
         we = si.extract_waveforms(recording_saved, sorting_spikes, folder=oe_folder / waveform_folder_name, 
@@ -178,10 +181,45 @@ def main(thisDir, json_file):
     else:
         waveform_folder_name="waveforms_dense"+sorter_suffix
         we = si.extract_waveforms(recording_saved, sorting_spikes, folder=oe_folder / waveform_folder_name, 
-                          sparse=False, overwrite=True, **job_kwargs)
+                            sparse=False, overwrite=True, **job_kwargs)
+        all_templates = we.get_all_templates()
+        print(f"All templates shape: {all_templates.shape}")
+        for unit in sorting_spikes.get_unit_ids()[::10]:
+            waveforms = we.get_waveforms(unit_id=unit)
+            spiketrain = sorting_spikes.get_unit_spike_train(unit)
+            print(f"Unit {unit} - num waveforms: {waveforms.shape[0]} - num spikes: {len(spiketrain)}")
+
         sparsity = si.compute_sparsity(we, method='radius', radius_um=100.0)
-
-
+        #  check the sparsity for some units
+        for unit_id in sorting_spikes.unit_ids[::30]:
+            print(unit_id, list(sparsity.unit_id_to_channel_ids[unit_id]))
+        if analysis_methods.get("extract_waveform_sparse_explicit")==True:
+            waveform_folder_name="waveforms_sparse_explicit"+sorter_suffix
+            we = si.extract_waveforms(recording_saved, sorting_spikes, folder=oe_folder / waveform_folder_name, 
+                            sparse=sparsity, overwrite=True,**job_kwargs)
+            # the waveforms are now sparse
+            for unit_id in we.unit_ids[::10]:
+                waveforms = we.get_waveforms(unit_id=unit_id)
+                print(unit_id, waveforms.shape)
+    ##evaluating the spike sorting 
+    pc = spost.compute_principal_components(we, n_components=3, load_if_exists=False, **job_kwargs)
+    all_labels, all_pcs = pc.get_all_projections()
+    print(f"All PC scores shape: {all_pcs.shape}")
+    we.get_available_extension_names()
+    pc = we.load_extension("principal_components")
+    all_labels, all_pcs = pc.get_data()
+    print(all_pcs.shape)
+    amplitudes = spost.compute_spike_amplitudes(we, outputs="by_unit", load_if_exists=True, **job_kwargs)
+    unit_locations = spost.compute_unit_locations(we, method="monopolar_triangulation", load_if_exists=True)
+    spike_locations = spost.compute_spike_locations(we, method="center_of_mass", load_if_exists=True, **job_kwargs)
+    ccgs, bins = spost.compute_correlograms(we)
+    similarity = spost.compute_template_similarity(we)
+    template_metrics = spost.compute_template_metrics(we)
+    qm_params = sq.get_default_qm_params()
+    metric_names = sq.get_quality_metric_list()
+    if we.return_scaled:
+        qm = sq.compute_quality_metrics(we, metric_names=metric_names, verbose=True,  qm_params=qm_params, **job_kwargs)
+    print(we.get_available_extension_names())# check available extension
     ##curation
     # the safest way to curate spikes are manual curation, which phy seems to be a good package to deal with that
     # When exporting spikes data to phy, amplitudes and pc features can also be calculated    
@@ -193,23 +231,9 @@ def main(thisDir, json_file):
     if analysis_methods.get("export_to_phy")==True and analysis_methods.get("overwrite_existing_phy")==True:
         phy_folder_name="phy"+sorter_suffix
         sep.export_to_phy(we, output_folder=oe_folder / phy_folder_name, 
-                    compute_amplitudes=True, compute_pc_features=True, copy_binary=False,remove_if_exists=True,
+                    compute_amplitudes=True, compute_pc_features=True, copy_binary=True,remove_if_exists=True,
                     **job_kwargs)
     else:
-        pc = spost.compute_principal_components(we, n_components=3, load_if_exists=False, **job_kwargs)
-        all_labels, all_pcs = pc.get_all_projections()
-        print(f"All PC scores shape: {all_pcs.shape}")
-        #we.get_available_extension_names()
-        #pc = we.load_extension("principal_components")
-        #all_labels, all_pcs = pc.get_data()
-        amplitudes = spost.compute_spike_amplitudes(we, outputs="by_unit", load_if_exists=True, **job_kwargs)
-        unit_locations = spost.compute_unit_locations(we, method="monopolar_triangulation", load_if_exists=True)
-        spike_locations = spost.compute_spike_locations(we, method="center_of_mass", load_if_exists=True, **job_kwargs)
-        ccgs, bins = spost.compute_correlograms(we)
-        similarity = spost.compute_template_similarity(we)
-        qm_params = sq.get_default_qm_params()
-        metric_names = sq.get_quality_metric_list()
-        qm = sq.compute_quality_metrics(we, metric_names=metric_names, verbose=True,  qm_params=qm_params, **job_kwargs)
         print(qm)
         
     ##outputing a report
@@ -220,8 +244,8 @@ def main(thisDir, json_file):
 
 if __name__ == "__main__":
     #thisDir = r"C:\Users\neuroLaptop\Documents\Open Ephys\P-series-32channels\GN00003\2023-12-28_14-39-40"
-    #thisDir = r"Z:\DATA\experiment_openEphys\P-series-32channels\2024-02-01_18-55-51"
-    thisDir = r"C:\Users\neuroPC\Documents\Open Ephys\2024-02-01_15-25-25"
+    thisDir = r"Z:\DATA\experiment_openEphys\P-series-32channels\2024-02-01_18-55-51"
+    #thisDir = r"C:\Users\neuroPC\Documents\Open Ephys\2024-02-01_15-25-25"
     json_file = "./analysis_methods_dictionary.json"
     ##Time the function
     tic = time.perf_counter()
