@@ -46,6 +46,7 @@ def main(thisDir, json_file):
             #sorting_spikes = si.core.load_extractor(oe_folder/sorting_folder_name)#this acts quite similar than above one line.
         else:
             print(f"no result folder found for {sorter_suffix} sorter")
+        #load recording in case there is a need to extract waveform    
         if (oe_folder / "preprocessed_compressed.zarr").is_dir():
             recording_saved = si.read_zarr(oe_folder / "preprocessed_compressed.zarr")
         elif (oe_folder / "preprocessed").is_dir():
@@ -111,8 +112,8 @@ def main(thisDir, json_file):
             rec_of_interest = recording_saved
             rec_of_interest.annotate(is_filtered=True)#needed to add this because loading saved-preprocessed data is not labeled as filtered data
         if analysis_methods.get("analyse_entire_recording") ==False:
-            start_sec=0
-            end_sec=3600
+            start_sec=1
+            end_sec=900
             rec_of_interest = rec_of_interest.frame_slice(start_frame=start_sec*fs, end_frame=end_sec*fs)#need to check if I can do this online
         # ideally only saving preprocessed files in compressed format
         compressor_name="zstd"
@@ -136,14 +137,15 @@ def main(thisDir, json_file):
         # update parameters of sorters. For non-kilosort sorters, here is an additional step to correct motion artifact.
         if this_sorter.startswith("kilosort"):
             if this_sorter == "kilosort3":
-                kilosort_3_path = r'C:\Users\neuroPC\Documents\GitHub\Kilosort'
+                kilosort_3_path = r'C:\Users\neuroPC\Documents\GitHub\Kilosort-3.0.2'
                 ss.Kilosort3Sorter.set_kilosort3_path(kilosort_3_path)
+                sorter_params = {'do_correction': False}
             else:
                 print("use kilosort4")
-            sorter_params={'dminx': 250,'nearest_templates':10}
+                sorter_params={'dminx': 250,'nearest_templates':10}
             sorting_spikes = ss.run_sorter(sorter_name=this_sorter, recording=recording_saved, remove_existing_folder=True,
-                                        output_folder=oe_folder / result_folder_name,
-                                        verbose=True, **sorter_params)
+                                    output_folder=oe_folder / result_folder_name,
+                                    verbose=True, **sorter_params)
             #sorter_params.update({"projection_threshold": [9, 9]})##this is a parameters from Christopher Michael Jernigan's experiences with Wasps
         else:
             motion_folder=oe_folder / "motion"
@@ -155,7 +157,7 @@ def main(thisDir, json_file):
         # run spike sorting on recording of interest            
             sorting_spikes = ss.run_sorter(sorter_name=this_sorter, recording=recording_saved, remove_existing_folder=True,
                                         output_folder=oe_folder / result_folder_name,
-                                        verbose=True, **job_kwargs)
+                                        verbose=True)
         ##this will return a sorting object
     
     w_rs=sw.plot_rasters(sorting_spikes, time_range=(0,30),backend="matplotlib")
@@ -218,7 +220,8 @@ def main(thisDir, json_file):
 
 if __name__ == "__main__":
     #thisDir = r"C:\Users\neuroLaptop\Documents\Open Ephys\P-series-32channels\GN00003\2023-12-28_14-39-40"
-    thisDir = r"Z:\DATA\experiment_openEphys\P-series-32channels\2024-02-01_18-55-51"
+    #thisDir = r"Z:\DATA\experiment_openEphys\P-series-32channels\2024-02-01_18-55-51"
+    thisDir = r"C:\Users\neuroPC\Documents\Open Ephys\2024-02-01_15-25-25"
     json_file = "./analysis_methods_dictionary.json"
     ##Time the function
     tic = time.perf_counter()
