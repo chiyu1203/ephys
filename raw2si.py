@@ -42,8 +42,8 @@ def main(thisDir, json_file):
 
     if analysis_methods.get("load_sorting_file")==True:
         if (oe_folder / result_folder_name).is_dir():
-            sorting_spikes = ss.read_sorter_folder(oe_folder/result_folder_name)
-            #sorting_spikes = si.core.load_extractor(oe_folder/sorting_folder_name)#this acts quite similar than above one line.
+            #sorting_spikes = ss.read_sorter_folder(oe_folder/result_folder_name)
+            sorting_spikes = si.load_extractor(oe_folder/sorting_folder_name)#this acts quite similar than above one line.
         else:
             print(f"no result folder found for {sorter_suffix} sorter")
         #load recording in case there is a need to extract waveform    
@@ -166,8 +166,22 @@ def main(thisDir, json_file):
     w_rs=sw.plot_rasters(sorting_spikes, time_range=(0,30),backend="matplotlib")
     if analysis_methods.get("save_sorting_file")==True and analysis_methods.get("overwrite_curated_dataset")==True:
         sorting_loaded_spikes=sorting_spikes.save(folder=oe_folder / sorting_folder_name, overwrite=True)  
-    for unit in sorting_spikes.get_unit_ids():
-        print(f'with {this_sorter} sorter, Spike train of a unit:{sorting_spikes.get_unit_spike_train(unit_id=unit)}')
+    # for unit in sorting_spikes.get_unit_ids():
+    #     print(f'with {this_sorter} sorter, Spike train of a unit:{sorting_spikes.get_unit_spike_train(unit_id=unit)}')
+
+    if analysis_methods.get("aligning_with_stimuli")==True:
+        full_raw_rec = se.read_openephys(oe_folder,load_sync_timestamps=True)
+        event=se.read_openephys_event(oe_folder)
+        #event_channel_ids=channel_ids
+        #events = event.get_events(channel_id=channel_ids[1], segment_index=0)# a complete record of events including [('time', '<f8'), ('duration', '<f8'), ('label', '<U100')]
+        events_times=event.get_event_times(channel_id=event.channel_ids[1],segment_index=0)# this record ON phase of sync pulse
+        for this_event in events_times:
+            for unit in sorting_spikes.get_unit_ids():
+                print(f'with {this_sorter} sorter, Spike train of a unit:{sorting_spikes.get_unit_spike_train(unit_id=unit)}')
+                this_event>sorting_spikes.get_unit_spike_train(unit_id=unit)/float(sorting_spikes.sampling_frequency)
+
+        if analysis_methods.get("analysis_by_stimulus_type")==True:
+            print("write something here to load stimulus information")
     
     ##extracting waveform
     # the extracted waveform based on sparser signals (channels) makes the extraction faster. 
