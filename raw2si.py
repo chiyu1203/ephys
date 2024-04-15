@@ -16,6 +16,13 @@ from probeinterface.plotting import plot_probe
 import numcodecs
 warnings.simplefilter("ignore")
 import spikeinterface.curation as scur
+'''
+This pipeline uses spikeinterface as a backbone. It includes preprocessing, sorting, and postprocessing sections
+It takes roughly 2 hours to go through the whole process for an 3-hour recording (32 channels).
+
+'''
+
+
 
 def main(thisDir, json_file):
     oe_folder=Path(thisDir)
@@ -94,7 +101,7 @@ def main(thisDir, json_file):
             raw_rec.annotate(description=f"Dataset of {this_experimenter}")#should change here for something related in the future
             #preprocessing
             #apply band pass filter
-            recording_f = spre.bandpass_filter(raw_rec, freq_min=300, freq_max=9000)
+            recording_f = spre.bandpass_filter(raw_rec, freq_min=600, freq_max=6000)
             #apply common median reference
             if analysis_methods.get("analyse_good_channels_only")==True:
                 '''
@@ -244,7 +251,7 @@ def main(thisDir, json_file):
 
 if __name__ == "__main__":
     #thisDir = r"C:\Users\neuroLaptop\Documents\Open Ephys\P-series-32channels\GN00003\2023-12-28_14-39-40"
-    thisDir = r"Z:\DATA\experiment_openEphys\P-series-32channels\2024-02-01_18-55-51"
+    thisDir = r"Z:\DATA\experiment_openEphys\P-series-32channels\2024-02-01_15-25-25"
     #thisDir = r"C:\Users\neuroPC\Documents\Open Ephys\2024-02-01_15-25-25"
     json_file = "./analysis_methods_dictionary.json"
     ##Time the function
