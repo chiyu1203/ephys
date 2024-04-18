@@ -12,6 +12,7 @@
  "extract_waveform_sparse_explicit": false,
  "export_to_phy": true,
  "overwrite_existing_phy": true,
+ "load_curated_spikes": true,
  "export_report": false,
  "aligning_with_stimuli": true,
  "overwrite_curated_dataset": true,

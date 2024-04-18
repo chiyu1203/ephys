@@ -15,6 +15,7 @@ analysis_methods = {
     "extract_waveform_sparse_explicit": False,
     "export_to_phy": True,
     "overwrite_existing_phy": True,
+    "load_curated_spikes": True,
     "export_report": False,
     "aligning_with_stimuli": True,
     "overwrite_curated_dataset": True,

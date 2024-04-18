@@ -6,10 +6,13 @@ import spikeinterface.postprocessing as spost
 import spikeinterface.sorters as ss
 import spikeinterface.qualitymetrics as sq
 import spikeinterface.exporters as sep
-#import spikeinterface.comparison as sc
+#from spikeinterface.sortingcomponents.clustering import find_cluster_from_peaks
 import spikeinterface.widgets as sw
 import matplotlib.pyplot as plt
-#import numpy as np
+from brainbox.population.decode import get_spike_counts_in_bins
+from brainbox.task.trials import get_event_aligned_raster, get_psth
+from brainbox.ephys_plots import scatter_raster_plot
+import numpy as np
 from pathlib import Path
 import probeinterface as pi
 from probeinterface.plotting import plot_probe
@@ -178,17 +181,10 @@ def main(thisDir, json_file):
 
     if analysis_methods.get("aligning_with_stimuli")==True:
         full_raw_rec = se.read_openephys(oe_folder,load_sync_timestamps=True)
-        event=se.read_openephys_event(oe_folder)
-        #event_channel_ids=channel_ids
-        #events = event.get_events(channel_id=channel_ids[1], segment_index=0)# a complete record of events including [('time', '<f8'), ('duration', '<f8'), ('label', '<U100')]
-        events_times=event.get_event_times(channel_id=event.channel_ids[1],segment_index=0)# this record ON phase of sync pulse
-        for this_event in events_times:
-            for unit in sorting_spikes.get_unit_ids():
-                print(f'with {this_sorter} sorter, Spike train of a unit:{sorting_spikes.get_unit_spike_train(unit_id=unit)}')
-                this_event>sorting_spikes.get_unit_spike_train(unit_id=unit)/float(sorting_spikes.sampling_frequency)
-
-        if analysis_methods.get("analysis_by_stimulus_type")==True:
-            print("write something here to load stimulus information")
+        aux_events=se.read_openephys_event(oe_folder)
+        events_times=aux_events.get_event_times(channel_id=aux_events.channel_ids[1],segment_index=0)# this record ON phase of sync pulse
+        time_window = np.array([-0.1, 0.0])
+        events_tw = np.array([events_times+time_window[0], events_times+time_window[1]]).T
     
     ##extracting waveform
     # the extracted waveform based on sparser signals (channels) makes the extraction faster. 
@@ -233,6 +229,7 @@ def main(thisDir, json_file):
     amplitudes = spost.compute_spike_amplitudes(we, outputs="by_unit", load_if_exists=True, **job_kwargs)
     unit_locations = spost.compute_unit_locations(we, method="monopolar_triangulation", load_if_exists=True)
     spike_locations = spost.compute_spike_locations(we, method="center_of_mass", load_if_exists=True, **job_kwargs)
+    ##spike_clusters=find_cluster_from_peaks(recording_saved, peaks, method='stupid', method_kwargs={}, extra_outputs=False, **job_kwargs)
     ccgs, bins = spost.compute_correlograms(we)
     similarity = spost.compute_template_similarity(we)
     template_metrics = spost.compute_template_metrics(we)
@@ -241,6 +238,11 @@ def main(thisDir, json_file):
     if we.return_scaled:
         qm = sq.compute_quality_metrics(we, metric_names=metric_names, verbose=True,  qm_params=qm_params, **job_kwargs)
     print(we.get_available_extension_names())# check available extension
+    #get_spike_counts_in_bins
+    #event_channel_ids=channel_ids
+    #events = event.get_events(channel_id=channel_ids[1], segment_index=0)# a complete record of events including [('time', '<f8'), ('duration', '<f8'), ('label', '<U100')]
+
+
     ##curation
     # the safest way to curate spikes are manual curation, which phy seems to be a good package to deal with that
     # When exporting spikes data to phy, amplitudes and pc features can also be calculated    
