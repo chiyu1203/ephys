@@ -13,6 +13,7 @@ import matplotlib.pyplot as plt
 from brainbox.population.decode import get_spike_counts_in_bins
 from brainbox.task.trials import get_event_aligned_raster, get_psth
 from brainbox.ephys_plots import scatter_raster_plot
+from brainbox.plot import peri_event_time_histogram
 import numpy as np
 from pathlib import Path
 import probeinterface as pi
@@ -81,15 +82,36 @@ def main(thisDir, json_file):
             return sorting_spikes
         recording_saved.annotate(is_filtered=True)
     if analysis_methods.get("aligning_with_stimuli") == True:
+        ##load stimulus meta info
+        stim_info = r"Z:\DATA\experiment_trackball_Optomotor\Zball\GN23012\231126\coherence\session1"
+        pd_pattern = "behavioural_summary.pickle"
+        tracking_file = find_file(stim_info, pd_pattern)
+
+        if tracking_file is None:
+            print("load raw stimulus information")
+            csv_pattern = "trial_events2023-11-26T14_55_14.csv"
+            this_csv = find_file(stim_info, csv_pattern)
+            stim_info = pd.read_csv(this_csv)
+            num_stim = int(stim_info.shape[0] / 2)
+        else:
+            behavioural_summary = pd.read_pickle(tracking_file)
+            num_stim = behavioural_summary.shape[0]
+        ##load stimulus meta info
         full_raw_rec = se.read_openephys(oe_folder, load_sync_timestamps=True)
         aux_events = se.read_openephys_event(oe_folder)
         events_times = aux_events.get_event_times(
             channel_id=aux_events.channel_ids[1], segment_index=0
         )  # this record ON phase of sync pulse
         time_window = np.array([-0.1, 0.0])
-        events_tw = np.array(
-            [events_times[1:] + time_window[0], events_times[1:] + time_window[1]]
-        ).T  # ignore the first event, which is recorded when pressing the start delivering stimulus button on Bonsai
+        if len(events_times) > num_stim:
+
+            events_tw = np.array(
+                [events_times[1:] + time_window[0], events_times[1:] + time_window[1]]
+            ).T
+        else:
+            events_tw = np.array(
+                [events_times + time_window[0], events_times + time_window[1]]
+            ).T  # ignore the first event, which is recorded when pressing the start delivering stimulus button on Bonsai
 
     # sorting_wout_excess_spikes = scur.remove_excess_spikes(
     #     sorting_spikes, recording_saved
@@ -197,15 +219,31 @@ def main(thisDir, json_file):
     # this_event>sorting_spikes.get_unit_spike_train(unit_id=unit)/float(sorting_spikes.sampling_frequency)
 
     if analysis_methods.get("analysis_by_stimulus_type") == True:
-        testDir = r"Z:\DATA\experiment_trackball_Optomotor\Zball\GN23012\231126\coherence\session1"
-        pd_pattern = "behavioural_summary.pickle"
-        this_PD = find_file(testDir, pd_pattern)
-        behavioural_summary = pd.read_pickle(this_PD)
+        stim_type = analysis_methods.get("stim_type")
+        for this_id in np.unique(cluster_id_all):
+            for thisStim in stim_type:
+
+                # troubleshoot this part. Dont know why it exceeds the max size
+                this_event = events_times[
+                    behavioural_summary.loc[:, "stim_type"] > thisStim
+                ]
+                peri_event_time_histogram(
+                    spike_time_all,
+                    cluster_id_all,
+                    this_event,
+                    this_id,
+                    include_raster=True,
+                    raster_kwargs={"color": "black", "lw": 1},
+                )
+        # testDir = r"Z:\DATA\experiment_trackball_Optomotor\Zball\GN23012\231126\coherence\session1"
+        # pd_pattern = "behavioural_summary.pickle"
+        # this_PD = find_file(testDir, pd_pattern)
+        # behavioural_summary = pd.read_pickle(this_PD)
 
 
 if __name__ == "__main__":
     # thisDir = r"C:\Users\neuroLaptop\Documents\Open Ephys\P-series-32channels\GN00003\2023-12-28_14-39-40"
-    thisDir = r"Z:\DATA\experiment_openEphys\P-series-32channels\2024-02-01_15-25-25"
+    thisDir = r"Z:\DATA\experiment_openEphys\P-series-32channels\2024-04-22_01-09-50"
     # thisDir = r"C:\Users\neuroPC\Documents\Open Ephys\2024-02-01_15-25-25"
     json_file = "./analysis_methods_dictionary.json"
     ##Time the function

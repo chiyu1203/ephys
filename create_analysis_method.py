@@ -31,17 +31,7 @@ analysis_methods = {
     "frame_rate": 144,
     "stim_duration": 20,
     "interval_duration": 10,
-    "stim_type": [
-        -100,
-        -75,
-        -50,
-        -25,
-        0,
-        25,
-        50,
-        75,
-        100,
-    ],
+    "stim_type": [-100, -66, -33, 0, 33, 66, 100],
 }  # plue value representing clockwise, counterclockwise is minus, then the rest is coherence leve
 json_string = json.dumps(analysis_methods, indent=1)
 with open(file_name, "w") as f:
