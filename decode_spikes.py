@@ -7,7 +7,7 @@ import spikeinterface.sorters as ss
 import spikeinterface.qualitymetrics as sq
 import spikeinterface.exporters as sep
 
-# import spikeinterface.comparison as sc
+from brainbox import singlecell
 import spikeinterface.widgets as sw
 import matplotlib.pyplot as plt
 from brainbox.population.decode import get_spike_counts_in_bins
@@ -217,24 +217,39 @@ def main(thisDir, json_file):
     spike_rate = np.zeros((num_neuron, num_trial))
     spike_rate = spike_count / (time_window[1] - time_window[0])
     # this_event>sorting_spikes.get_unit_spike_train(unit_id=unit)/float(sorting_spikes.sampling_frequency)
-
+    # unique, counts = np.unique(cluster_id_all, return_counts=True)#check unique spike counts
     if analysis_methods.get("analysis_by_stimulus_type") == True:
         stim_type = analysis_methods.get("stim_type")
         for this_id in np.unique(cluster_id_all):
-            for thisStim in stim_type:
+            # for thisStim in stim_type:
 
-                # troubleshoot this part. Dont know why it exceeds the max size
-                this_event = events_times[
-                    behavioural_summary.loc[:, "stim_type"] > thisStim
-                ]
-                peri_event_time_histogram(
-                    spike_time_all,
-                    cluster_id_all,
-                    this_event,
-                    this_id,
-                    include_raster=True,
-                    raster_kwargs={"color": "black", "lw": 1},
-                )
+            #     # troubleshoot this part. Dont know why it exceeds the max size
+            #     this_event = events_times[
+            #         behavioural_summary.loc[:, "stim_type"] > thisStim
+            #     ]
+            # peths, binned_spikes = singlecell.calculate_peths(
+            #     spike_time_all,
+            #     cluster_id_all,
+            #     [this_id],
+            #     events_times,
+            #     pre_time=10,
+            #     post_time=20,
+            #     bin_size=0.025,
+            #     smoothing=0.025,
+            #     return_fr=True,
+            # )
+            peri_event_time_histogram(
+                spike_time_all,
+                cluster_id_all,
+                events_times,
+                this_id,
+                t_before=10,
+                t_after=20,
+                bin_size=0.025,
+                smoothing=0.025,
+                include_raster=True,
+                raster_kwargs={"color": "black", "lw": 1},
+            )
         # testDir = r"Z:\DATA\experiment_trackball_Optomotor\Zball\GN23012\231126\coherence\session1"
         # pd_pattern = "behavioural_summary.pickle"
         # this_PD = find_file(testDir, pd_pattern)
