@@ -9,9 +9,9 @@ import spikeinterface.exporters as sep
 #from spikeinterface.sortingcomponents.clustering import find_cluster_from_peaks
 import spikeinterface.widgets as sw
 import matplotlib.pyplot as plt
-from brainbox.population.decode import get_spike_counts_in_bins
-from brainbox.task.trials import get_event_aligned_raster, get_psth
-from brainbox.ephys_plots import scatter_raster_plot
+#from brainbox.population.decode import get_spike_counts_in_bins
+#from brainbox.task.trials import get_event_aligned_raster, get_psth
+#from brainbox.ephys_plots import scatter_raster_plot
 import numpy as np
 from pathlib import Path
 import probeinterface as pi
@@ -21,7 +21,7 @@ warnings.simplefilter("ignore")
 import spikeinterface.curation as scur
 '''
 This pipeline uses spikeinterface as a backbone. It includes preprocessing, sorting, and postprocessing sections
-It takes roughly 2 hours to go through the whole process for an 3-hour recording (32 channels).
+It takes roughly 2 hours to go through the whole process for an 1-hour recording (32 channels).
 
 '''
 
@@ -267,7 +267,8 @@ def main(thisDir, json_file):
 
 if __name__ == "__main__":
     #thisDir = r"C:\Users\neuroLaptop\Documents\Open Ephys\P-series-32channels\GN00003\2023-12-28_14-39-40"
-    thisDir = r"Z:\DATA\experiment_openEphys\P-series-32channels\2024-02-01_15-25-25"
+    #thisDir = r"Z:\DATA\experiment_openEphys\P-series-32channels\2024-02-01_15-25-25"
+    thisDir = r"Z:\DATA\experiment_openEphys\P-series-32channels\2024-04-22_01-09-50"
     #thisDir = r"C:\Users\neuroPC\Documents\Open Ephys\2024-02-01_15-25-25"
     json_file = "./analysis_methods_dictionary.json"
     ##Time the function
