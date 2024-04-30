@@ -3,19 +3,19 @@ import json
 file_name = "analysis_methods_dictionary.json"
 analysis_methods = {
     "experimenter": "chiyu",
-    "sorter_name": "kilosort4",
+    "sorter_name": "spykingcircus2",
     "analyse_good_channels_only": False,
     "load_raw_traces": False,
     "analyse_entire_recording": True,
     "save_prepocessed_file": False,
     "load_prepocessed_file": True,
-    "save_sorting_file": False,
-    "load_sorting_file": True,
+    "save_sorting_file": True,
+    "load_sorting_file": False,
     "extract_waveform_sparse": False,
     "extract_waveform_sparse_explicit": False,
     "export_to_phy": True,
     "overwrite_existing_phy": True,
-    "load_curated_spikes": True,
+    "load_curated_spikes": False,
     "export_report": False,
     "aligning_with_stimuli": True,
     "overwrite_curated_dataset": True,
@@ -31,17 +31,7 @@ analysis_methods = {
     "frame_rate": 144,
     "stim_duration": 20,
     "interval_duration": 10,
-    "stim_type": [
-        -100,
-        -75,
-        -50,
-        -25,
-        0,
-        25,
-        50,
-        75,
-        100,
-    ],
+    "stim_type": [-100, -66, -33, 0, 33, 66, 100],
 }  # plue value representing clockwise, counterclockwise is minus, then the rest is coherence leve
 json_string = json.dumps(analysis_methods, indent=1)
 with open(file_name, "w") as f:

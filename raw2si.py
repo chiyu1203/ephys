@@ -6,12 +6,13 @@ import spikeinterface.postprocessing as spost
 import spikeinterface.sorters as ss
 import spikeinterface.qualitymetrics as sq
 import spikeinterface.exporters as sep
+from spikeinterface.sortingcomponents.motion_interpolation import interpolate_motion
 #from spikeinterface.sortingcomponents.clustering import find_cluster_from_peaks
 import spikeinterface.widgets as sw
 import matplotlib.pyplot as plt
-#from brainbox.population.decode import get_spike_counts_in_bins
-#from brainbox.task.trials import get_event_aligned_raster, get_psth
-#from brainbox.ephys_plots import scatter_raster_plot
+##from brainbox.population.decode import get_spike_counts_in_bins
+##from brainbox.task.trials import get_event_aligned_raster, get_psth
+##from brainbox.ephys_plots import scatter_raster_plot
 import numpy as np
 from pathlib import Path
 import probeinterface as pi
@@ -162,15 +163,23 @@ def main(thisDir, json_file):
             #sorter_params.update({"projection_threshold": [9, 9]})##this is a parameters from Christopher Michael Jernigan's experiences with Wasps
         else:
             motion_folder=oe_folder / "motion"
-            rec_correct_motion=spre.correct_motion(recording=recording_saved, preset="kilosort_like", folder=motion_folder)
-            motion_info = spre.load_motion_info(motion_folder)
+            if not os.path.exists(motion_folder): 
+                rec_correct_motion=spre.correct_motion(recording=recording_saved, preset="kilosort_like", folder=motion_folder)
+            else:         
+                motion_info=spre.load_motion_info(motion_folder)
+                rec_correct_motion = interpolate_motion(
+                  recording=recording_saved,
+                  motion=motion_info['motion'],
+                  temporal_bins=motion_info['temporal_bins'],
+                  spatial_bins=motion_info['spatial_bins'],
+                  **motion_info['parameters']['interpolate_motion_kwargs'])
+            
             recording_saved=rec_correct_motion
             sorter_params=ss.get_default_sorter_params(this_sorter)
-
         # run spike sorting on recording of interest            
             sorting_spikes = ss.run_sorter(sorter_name=this_sorter, recording=recording_saved, remove_existing_folder=True,
                                         output_folder=oe_folder / result_folder_name,
-                                        verbose=True)
+                                        verbose=True,job_kwargs=job_kwargs)
         ##this will return a sorting object
     
     w_rs=sw.plot_rasters(sorting_spikes, time_range=(0,30),backend="matplotlib")
