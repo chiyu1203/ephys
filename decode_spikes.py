@@ -26,6 +26,59 @@ import spikeinterface.curation as scur
 
 sys.path.insert(1, r"C:\Users\neuroPC\Documents\GitHub\bonfic")
 from align_data_with_ttl import find_file
+from analyse_stimulus_evoked_response import classify_trial_type
+
+
+def remove_run_during_isi(camera_time, camera_fps, ISI_duration):
+    isi_len = camera_fps * ISI_duration
+    during_stim_event = camera_time[np.where([camera_time[:, 1] - isi_len > 0])[1]]
+    return during_stim_event
+
+
+def estimating_ephys_timepoints(
+    camera_time, ephys_time, camera_fps, stim_duration, ISI_duration
+):
+    stim_len = camera_fps * stim_duration
+    isi_len = camera_fps * ISI_duration
+    stim_len_oe = np.diff(ephys_time)
+    time_from_stim = np.multiply(
+        (camera_time[:, 1] - isi_len) / stim_len,
+        stim_len_oe[camera_time[:, 0]],
+    )
+    events = ephys_time[camera_time[:, 0]] + time_from_stim
+    return events
+
+
+def detect_running_event(arr, speed_threshold=10, consecutive_length=5):
+    # Create a boolean mask of elements greater than 10
+    mask = arr > speed_threshold
+
+    # Use convolution to find where at least n consecutive True values occur
+    conv = np.apply_along_axis(
+        lambda m: np.convolve(m, np.ones(consecutive_length, dtype=int), "valid"),
+        axis=1,
+        arr=mask,
+    )
+
+    # Find where the convolution is greater than or equal to 5 (indicating at least 5 consecutive True values)
+    events = np.argwhere(conv >= consecutive_length)
+    events = np.array(
+        [
+            (idx[0], idx[1])
+            for idx in events
+            if idx[1] + consecutive_length < arr.shape[1]
+        ]
+    )
+    # for idx in events:
+    #     if (idx[1]+consecutive_length<arr.shape[1]):
+    #         arr.append([idx[0], idx[1]])
+
+    # events = [
+    #     (idx[0], idx[1])
+    #     for idx in events
+    #     if [idx[1] + consecutive_length < arr.shape[1]]
+    # ]
+    return events
 
 
 # based on chatGPT
@@ -81,38 +134,118 @@ def main(thisDir, json_file):
             print(f"no pre-processed folder found. Unable to extract waveform")
             return sorting_spikes
         recording_saved.annotate(is_filtered=True)
+
     if analysis_methods.get("aligning_with_stimuli") == True:
+        stim_directory = oe_folder.resolve().parents[0]
+        camera_fps = analysis_methods.get("camera_fps")
+        stim_duration = analysis_methods.get("stim_duration")
+        ISI_duration = analysis_methods.get("interval_duration")
         ##load stimulus meta info
-        stim_info = r"Z:\DATA\experiment_trackball_Optomotor\Zball\GN23012\231126\coherence\session1"
         pd_pattern = "behavioural_summary.pickle"
-        tracking_file = find_file(stim_info, pd_pattern)
+        tracking_file = find_file(stim_directory, pd_pattern)
 
         if tracking_file is None:
             print("load raw stimulus information")
-            csv_pattern = "trial_events2023-11-26T14_55_14.csv"
-            this_csv = find_file(stim_info, csv_pattern)
-            stim_info = pd.read_csv(this_csv)
-            num_stim = int(stim_info.shape[0] / 2)
+            csv_pattern = "trial*.csv"
+            this_csv = find_file(stim_directory, csv_pattern)
+            stim_directory = pd.read_csv(this_csv)
+            num_stim = int(stim_directory.shape[0] / 2)
         else:
             behavioural_summary = pd.read_pickle(tracking_file)
             num_stim = behavioural_summary.shape[0]
         ##load stimulus meta info
         full_raw_rec = se.read_openephys(oe_folder, load_sync_timestamps=True)
         aux_events = se.read_openephys_event(oe_folder)
-        events_times = aux_events.get_event_times(
+        stim_events_times = aux_events.get_event_times(
             channel_id=aux_events.channel_ids[1], segment_index=0
         )  # this record ON phase of sync pulse
         time_window = np.array([-0.1, 0.0])
-        if len(events_times) > num_stim:
+        time_window_behaviours = np.array([-1, 2])
+        if len(stim_events_times) > num_stim:
 
-            events_tw = np.array(
-                [events_times[1:] + time_window[0], events_times[1:] + time_window[1]]
+            stim_events_tw = np.array(
+                [
+                    stim_events_times[1:] + time_window[0],
+                    stim_events_times[1:] + time_window[1],
+                ]
             ).T
         else:
-            events_tw = np.array(
-                [events_times + time_window[0], events_times + time_window[1]]
+            stim_events_tw = np.array(
+                [stim_events_times + time_window[0], stim_events_times + time_window[1]]
             ).T  # ignore the first event, which is recorded when pressing the start delivering stimulus button on Bonsai
 
+    velocity_ext_pattern = "*velocity.npy"
+    velocity_file = find_file(stim_directory, velocity_ext_pattern)
+    rotation_ext_pattern = "z_vector.npy"
+    rotation_file = find_file(stim_directory, velocity_ext_pattern)
+    if velocity_file is None:
+        print(
+            "no velocity across frames avaliable. Use behavioural summary for responses from each trial"
+        )
+        csv_pattern = "trial*.csv"
+        this_csv = find_file(stim_directory, csv_pattern)
+        stim_directory = pd.read_csv(this_csv)
+        num_stim = int(stim_directory.shape[0] / 2)
+        running_speed_threshold = 50
+        turning_threshold = 0.33
+        classify_trial_type(
+            behavioural_summary, turning_threshold, running_speed_threshold
+        )
+    else:
+        velocity_tbt = np.load(velocity_file)
+        speed_threshold = 10
+        turning_threshold = 0.33
+        # Example usage:
+        # Create a sample numpy array
+        # arr = np.array(
+        #     [
+        #         [5, 8, 12, 15, 18, 20, 7, 11, 13, 16, 19, 21, 20, 20, 20],
+        #         [15, 8, 2, 5, 8, 10, 17, 11, 3, 6, 9, 1, 0, 0, 0],
+        #         [15, 8, 12, 15, 18, 11, 17, 1, 3, 6, 9, 1, 0, 0, 0],
+        #     ]
+        # )
+        # putative_walk = detect_running_event(arr)
+        # Detect if there are 5 consecutive elements greater than 10
+        putative_walk = detect_running_event(
+            velocity_tbt[:, 0 : (stim_duration + ISI_duration) * camera_fps],
+            5,
+            int(camera_fps * 1.5),
+        )
+        # np.unique(np.asarray(putative_walk)[:,0])
+        dif_putative_walk = np.diff(putative_walk, axis=0)
+        running_events = putative_walk[
+            np.where(dif_putative_walk[:, 1] > camera_fps * 1)
+        ]
+        during_stim_run = remove_run_during_isi(
+            running_events, camera_fps, ISI_duration
+        )
+        # during_stim_run = running_events
+        during_stim_run_tw = np.array(
+            [
+                during_stim_run[:, 1] + time_window_behaviours[0] * camera_fps,
+                during_stim_run[:, 1] + time_window_behaviours[1] * camera_fps,
+            ]
+        ).T
+        fig1, (ax, ax1) = plt.subplots(
+            nrows=2, ncols=1, figsize=(18, 7), tight_layout=True
+        )
+        for i in range(0, during_stim_run.shape[0]):
+            velocity_of_interest = velocity_tbt[
+                during_stim_run[i, 0],
+                during_stim_run_tw[i, 0] : during_stim_run_tw[i, 1],
+            ]
+            ax.plot(range(0, velocity_of_interest.shape[0]), velocity_of_interest)
+
+        ax.set_xlabel("Time")
+        ax.set_ylabel("Velocity")
+        ax.set_ylim(0, 100)
+        plt.show()
+        running_events_oe = estimating_ephys_timepoints(
+            during_stim_run, stim_events_times, camera_fps, stim_duration, ISI_duration
+        )
+        behavioural_events_tw = np.array(
+            [running_events_oe + time_window[0], running_events_oe + time_window[1]]
+        ).T
     # sorting_wout_excess_spikes = scur.remove_excess_spikes(
     #     sorting_spikes, recording_saved
     # )
@@ -200,6 +333,8 @@ def main(thisDir, json_file):
         )
         spike_time_list.append(spike_times)
         cluster_id_list.append(np.ones(len(spike_times), dtype=int) * unit)
+        # df.to_csv('example.tsv', sep="\t")
+        # np.savetxt("data3.tsv", a,  delimiter = "\t")
         # spike_amp_list.append(amplitudes[0][unit])
         # spike_amps = amplitudes[0][unit]
     spike_time_all = np.concatenate(spike_time_list)
@@ -208,11 +343,11 @@ def main(thisDir, json_file):
         spike_time_all, cluster_id_all
     )
     spike_count, cluster_id = get_spike_counts_in_bins(
-        spike_time_all_sorted, cluster_id_all_sorted, events_tw
+        spike_time_all_sorted, cluster_id_all_sorted, stim_events_tw
     )
 
     # Compute rate (for all clusters of interest)
-    num_trial = events_tw.shape[0]
+    num_trial = stim_events_tw.shape[0]
     num_neuron = len(np.unique(cluster_id_all))
     spike_rate = np.zeros((num_neuron, num_trial))
     spike_rate = spike_count / (time_window[1] - time_window[0])
@@ -224,14 +359,14 @@ def main(thisDir, json_file):
             # for thisStim in stim_type:
 
             #     # troubleshoot this part. Dont know why it exceeds the max size
-            #     this_event = events_times[
+            #     this_event = stim_events_times[
             #         behavioural_summary.loc[:, "stim_type"] > thisStim
             #     ]
             # peths, binned_spikes = singlecell.calculate_peths(
             #     spike_time_all,
             #     cluster_id_all,
             #     [this_id],
-            #     events_times,
+            #     stim_events_times,
             #     pre_time=10,
             #     post_time=20,
             #     bin_size=0.025,
@@ -241,10 +376,10 @@ def main(thisDir, json_file):
             peri_event_time_histogram(
                 spike_time_all,
                 cluster_id_all,
-                events_times,
+                running_events_oe,
                 this_id,
-                t_before=10,
-                t_after=20,
+                t_before=abs(time_window_behaviours[0]),
+                t_after=time_window_behaviours[1],
                 bin_size=0.025,
                 smoothing=0.025,
                 include_raster=True,
@@ -258,7 +393,7 @@ def main(thisDir, json_file):
 
 if __name__ == "__main__":
     # thisDir = r"C:\Users\neuroLaptop\Documents\Open Ephys\P-series-32channels\GN00003\2023-12-28_14-39-40"
-    thisDir = r"Z:\DATA\experiment_openEphys\P-series-32channels\2024-04-22_01-09-50"
+    thisDir = r"Z:\DATA\experiment_trackball_Optomotor\Zball\GN23018\240422\coherence\session2\2024-04-22_01-09-50"
     # thisDir = r"C:\Users\neuroPC\Documents\Open Ephys\2024-02-01_15-25-25"
     json_file = "./analysis_methods_dictionary.json"
     ##Time the function

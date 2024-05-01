@@ -164,7 +164,7 @@ def main(thisDir, json_file):
         else:
             motion_folder=oe_folder / "motion"
             if not os.path.exists(motion_folder): 
-                rec_correct_motion=spre.correct_motion(recording=recording_saved, preset="kilosort_like", folder=motion_folder)
+                rec_correct_motion=spre.correct_motion(recording=recording_saved, preset="nonrigid_accurate", folder=motion_folder)
             else:         
                 motion_info=spre.load_motion_info(motion_folder)
                 rec_correct_motion = interpolate_motion(
@@ -278,7 +278,7 @@ if __name__ == "__main__":
     #thisDir = r"C:\Users\neuroLaptop\Documents\Open Ephys\P-series-32channels\GN00003\2023-12-28_14-39-40"
     #thisDir = r"Z:\DATA\experiment_openEphys\P-series-32channels\2024-04-22_01-09-50"
     #thisDir = r"Z:\DATA\experiment_openEphys\P-series-32channels\2024-02-01_15-25-25"
-    thisDir = r"C:\Users\neuroLaptop\Documents\Open Ephys\2024-02-01_15-25-25"
+    thisDir = r"C:\Users\neuroPC\Documents\Open Ephys\2024-05-01_17-39-51"
     json_file = "./analysis_methods_dictionary.json"
     ##Time the function
     tic = time.perf_counter()
