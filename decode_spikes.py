@@ -6,7 +6,7 @@ import spikeinterface.postprocessing as spost
 import spikeinterface.sorters as ss
 import spikeinterface.qualitymetrics as sq
 import spikeinterface.exporters as sep
-
+from scipy.signal import savgol_filter
 from brainbox import singlecell
 import spikeinterface.widgets as sw
 import matplotlib.pyplot as plt
@@ -29,6 +29,106 @@ from align_data_with_ttl import find_file
 from analyse_stimulus_evoked_response import classify_trial_type
 
 
+def classify_walk(
+    arr, speed_threshold=10, on_consecutive_length=30, off_consecutive_length=5
+):
+    walk_events_all = []
+    mask = arr > speed_threshold
+    trans = np.diff(mask)
+    where_transition = np.where(trans)
+    for i in np.unique(where_transition[0]):
+        trial_of_interest = where_transition[1][where_transition[0] == i]
+        w2s = trial_of_interest[arr[i, trial_of_interest] > speed_threshold]
+        s2w = trial_of_interest[arr[i, trial_of_interest] < speed_threshold]
+        if len(w2s) == len(s2w) and arr[i, 0] < speed_threshold:
+            until_walk_frame = w2s[w2s - s2w > on_consecutive_length]
+            from_walk_frame = s2w[
+                abs(s2w - w2s) > on_consecutive_length
+            ]  # this means from these frames there would a long enough walk
+        elif len(w2s) == len(s2w) and arr[i, 0] > speed_threshold:
+            until_walk_frame = w2s[w2s - s2w > on_consecutive_length]
+            from_walk_frame = s2w[abs(s2w - w2s) > on_consecutive_length]
+        elif len(s2w) > len(w2s) and arr[i, 0] < speed_threshold:
+            w2s = np.insert(arr.shape[1] - 1, -1, w2s)
+            until_walk_frame = w2s[w2s - s2w > on_consecutive_length]
+            from_walk_frame = s2w[abs(s2w - w2s) > on_consecutive_length]
+        elif len(s2w) < len(w2s) and arr[i, 0] > speed_threshold:
+            s2w = np.insert(0, 1, s2w)
+            until_walk_frame = w2s[w2s - s2w > on_consecutive_length]
+            from_walk_frame = s2w[abs(s2w - w2s) > on_consecutive_length]
+
+        # if len(w2s) > len(s2w) and arr[i, 0] > speed_threshold:
+        #     s2w = np.insert(arr.shape[1], -1, s2w)
+        # elif len(w2s) > len(s2w) and arr[i, 0] < speed_threshold:
+        #     print("something unexpected 1")
+        # elif len(s2w) > len(w2s) and arr[i, 0] < speed_threshold:
+        #     w2s = np.insert(arr.shape[1], -1, w2s)
+        # elif len(s2w) > len(w2s) and arr[i, 0] > speed_threshold:
+        #     print("something unexpected 2")
+        #     # elif len(s2w) == len(w2s) and arr[i, 0] > speed_threshold:
+        #     #     print("w situation")
+        #     # elif len(s2w) == len(w2s) and arr[i, 0] < speed_threshold:
+        #     #     print("m situation")
+        #     until_walk_frame = w2s[
+        #         w2s - s2w > on_consecutive_length
+        #     ]  # this means until these frames there was a long enough walk
+        #     until_stop_frame = s2w[1:][
+        #         s2w[1:] - w2s[:-1] > off_consecutive_length
+        #     ]  # this means from these frames there was a long enough stop
+        #     from_stop_frame = w2s[:-1][
+        #         abs(w2s[:-1] - s2w[1:]) > off_consecutive_length
+        #     ]  # this means from these frames there would be a long enough stop
+        #     from_walk_frame = s2w[
+        #         abs(s2w - w2s) > on_consecutive_length
+        #     ]  # this means from these frames there would a long enough walk
+
+        if len(from_walk_frame) == 0 and len(from_walk_frame) == 0:
+            continue
+        elif len(from_walk_frame) == 0:
+            walk_events = [i, 0, until_walk_frame]
+        elif len(until_walk_frame) == 0:
+            walk_events = [i, from_walk_frame, arr.shape[1] - 1]
+        else:
+            walk_events = [i, from_walk_frame, until_walk_frame]
+        # stop_events = [i, from_stop_frame, until_stop_frame]
+        walk_events_all.append(walk_events)
+    return walk_events_all
+    # kernel = np.ones(consecutive_length, dtype=int)
+    # if arr.ndim == 1:
+    #     # Create a kernel of length 5 filled with ones
+
+    #     # Use convolution to find the sum of 5 consecutive elements
+    #     conv = np.convolve(mask, kernel, mode="valid")
+
+    #     # Find the indices where the convolution result is 5 or more
+    #     start_indices = np.where(conv >= consecutive_length)[0]
+
+    #     # Adjust the indices to ensure that they point to the start of 5 or more consecutive elements
+    #     start_indices = [
+    #         idx for idx in start_indices if np.all(mask[idx : idx + consecutive_length])
+    #     ]
+    #     events = np.asarray(start_indices)
+    # elif arr.ndim > 1:
+    #     conv = np.apply_along_axis(
+    #         lambda m: np.convolve(m, kernel, "valid"),
+    #         axis=1,
+    #         arr=mask,
+    #     )
+    #     # Find where the convolution is greater than or equal to 5 (indicating at least 5 consecutive True values)
+    #     events = np.argwhere(conv >= consecutive_length)
+    #     events = np.array(
+    #         [
+    #             (idx[0], idx[1])
+    #             for idx in events
+    #             if idx[1] + consecutive_length < arr.shape[1]
+    #         ]
+    #     )
+    # else:
+    #     print("this array is empty")
+    #     events = None
+    # return events
+
+
 def remove_run_during_isi(camera_time, camera_fps, ISI_duration):
     isi_len = camera_fps * ISI_duration
     during_stim_event = camera_time[np.where([camera_time[:, 1] - isi_len > 0])[1]]
@@ -46,38 +146,6 @@ def estimating_ephys_timepoints(
         stim_len_oe[camera_time[:, 0]],
     )
     events = ephys_time[camera_time[:, 0]] + time_from_stim
-    return events
-
-
-def detect_running_event(arr, speed_threshold=10, consecutive_length=5):
-    # Create a boolean mask of elements greater than 10
-    mask = arr > speed_threshold
-
-    # Use convolution to find where at least n consecutive True values occur
-    conv = np.apply_along_axis(
-        lambda m: np.convolve(m, np.ones(consecutive_length, dtype=int), "valid"),
-        axis=1,
-        arr=mask,
-    )
-
-    # Find where the convolution is greater than or equal to 5 (indicating at least 5 consecutive True values)
-    events = np.argwhere(conv >= consecutive_length)
-    events = np.array(
-        [
-            (idx[0], idx[1])
-            for idx in events
-            if idx[1] + consecutive_length < arr.shape[1]
-        ]
-    )
-    # for idx in events:
-    #     if (idx[1]+consecutive_length<arr.shape[1]):
-    #         arr.append([idx[0], idx[1]])
-
-    # events = [
-    #     (idx[0], idx[1])
-    #     for idx in events
-    #     if [idx[1] + consecutive_length < arr.shape[1]]
-    # ]
     return events
 
 
@@ -134,28 +202,36 @@ def main(thisDir, json_file):
             print(f"no pre-processed folder found. Unable to extract waveform")
             return sorting_spikes
         recording_saved.annotate(is_filtered=True)
+    ##load aux events from openEphys
+    full_raw_rec = se.read_openephys(oe_folder, load_sync_timestamps=True)
+    aux_events = se.read_openephys_event(oe_folder)
+
+    stim_directory = oe_folder.resolve().parents[0]
+    database_pattern = "database*.pickle"
+    tracking_file = find_file(thisDir, database_pattern)
+    camera_fps = analysis_methods.get("camera_fps")
+    walk_speed_threshold = 5
+    walk_consecutive_length = camera_fps * 1
 
     if analysis_methods.get("aligning_with_stimuli") == True:
-        stim_directory = oe_folder.resolve().parents[0]
-        camera_fps = analysis_methods.get("camera_fps")
         stim_duration = analysis_methods.get("stim_duration")
         ISI_duration = analysis_methods.get("interval_duration")
+        walking_trials_threshold = 50
+        turning_trials_threshold = 0.33
         ##load stimulus meta info
         pd_pattern = "behavioural_summary.pickle"
-        tracking_file = find_file(stim_directory, pd_pattern)
+        stimulus_meta_file = find_file(stim_directory, pd_pattern)
 
-        if tracking_file is None:
+        if stimulus_meta_file is None:
             print("load raw stimulus information")
             csv_pattern = "trial*.csv"
             this_csv = find_file(stim_directory, csv_pattern)
             stim_directory = pd.read_csv(this_csv)
             num_stim = int(stim_directory.shape[0] / 2)
         else:
-            behavioural_summary = pd.read_pickle(tracking_file)
-            num_stim = behavioural_summary.shape[0]
+            stimulus_meta_info = pd.read_pickle(stimulus_meta_file)
+            num_stim = stimulus_meta_info.shape[0]
         ##load stimulus meta info
-        full_raw_rec = se.read_openephys(oe_folder, load_sync_timestamps=True)
-        aux_events = se.read_openephys_event(oe_folder)
         stim_events_times = aux_events.get_event_times(
             channel_id=aux_events.channel_ids[1], segment_index=0
         )  # this record ON phase of sync pulse
@@ -174,78 +250,178 @@ def main(thisDir, json_file):
                 [stim_events_times + time_window[0], stim_events_times + time_window[1]]
             ).T  # ignore the first event, which is recorded when pressing the start delivering stimulus button on Bonsai
 
-    velocity_ext_pattern = "*velocity.npy"
-    velocity_file = find_file(stim_directory, velocity_ext_pattern)
-    rotation_ext_pattern = "z_vector.npy"
-    rotation_file = find_file(stim_directory, velocity_ext_pattern)
-    if velocity_file is None:
-        print(
-            "no velocity across frames avaliable. Use behavioural summary for responses from each trial"
-        )
-        csv_pattern = "trial*.csv"
-        this_csv = find_file(stim_directory, csv_pattern)
-        stim_directory = pd.read_csv(this_csv)
-        num_stim = int(stim_directory.shape[0] / 2)
-        running_speed_threshold = 50
-        turning_threshold = 0.33
-        classify_trial_type(
-            behavioural_summary, turning_threshold, running_speed_threshold
-        )
-    else:
-        velocity_tbt = np.load(velocity_file)
-        speed_threshold = 10
-        turning_threshold = 0.33
-        # Example usage:
-        # Create a sample numpy array
-        # arr = np.array(
-        #     [
-        #         [5, 8, 12, 15, 18, 20, 7, 11, 13, 16, 19, 21, 20, 20, 20],
-        #         [15, 8, 2, 5, 8, 10, 17, 11, 3, 6, 9, 1, 0, 0, 0],
-        #         [15, 8, 12, 15, 18, 11, 17, 1, 3, 6, 9, 1, 0, 0, 0],
-        #     ]
-        # )
-        # putative_walk = detect_running_event(arr)
-        # Detect if there are 5 consecutive elements greater than 10
-        putative_walk = detect_running_event(
-            velocity_tbt[:, 0 : (stim_duration + ISI_duration) * camera_fps],
-            5,
-            int(camera_fps * 1.5),
-        )
-        # np.unique(np.asarray(putative_walk)[:,0])
-        dif_putative_walk = np.diff(putative_walk, axis=0)
-        running_events = putative_walk[
-            np.where(dif_putative_walk[:, 1] > camera_fps * 1)
-        ]
-        during_stim_run = remove_run_during_isi(
-            running_events, camera_fps, ISI_duration
-        )
-        # during_stim_run = running_events
-        during_stim_run_tw = np.array(
-            [
-                during_stim_run[:, 1] + time_window_behaviours[0] * camera_fps,
-                during_stim_run[:, 1] + time_window_behaviours[1] * camera_fps,
-            ]
-        ).T
-        fig1, (ax, ax1) = plt.subplots(
-            nrows=2, ncols=1, figsize=(18, 7), tight_layout=True
-        )
-        for i in range(0, during_stim_run.shape[0]):
-            velocity_of_interest = velocity_tbt[
-                during_stim_run[i, 0],
-                during_stim_run_tw[i, 0] : during_stim_run_tw[i, 1],
-            ]
-            ax.plot(range(0, velocity_of_interest.shape[0]), velocity_of_interest)
+        velocity_ext_pattern = "*velocity.npy"
+        velocity_file = find_file(stim_directory, velocity_ext_pattern)
+        rotation_ext_pattern = "z_vector.npy"
+        rotation_file = find_file(stim_directory, velocity_ext_pattern)
+        if velocity_file is None:
+            print(
+                "no velocity across frames avaliable. Use behavioural summary for responses from each trial"
+            )
+            csv_pattern = "trial*.csv"
+            this_csv = find_file(stim_directory, csv_pattern)
+            stim_directory = pd.read_csv(this_csv)
+            num_stim = int(stim_directory.shape[0] / 2)
+            walking_trials_threshold = 50
+            turning_trials_threshold = 0.33
+            classify_walk(
+                stimulus_meta_info, turning_trials_threshold, walking_trials_threshold
+            )
+        else:
+            velocity_tbt = np.load(velocity_file)
+            # putative_walk = classify_walk(
+            #     velocity_tbt[:, 0 : (stim_duration + ISI_duration) * camera_fps],
+            #     walk_speed_threshold,
+            #     int(walk_consecutive_length),
+            # )
+            putative_walk = classify_walk(
+                velocity_tbt[:, 0 : (stim_duration + ISI_duration) * camera_fps]
+            )
+            # walk_events_start = []
+            # walk_epochs_trials = np.unique(putative_walk[:, 0])
+            # for i in range(len(putative_walk)):
+            #     putative_walk_this_trial = putative_walk[
+            #         putative_walk[:, 0] == walk_epochs_trials[i]
+            #     ]
+            #     dif_putative_walk = np.diff(putative_walk_this_trial, axis=0)
+            #     gap_len = np.where(dif_putative_walk[:, 1] > camera_fps * 1)
+            #     if len(gap_len[0]) < 2:
+            #         putative_walk_this_trial[0]
+            #         walk_events_end = putative_walk_this_trial[gap_len]
+            #         trial_id = walk_epochs_trials[i] * np.ones(
+            #             len(walk_events_end), dtype=int
+            #         )
+            #         walk_events_start.append(
+            #             np.vstack([trial_id, walk_events_end[0][1] - gap_len[0][0] - 1])
+            #         )
+            #         walk_events_end = putative_walk_this_trial[-1, 1]
+            #         walk_events_start.append(putative_walk_this_trial[0, 1])
+            #     else:
+            #         walk_events_end = putative_walk_this_trial[gap_len]
 
-        ax.set_xlabel("Time")
-        ax.set_ylabel("Velocity")
-        ax.set_ylim(0, 100)
-        plt.show()
-        running_events_oe = estimating_ephys_timepoints(
-            during_stim_run, stim_events_times, camera_fps, stim_duration, ISI_duration
+            #         walk_events_start_arr = np.concatenate(
+            #             (
+            #                 [walk_events_end[0][1] - gap_len[0][0] - 1],
+            #                 walk_events_end[1:, 1] - gap_len[0][1:] + gap_len[0][:-1],
+            #             )
+            #         )
+            #         trial_id = walk_epochs_trials[i] * np.ones(
+            #             len(walk_events_start_arr), dtype=int
+            #         )
+            #         walk_events_start.append(
+            #             np.vstack([trial_id, walk_events_start_arr])
+            #         )
+
+            # for i in range(len(walk_epochs_trials)):
+            #     test = walk_events_end[walk_events_end[:, 0] == walk_epochs_trials[i]]
+            #     test2 = gap_len[0][: test.shape[0]]
+            #     trial_id = walk_epochs_trials[i] * np.ones(test.shape[0], dtype=int)
+            #     walk_events_start_arr = np.concatenate(
+            #         (
+            #             [test[0][1] - test2[0] - 1],
+            #             test[1:, 1] - test2[1:] + test2[:-1],
+            #         )
+            #     )
+            #     walk_events_start.append(np.vstack([trial_id, walk_events_start_arr]))
+            # for j in range(len(test2)):
+            #     if j == 0:
+            #         walk_events_start.append(test[j][1] - test2[j] - 1)
+            #         continue
+            #     else:
+            #         walk_events_start.append(test[j][1] - test2[j] + test2[j - 1])
+
+            #     walk_events_start = np.concatenate(
+            #         (
+            #             [test[0][1] - test2[0] - 1],
+            #             test[:][1:] - gap_len[0][1:] + gap_len[0][:-1],
+            #         )
+            #     )
+
+            # walk_events_start = np.concatenate(
+            #     (
+            #         [walk_events_end[0][1] - gap_len[0][0] - 1],
+            #         walk_events_end[1:] - gap_len[0][1:] + gap_len[0][:-1],
+            #     )
+            # )  # walk_events_end[1][1]-gap_len[0][1]+gap_len[0][0]
+            during_stim_run = remove_run_during_isi(
+                walk_events_start, camera_fps, ISI_duration
+            )
+            during_stim_run_tw = np.array(
+                [
+                    during_stim_run[:, 1] + time_window_behaviours[0] * camera_fps,
+                    during_stim_run[:, 1] + time_window_behaviours[1] * camera_fps,
+                ]
+            ).T
+            fig1, (ax, ax1) = plt.subplots(
+                nrows=2, ncols=1, figsize=(18, 7), tight_layout=True
+            )
+            for i in range(0, during_stim_run.shape[0]):
+                velocity_of_interest = velocity_tbt[
+                    during_stim_run[i, 0],
+                    during_stim_run_tw[i, 0] : during_stim_run_tw[i, 1],
+                ]
+                ax.plot(range(0, velocity_of_interest.shape[0]), velocity_of_interest)
+
+            ax.set_xlabel("Time")
+            ax.set_ylabel("Velocity")
+            ax.set_ylim(0, 100)
+            plt.show()
+            running_events_oe = estimating_ephys_timepoints(
+                during_stim_run,
+                stim_events_times,
+                camera_fps,
+                stim_duration,
+                ISI_duration,
+            )
+            behavioural_events_tw = np.array(
+                [running_events_oe + time_window[0], running_events_oe + time_window[1]]
+            ).T
+    elif analysis_methods.get("aligning_with_isi") == True:
+        print("this part needs more work")
+    else:
+        print(
+            "this part needs more work. basically we should just detect whether there is info about stimulation. If not just skip aligning behaviours with certain stimulus"
         )
-        behavioural_events_tw = np.array(
-            [running_events_oe + time_window[0], running_events_oe + time_window[1]]
-        ).T
+    # colormap_name = "coolwarm"
+    # COL = MplColorHelper(colormap_name, 0, 8)
+    # sm = cm.ScalarMappable(cmap=colormap_name)
+    # [exp_date, exp_hour] = csv_file_directory.stem.split("events")[1].split("T")
+    # exp_place = csv_file_directory.parts[3]
+
+    df = pd.read_pickle(tracking_file)
+    if analysis_methods.get("filtering_method") == "sg_filter":
+        x_all = savgol_filter(df.loc[:, ["intergrated x position"]], 71, 3, axis=0)
+        y_all = savgol_filter(df.loc[:, ["intergrated y position"]], 71, 3, axis=0)
+    else:
+        x_all = df.loc[:, ["intergrated x position"]]
+        y_all = df.loc[:, ["intergrated y position"]]
+    ## here write an additional function to classify stationary, moving and total travel distance
+    vz = df.loc[:, ["delta rotation vector lab z"]].values
+    travel_distance_fbf = np.sqrt(
+        np.add(np.square(np.diff(x_all, axis=0)), np.square(np.diff(y_all, axis=0)))
+    )
+    velocity_fbf = travel_distance_fbf * camera_fps
+    putative_walk = classify_walk(
+        velocity_fbf[:, 0], walk_speed_threshold, int(walk_consecutive_length)
+    )
+    dif_putative_walk = np.diff(putative_walk, axis=0)
+    gap_len = np.where(dif_putative_walk > camera_fps * 1)
+    walk_events_end = putative_walk[gap_len]
+    walk_events_start = np.concatenate(
+        (
+            [walk_events_end[0] - gap_len[0][0] - 1],
+            walk_events_end[1:] - gap_len[0][1:] + gap_len[0][:-1],
+        )
+    )
+
+    pcm = plt.pcolormesh(np.transpose(velocity_fbf), cmap="magma", vmin=0, vmax=100)
+    for i in walk_events_start:
+        plt.axvline(x=i, color="w")
+    plt.show()
+    if analysis_methods.get("plotting_trajectory") == True:
+        plt.plot(x_all, y_all, c=np.arange(len(y_all)), marker=".", alpha=0.5)
+        plt.show()
+
     # sorting_wout_excess_spikes = scur.remove_excess_spikes(
     #     sorting_spikes, recording_saved
     # )
@@ -360,7 +536,7 @@ def main(thisDir, json_file):
 
             #     # troubleshoot this part. Dont know why it exceeds the max size
             #     this_event = stim_events_times[
-            #         behavioural_summary.loc[:, "stim_type"] > thisStim
+            #         stimulus_meta_info.loc[:, "stim_type"] > thisStim
             #     ]
             # peths, binned_spikes = singlecell.calculate_peths(
             #     spike_time_all,
@@ -386,9 +562,9 @@ def main(thisDir, json_file):
                 raster_kwargs={"color": "black", "lw": 1},
             )
         # testDir = r"Z:\DATA\experiment_trackball_Optomotor\Zball\GN23012\231126\coherence\session1"
-        # pd_pattern = "behavioural_summary.pickle"
+        # pd_pattern = "stimulus_meta_info.pickle"
         # this_PD = find_file(testDir, pd_pattern)
-        # behavioural_summary = pd.read_pickle(this_PD)
+        # stimulus_meta_info = pd.read_pickle(this_PD)
 
 
 if __name__ == "__main__":
