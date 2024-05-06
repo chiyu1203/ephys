@@ -17,6 +17,7 @@ analysis_methods = {
     "overwrite_existing_phy": True,
     "load_curated_spikes": True,
     "export_report": False,
+    "event_of_interest": "stim_onset",
     "aligning_with_stimuli": True,
     "overwrite_curated_dataset": True,
     "graph_colour_code": ["r", "y", "m", "c", "k", "b", "g", "r"],

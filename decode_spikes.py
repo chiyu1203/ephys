@@ -1,28 +1,16 @@
 import time, os, json, warnings, sys
+from open_ephys.analysis import Session
 import spikeinterface.core as si
 import spikeinterface.extractors as se
-import spikeinterface.preprocessing as spre
-import spikeinterface.postprocessing as spost
-import spikeinterface.sorters as ss
-import spikeinterface.qualitymetrics as sq
-import spikeinterface.exporters as sep
-from scipy.signal import savgol_filter
-from brainbox import singlecell
-import spikeinterface.widgets as sw
 import matplotlib.pyplot as plt
 from brainbox.population.decode import get_spike_counts_in_bins
-from brainbox.task.trials import get_event_aligned_raster, get_psth
-from brainbox.ephys_plots import scatter_raster_plot
 from brainbox.plot import peri_event_time_histogram
 import numpy as np
 from pathlib import Path
-import probeinterface as pi
-from probeinterface.plotting import plot_probe
-import numcodecs
 import pandas as pd
+from extraction_barcodes_cl import extract_barcodes
 
 warnings.simplefilter("ignore")
-import spikeinterface.curation as scur
 
 sys.path.insert(1, r"C:\Users\neuroPC\Documents\GitHub\bonfic")
 from align_data_with_ttl import find_file
@@ -214,14 +202,12 @@ def main(thisDir, json_file):
         sorter_suffix = "_KS3"
     elif this_sorter.lower() == "kilosort4":
         sorter_suffix = "_KS4"
-    result_folder_name = "results" + sorter_suffix
-    sorting_folder_name = "sorting" + sorter_suffix
     phy_folder_name = "phy" + sorter_suffix
-    n_cpus = os.cpu_count()
-    n_jobs = n_cpus - 4
-    job_kwargs = dict(n_jobs=n_jobs, chunk_duration="1s", progress_bar=True)
 
-    if analysis_methods.get("load_curated_spikes") == True:
+    if (
+        analysis_methods.get("load_curated_spikes") == True
+        and (oe_folder / phy_folder_name).is_dir()
+    ):
         sorting_spikes = se.read_phy(
             oe_folder / phy_folder_name, exclude_cluster_groups=["noise"]
         )
@@ -234,13 +220,28 @@ def main(thisDir, json_file):
             print(f"no pre-processed folder found. Unable to extract waveform")
             return sorting_spikes
         recording_saved.annotate(is_filtered=True)
-    ##load aux events from openEphys
-    full_raw_rec = se.read_openephys(oe_folder, load_sync_timestamps=True)
-    aux_events = se.read_openephys_event(oe_folder)
-
+    ##load adc events from openEphys
+    session = Session(oe_folder)
+    recording = session.recordnodes[0].recordings[0]
+    # camera_trigger_on_oe = recording.events.timestamp[
+    #     (recording.events.line == 2) & (recording.events.state == 1)
+    # ]
+    # barcode_on_oe = recording.events.timestamp[
+    #     (recording.events.line == 3) & (recording.events.state == 1)
+    # ]
+    barcode_on_oe = recording.events.sample_number[recording.events.line == 3]
+    _, signals_time_and_bars_array = extract_barcodes(oe_folder, barcode_on_oe.values)
     stim_directory = oe_folder.resolve().parents[0]
-    database_pattern = "database*.pickle"
-    tracking_file = find_file(stim_directory, database_pattern)
+    database_ext = "database*.pickle"
+    tracking_file = find_file(stim_directory, database_ext)
+    stim_sync_ext = "*_stim_sync.csv"
+    stim_sync_file = find_file(stim_directory, stim_sync_ext)
+    barcode_ext = "*_barcode.csv"
+    barcode_file = find_file(stim_directory, barcode_ext)
+    velocity_ext = "*velocity.npy"
+    velocity_file = find_file(stim_directory, velocity_ext)
+    rotation_ext = "z_vector.npy"
+    rotation_file = find_file(stim_directory, rotation_ext)
     camera_fps = analysis_methods.get("camera_fps")
     walk_speed_threshold = 20
     walk_consecutive_length = int(camera_fps * 0.5)
@@ -253,22 +254,26 @@ def main(thisDir, json_file):
         time_window = np.array([-0.1, 0.0])
         time_window_behaviours = np.array([-1, 2])
         ##load stimulus meta info
-        pd_pattern = "behavioural_summary.pickle"
-        stimulus_meta_file = find_file(stim_directory, pd_pattern)
+        pd_ext = "behavioural_summary.pickle"
+        stimulus_meta_file = find_file(stim_directory, pd_ext)
 
         if stimulus_meta_file is None:
             print("load raw stimulus information")
-            csv_pattern = "trial*.csv"
-            this_csv = find_file(stim_directory, csv_pattern)
+            trial_ext = "trial*.csv"
+            this_csv = find_file(stim_directory, trial_ext)
             stim_directory = pd.read_csv(this_csv)
             num_stim = int(stim_directory.shape[0] / 2)
         else:
             stimulus_meta_info = pd.read_pickle(stimulus_meta_file)
             num_stim = stimulus_meta_info.shape[0]
         ##load stimulus meta info
-        stim_events_times = aux_events.get_event_times(
-            channel_id=aux_events.channel_ids[1], segment_index=0
-        )  # this record ON phase of sync pulse
+
+        stim_on_oe = recording.events.timestamp[
+            (recording.events.line == 1) & (recording.events.state == 1)
+        ]
+        stim_off_oe = recording.events.timestamp[
+            (recording.events.line == 1) & (recording.events.state == 0)
+        ]
         if len(stim_events_times) > num_stim:
 
             stim_events_tw = np.array(
@@ -282,16 +287,12 @@ def main(thisDir, json_file):
                 [stim_events_times + time_window[0], stim_events_times + time_window[1]]
             ).T  # ignore the first event, which is recorded when pressing the start delivering stimulus button on Bonsai
 
-        velocity_ext_pattern = "*velocity.npy"
-        velocity_file = find_file(stim_directory, velocity_ext_pattern)
-        rotation_ext_pattern = "z_vector.npy"
-        rotation_file = find_file(stim_directory, velocity_ext_pattern)
         if velocity_file is None:
             print(
                 "no velocity across frames avaliable. Use behavioural summary for responses from each trial"
             )
-            csv_pattern = "trial*.csv"
-            this_csv = find_file(stim_directory, csv_pattern)
+            csv_ext = "trial*.csv"
+            this_csv = find_file(stim_directory, csv_ext)
             stim_directory = pd.read_csv(this_csv)
             num_stim = int(stim_directory.shape[0] / 2)
             walking_trials_threshold = 50
@@ -306,22 +307,35 @@ def main(thisDir, json_file):
                 walk_speed_threshold,
                 walk_consecutive_length,
             )
-            walk_start_stim = remove_run_during_isi(
-                walk_events_start, camera_fps, ISI_duration
-            )
-            walk_start_stim_tw = np.array(
+            # walk_events_start = remove_run_during_isi(
+            #     walk_events_start, camera_fps, ISI_duration
+            # )
+            walk_events_start_tw = np.array(
                 [
-                    walk_start_stim[1, :] + time_window_behaviours[0] * camera_fps,
-                    walk_start_stim[1, :] + time_window_behaviours[1] * camera_fps,
+                    walk_events_start[1, :] + time_window_behaviours[0] * camera_fps,
+                    walk_events_start[1, :] + time_window_behaviours[1] * camera_fps,
                 ]
             ).T
+            walk_events_end_tw = np.array(
+                [
+                    walk_events_end[1, :] + time_window_behaviours[0] * camera_fps,
+                    walk_events_end[1, :] + time_window_behaviours[1] * camera_fps,
+                ]
+            ).T
+            # fig, axs = plt.subplots(2, 2, figsize=(6, 6))
+
+            # for i, ax in enumerate(axs.flatten()):
+            #     file = np.load(adc_folder / os.listdir(adc_folder)[i])
+            #     ax.plot(range(len(file)), file)
+            # plt.tight_layout()
+            # plt.show()
             fig1, (ax, ax1) = plt.subplots(
                 nrows=2, ncols=1, figsize=(18, 7), tight_layout=True
             )
-            for i in range(0, walk_start_stim.shape[1]):
+            for i in range(0, walk_events_start.shape[1]):
                 velocity_of_interest = velocity_tbt[
-                    walk_start_stim[0, i],
-                    walk_start_stim_tw[i, 0] : walk_start_stim_tw[i, 1],
+                    walk_events_start[0, i],
+                    walk_events_start_tw[i, 0] : walk_events_start_tw[i, 1],
                 ]
                 ax.plot(
                     range(0, len(velocity_of_interest)),
@@ -336,17 +350,17 @@ def main(thisDir, json_file):
             if analysis_methods.get("debug_mode") == False:
                 fig1.savefig(Path(stim_directory) / plot_name)
             plt.show()
-            walk_start_stim_oe = estimating_ephys_timepoints(
-                walk_start_stim,
+            walk_events_start_oe = estimating_ephys_timepoints(
+                walk_events_start,
                 stim_events_times,
                 camera_fps,
                 stim_duration,
                 ISI_duration,
             )
-            behavioural_events_tw = np.array(
+            walk_events_start_oe_tw = np.array(
                 [
-                    walk_start_stim_oe + time_window[0],
-                    walk_start_stim_oe + time_window[1],
+                    walk_events_start_oe + time_window[0],
+                    walk_events_start_oe + time_window[1],
                 ]
             ).T
     elif analysis_methods.get("aligning_with_isi") == True:
@@ -355,6 +369,23 @@ def main(thisDir, json_file):
         print(
             "this part needs more work. basically we should just detect whether there is info about stimulation. If not just skip aligning behaviours with certain stimulus"
         )
+    event_of_interest = analysis_methods.get("event_of_interest")
+    if event_of_interest.lower() == "stim_onset":
+        event_of_interest = stim_events_times
+        event_of_interest_tw = stim_events_tw
+        print("Align spikes with the onset of visual stimuli")
+    elif event_of_interest.lower() == "stim_offset":
+        print("Align spikes with the offset of visual stimuli")
+        print("Work in progress")
+        return
+    elif event_of_interest.lower() == "walk_onset":
+        event_of_interest = walk_events_start_oe
+        event_of_interest_tw = walk_events_start_oe_tw
+        print("Align spikes with the onset of walk events")
+    elif event_of_interest.lower() == "walk_offset":
+        print("Align spikes with the offset of walk events")
+        print("Work in progress")
+        return
     # colormap_name = "coolwarm"
     # COL = MplColorHelper(colormap_name, 0, 8)
     # sm = cm.ScalarMappable(cmap=colormap_name)
@@ -470,79 +501,82 @@ def main(thisDir, json_file):
     # template_metrics = spost.compute_template_metrics(we)
     # qm_params = sq.get_default_qm_params()
     # metric_names = sq.get_quality_metric_list()
-    spike_time_list = []
-    spike_amp_list = []
-    cluster_id_list = []
-    for unit in sorting_spikes.get_unit_ids():
-        print(
-            f"with {this_sorter} sorter, Spike train of a unit:{sorting_spikes.get_unit_spike_train(unit_id=unit)}"
-        )
-        spike_times = sorting_spikes.get_unit_spike_train(unit_id=unit) / float(
-            sorting_spikes.sampling_frequency
-        )
-        spike_time_list.append(spike_times)
-        cluster_id_list.append(np.ones(len(spike_times), dtype=int) * unit)
-        # df.to_csv('example.tsv', sep="\t")
-        # np.savetxt("data3.tsv", a,  delimiter = "\t")
-        # spike_amp_list.append(amplitudes[0][unit])
-        # spike_amps = amplitudes[0][unit]
-    spike_time_all = np.concatenate(spike_time_list)
-    cluster_id_all = np.concatenate(cluster_id_list)
-    spike_time_all_sorted, cluster_id_all_sorted = sort_arrays(
-        spike_time_all, cluster_id_all
-    )
-    spike_count, cluster_id = get_spike_counts_in_bins(
-        spike_time_all_sorted, cluster_id_all_sorted, stim_events_tw
-    )
-
-    # Compute rate (for all clusters of interest)
-    num_trial = stim_events_tw.shape[0]
-    num_neuron = len(np.unique(cluster_id_all))
-    spike_rate = np.zeros((num_neuron, num_trial))
-    spike_rate = spike_count / (time_window[1] - time_window[0])
-    # this_event>sorting_spikes.get_unit_spike_train(unit_id=unit)/float(sorting_spikes.sampling_frequency)
-    # unique, counts = np.unique(cluster_id_all, return_counts=True)#check unique spike counts
-    if analysis_methods.get("analysis_by_stimulus_type") == True:
-        stim_type = analysis_methods.get("stim_type")
-        for this_id in np.unique(cluster_id_all):
-            # for thisStim in stim_type:
-
-            #     # troubleshoot this part. Dont know why it exceeds the max size
-            #     this_event = stim_events_times[
-            #         stimulus_meta_info.loc[:, "stim_type"] > thisStim
-            #     ]
-            # peths, binned_spikes = singlecell.calculate_peths(
-            #     spike_time_all,
-            #     cluster_id_all,
-            #     [this_id],
-            #     stim_events_times,
-            #     pre_time=10,
-            #     post_time=20,
-            #     bin_size=0.025,
-            #     smoothing=0.025,
-            #     return_fr=True,
-            # )
-            peri_event_time_histogram(
-                spike_time_all,
-                cluster_id_all,
-                walk_start_stim_oe,
-                this_id,
-                t_before=abs(time_window_behaviours[0]),
-                t_after=time_window_behaviours[1],
-                bin_size=0.025,
-                smoothing=0.025,
-                include_raster=True,
-                raster_kwargs={"color": "black", "lw": 1},
+    if analysis_methods.get("load_curated_spikes") == True:
+        spike_time_list = []
+        spike_amp_list = []
+        cluster_id_list = []
+        for unit in sorting_spikes.get_unit_ids():
+            print(
+                f"with {this_sorter} sorter, Spike train of a unit:{sorting_spikes.get_unit_spike_train(unit_id=unit)}"
             )
-        # testDir = r"Z:\DATA\experiment_trackball_Optomotor\Zball\GN23012\231126\coherence\session1"
-        # pd_pattern = "stimulus_meta_info.pickle"
-        # this_PD = find_file(testDir, pd_pattern)
-        # stimulus_meta_info = pd.read_pickle(this_PD)
+            spike_times = sorting_spikes.get_unit_spike_train(unit_id=unit) / float(
+                sorting_spikes.sampling_frequency
+            )
+            spike_time_list.append(spike_times)
+            cluster_id_list.append(np.ones(len(spike_times), dtype=int) * unit)
+            # df.to_csv('example.tsv', sep="\t")
+            # np.savetxt("data3.tsv", a,  delimiter = "\t")
+            # spike_amp_list.append(amplitudes[0][unit])
+            # spike_amps = amplitudes[0][unit]
+        spike_time_all = np.concatenate(spike_time_list)
+        cluster_id_all = np.concatenate(cluster_id_list)
+        spike_time_all_sorted, cluster_id_all_sorted = sort_arrays(
+            spike_time_all, cluster_id_all
+        )
+        spike_count, cluster_id = get_spike_counts_in_bins(
+            spike_time_all_sorted, cluster_id_all_sorted, stim_events_tw
+        )
+
+        # Compute rate (for all clusters of interest)
+        num_trial = stim_events_tw.shape[0]
+        num_neuron = len(np.unique(cluster_id_all))
+        spike_rate = np.zeros((num_neuron, num_trial))
+        spike_rate = spike_count / (time_window[1] - time_window[0])
+        # this_event>sorting_spikes.get_unit_spike_train(unit_id=unit)/float(sorting_spikes.sampling_frequency)
+        # unique, counts = np.unique(cluster_id_all, return_counts=True)#check unique spike counts
+        if analysis_methods.get("analysis_by_stimulus_type") == True:
+            stim_type = analysis_methods.get("stim_type")
+            for this_id in np.unique(cluster_id_all):
+                # for thisStim in stim_type:
+
+                #     # troubleshoot this part. Dont know why it exceeds the max size
+                #     this_event = stim_events_times[
+                #         stimulus_meta_info.loc[:, "stim_type"] > thisStim
+                #     ]
+                # peths, binned_spikes = singlecell.calculate_peths(
+                #     spike_time_all,
+                #     cluster_id_all,
+                #     [this_id],
+                #     stim_events_times,
+                #     pre_time=10,
+                #     post_time=20,
+                #     bin_size=0.025,
+                #     smoothing=0.025,
+                #     return_fr=True,
+                # )
+                # walk_events_start_oe time points when walk starts
+                peri_event_time_histogram(
+                    spike_time_all,
+                    cluster_id_all,
+                    event_of_interest,
+                    this_id,
+                    t_before=abs(time_window_behaviours[0]),
+                    t_after=time_window_behaviours[1],
+                    bin_size=0.025,
+                    smoothing=0.025,
+                    include_raster=True,
+                    raster_kwargs={"color": "black", "lw": 1},
+                )
+            # testDir = r"Z:\DATA\experiment_trackball_Optomotor\Zball\GN23012\231126\coherence\session1"
+            # pd_ext = "stimulus_meta_info.pickle"
+            # this_PD = find_file(testDir, pd_ext)
+            # stimulus_meta_info = pd.read_pickle(this_PD)
+        return spike_count, cluster_id
 
 
 if __name__ == "__main__":
     # thisDir = r"C:\Users\neuroLaptop\Documents\Open Ephys\P-series-32channels\GN00003\2023-12-28_14-39-40"
-    thisDir = r"Z:\DATA\experiment_trackball_Optomotor\Zball\GN23018\240422\coherence\session2\2024-04-22_01-09-50"
+    thisDir = r"Z:\DATA\experiment_trackball_Optomotor\Zball\GN2300x\231123\coherence\2024-05-05_22-57-50"
     # thisDir = r"C:\Users\neuroPC\Documents\Open Ephys\2024-02-01_15-25-25"
     json_file = "./analysis_methods_dictionary.json"
     ##Time the function
