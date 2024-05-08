@@ -21,14 +21,19 @@ import numcodecs
 warnings.simplefilter("ignore")
 import spikeinterface.curation as scur
 '''
-This pipeline uses spikeinterface as a backbone. It includes preprocessing, sorting, and postprocessing sections
-It takes roughly 2 hours to go through the whole process for an 1-hour recording (32 channels).
-
+This pipeline uses spikeinterface as a backbone. This file includes preprocessing and sorting, converting raw data from openEphys to putative spikes by various sorters
 '''
+def generate_sorter_suffix(this_sorter):
+    if this_sorter.lower() == "spykingcircus2":
+        sorter_suffix="_SC2"
+    elif this_sorter.lower() == "kilosort3":
+        sorter_suffix="_KS3"
+    elif this_sorter.lower() == "kilosort4":
+        sorter_suffix="_KS4"
+    return sorter_suffix
 
 
-
-def main(thisDir, json_file):
+def raw2si(thisDir, json_file):
     oe_folder=Path(thisDir)
     if isinstance(json_file, dict):
         analysis_methods = json_file
@@ -38,12 +43,7 @@ def main(thisDir, json_file):
             analysis_methods = json.loads(f.read())
     this_sorter=analysis_methods.get("sorter_name")
     this_experimenter=analysis_methods.get("experimenter")
-    if this_sorter.lower() == "spykingcircus2":
-        sorter_suffix="_SC2"
-    elif this_sorter.lower() == "kilosort3":
-        sorter_suffix="_KS3"
-    elif this_sorter.lower() == "kilosort4":
-        sorter_suffix="_KS4"
+    sorter_suffix=generate_sorter_suffix(this_sorter)
     result_folder_name="results"+sorter_suffix
     sorting_folder_name="sorting"+sorter_suffix
     n_cpus = os.cpu_count()
@@ -56,7 +56,7 @@ def main(thisDir, json_file):
             #sorting_spikes = ss.read_sorter_folder(oe_folder/result_folder_name)
             sorting_spikes = si.load_extractor(oe_folder/sorting_folder_name)#this acts quite similar than above one line.
         else:
-            print(f"no result folder found for {sorter_suffix} sorter")
+            print(f"no result folder found for {this_sorter}")
         #load recording in case there is a need to extract waveform    
         if (oe_folder / "preprocessed_compressed.zarr").is_dir():
             recording_saved = si.read_zarr(oe_folder / "preprocessed_compressed.zarr")
@@ -184,7 +184,8 @@ def main(thisDir, json_file):
     
     w_rs=sw.plot_rasters(sorting_spikes, time_range=(0,30),backend="matplotlib")
     if analysis_methods.get("save_sorting_file")==True and analysis_methods.get("overwrite_curated_dataset")==True:
-        sorting_loaded_spikes=sorting_spikes.save(folder=oe_folder / sorting_folder_name, overwrite=True)  
+        sorting_loaded_spikes=sorting_spikes.save(folder=oe_folder / sorting_folder_name, overwrite=True)
+        return print("Spiking sorting done. The rest of the tasks can be done in other PCs")
     # for unit in sorting_spikes.get_unit_ids():
     #     print(f'with {this_sorter} sorter, Spike train of a unit:{sorting_spikes.get_unit_spike_train(unit_id=unit)}')
 
@@ -272,15 +273,17 @@ def main(thisDir, json_file):
     if analysis_methods.get("export_report")==True:
         report_folder_name="report"+sorter_suffix
         sep.export_report(we, output_folder=oe_folder / report_folder_name)
-    return recording_saved,sorting_spikes
+    return recording_saved
 
 if __name__ == "__main__":
     #thisDir = r"C:\Users\neuroLaptop\Documents\Open Ephys\P-series-32channels\GN00003\2023-12-28_14-39-40"
     #thisDir = r"Z:\DATA\experiment_openEphys\P-series-32channels\2024-02-01_15-25-25"
-    thisDir = r"C:\Users\neuroPC\Documents\Open Ephys\2024-05-01_17-39-51"
+    #thisDir = r"C:\Users\neuroPC\Documents\Open Ephys\2024-05-01_17-39-51"
+    #thisDir = r"Z:\DATA\experiment_trackball_Optomotor\Zball\GN23015\240201\coherence\session1\2024-02-01_15-25-25"
+    thisDir = r"Z:\DATA\experiment_trackball_Optomotor\Zball\GN23016\240201\coherence\session1\2024-02-01_18-55-51"
     json_file = "./analysis_methods_dictionary.json"
     ##Time the function
     tic = time.perf_counter()
-    recording_saved,sorting_spikes=main(thisDir, json_file)
+    recording_saved,sorting_spikes=raw2si(thisDir, json_file)
     toc = time.perf_counter()
     print(f"it takes {toc-tic:0.4f} seconds to run the main function")

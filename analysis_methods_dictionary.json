@@ -15,7 +15,7 @@
  "load_curated_spikes": true,
  "export_report": false,
  "event_of_interest": "stim_onset",
- "aligning_with_stimuli": true,
+ "analyse_stim_evoked_activity": true,
  "overwrite_curated_dataset": true,
  "graph_colour_code": [
   "r",

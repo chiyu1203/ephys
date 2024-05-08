@@ -11,9 +11,14 @@ import pandas as pd
 from extraction_barcodes_cl import extract_barcodes
 
 warnings.simplefilter("ignore")
+current_working_directory = Path.cwd()
+parent_dir = current_working_directory.resolve().parents[0]
+sys.path.insert(
+    0, str(parent_dir) + "\\utilities"
+)  ## 0 means search for new dir first and 1 means search for sys.path first
+from useful_tools import find_file
 
-sys.path.insert(1, r"C:\Users\neuroPC\Documents\GitHub\bonfic")
-from align_data_with_ttl import find_file
+sys.path.insert(0, str(parent_dir) + "\\bonfic")
 from analyse_stimulus_evoked_response import classify_trial_type
 
 
@@ -186,7 +191,7 @@ def sort_arrays(arr1, *arrays):
     return sorted_arr1, *sorted_arrays
 
 
-def main(thisDir, json_file):
+def align_async_signals(thisDir, json_file):
     oe_folder = Path(thisDir)
     if isinstance(json_file, dict):
         analysis_methods = json_file
@@ -223,14 +228,18 @@ def main(thisDir, json_file):
     ##load adc events from openEphys
     session = Session(oe_folder)
     recording = session.recordnodes[0].recordings[0]
-    # camera_trigger_on_oe = recording.events.timestamp[
-    #     (recording.events.line == 2) & (recording.events.state == 1)
-    # ]
+    camera_trigger_on_oe = recording.events.timestamp[
+        (recording.events.line == 2) & (recording.events.state == 1)
+    ]
     # barcode_on_oe = recording.events.timestamp[
     #     (recording.events.line == 3) & (recording.events.state == 1)
     # ]
+
     barcode_on_oe = recording.events.sample_number[recording.events.line == 3]
-    _, signals_time_and_bars_array = extract_barcodes(oe_folder, barcode_on_oe.values)
+    if len(barcode_on_oe) > 0:
+        _, signals_time_and_bars_array = extract_barcodes(
+            oe_folder, barcode_on_oe.values
+        )
     stim_directory = oe_folder.resolve().parents[0]
     database_ext = "database*.pickle"
     tracking_file = find_file(stim_directory, database_ext)
@@ -245,8 +254,9 @@ def main(thisDir, json_file):
     camera_fps = analysis_methods.get("camera_fps")
     walk_speed_threshold = 20
     walk_consecutive_length = int(camera_fps * 0.5)
+    event_of_interest = analysis_methods.get("event_of_interest")
 
-    if analysis_methods.get("aligning_with_stimuli") == True:
+    if analysis_methods.get("analyse_stim_evoked_activity") == True:
         stim_duration = analysis_methods.get("stim_duration")
         ISI_duration = analysis_methods.get("interval_duration")
         walking_trials_threshold = 50
@@ -268,24 +278,33 @@ def main(thisDir, json_file):
             num_stim = stimulus_meta_info.shape[0]
         ##load stimulus meta info
 
-        stim_on_oe = recording.events.timestamp[
+        isi_on_oe = recording.events.timestamp[
             (recording.events.line == 1) & (recording.events.state == 1)
         ]
-        stim_off_oe = recording.events.timestamp[
+        stim_on_oe = recording.events.timestamp[
             (recording.events.line == 1) & (recording.events.state == 0)
         ]
-        if len(stim_events_times) > num_stim:
 
-            stim_events_tw = np.array(
-                [
-                    stim_events_times[1:] + time_window[0],
-                    stim_events_times[1:] + time_window[1],
-                ]
-            ).T
+        if analysis_methods.get("analyse_stim_evoked_activity") == True:
+            if len(stim_on_oe) > num_stim:
+                stim_events_times = stim_on_oe[
+                    1:
+                ].values  ##this happens when the S button is pressed after openEphys are recorded.
+            else:
+                stim_events_times = stim_on_oe[:].values
+        elif event_of_interest.lower() == "preStim_ISI":
+            stim_events_times = isi_on_oe[1:].values
+        elif event_of_interest.lower() == "postStim_ISI":
+            stim_events_times = isi_on_oe[:-1].values
         else:
-            stim_events_tw = np.array(
-                [stim_events_times + time_window[0], stim_events_times + time_window[1]]
-            ).T  # ignore the first event, which is recorded when pressing the start delivering stimulus button on Bonsai
+            (
+                "Not found what properties of stimuli you want to analyse. Double check event of interest"
+            )
+            return None
+        ##build up analysis time window
+        stim_events_tw = np.array(
+            [stim_events_times + time_window[0], stim_events_times + time_window[1]]
+        ).T
 
         if velocity_file is None:
             print(
@@ -350,34 +369,32 @@ def main(thisDir, json_file):
             if analysis_methods.get("debug_mode") == False:
                 fig1.savefig(Path(stim_directory) / plot_name)
             plt.show()
-            walk_events_start_oe = estimating_ephys_timepoints(
-                walk_events_start,
-                stim_events_times,
-                camera_fps,
-                stim_duration,
-                ISI_duration,
-            )
+            if len(barcode_on_oe) == 0 and len(camera_trigger_on_oe) == 0:
+                walk_events_start_oe = estimating_ephys_timepoints(
+                    walk_events_start,
+                    stim_events_times,
+                    camera_fps,
+                    stim_duration,
+                    ISI_duration,
+                )
+            else:
+                print(
+                    "work in progress. Here I need to output walk event starts based on oe time"
+                )
             walk_events_start_oe_tw = np.array(
                 [
                     walk_events_start_oe + time_window[0],
                     walk_events_start_oe + time_window[1],
                 ]
             ).T
-    elif analysis_methods.get("aligning_with_isi") == True:
-        print("this part needs more work")
     else:
         print(
             "this part needs more work. basically we should just detect whether there is info about stimulation. If not just skip aligning behaviours with certain stimulus"
         )
-    event_of_interest = analysis_methods.get("event_of_interest")
-    if event_of_interest.lower() == "stim_onset":
+
+    if event_of_interest.lower().startswith("stim"):
         event_of_interest = stim_events_times
         event_of_interest_tw = stim_events_tw
-        print("Align spikes with the onset of visual stimuli")
-    elif event_of_interest.lower() == "stim_offset":
-        print("Align spikes with the offset of visual stimuli")
-        print("Work in progress")
-        return
     elif event_of_interest.lower() == "walk_onset":
         event_of_interest = walk_events_start_oe
         event_of_interest_tw = walk_events_start_oe_tw
@@ -576,11 +593,13 @@ def main(thisDir, json_file):
 
 if __name__ == "__main__":
     # thisDir = r"C:\Users\neuroLaptop\Documents\Open Ephys\P-series-32channels\GN00003\2023-12-28_14-39-40"
-    thisDir = r"Z:\DATA\experiment_trackball_Optomotor\Zball\GN2300x\231123\coherence\2024-05-05_22-57-50"
+    # thisDir = r"Z:\DATA\experiment_trackball_Optomotor\Zball\GN2300x\231123\coherence\2024-05-05_22-57-50"
+    # thisDir = r"Z:\DATA\experiment_trackball_Optomotor\Zball\GN23019\240507\coherence\session1\2024-05-07_23-08-55"
+    thisDir = r"Z:\DATA\experiment_trackball_Optomotor\Zball\GN23018\240422\coherence\session2\2024-04-22_01-09-50"
     # thisDir = r"C:\Users\neuroPC\Documents\Open Ephys\2024-02-01_15-25-25"
     json_file = "./analysis_methods_dictionary.json"
     ##Time the function
     tic = time.perf_counter()
-    main(thisDir, json_file)
+    align_async_signals(thisDir, json_file)
     toc = time.perf_counter()
     print(f"it takes {toc-tic:0.4f} seconds to run the main function")

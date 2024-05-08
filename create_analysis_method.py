@@ -18,7 +18,7 @@ analysis_methods = {
     "load_curated_spikes": True,
     "export_report": False,
     "event_of_interest": "stim_onset",
-    "aligning_with_stimuli": True,
+    "analyse_stim_evoked_activity": True,
     "overwrite_curated_dataset": True,
     "graph_colour_code": ["r", "y", "m", "c", "k", "b", "g", "r"],
     "debug_mode": False,
