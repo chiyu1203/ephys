@@ -189,12 +189,6 @@ def raw2si(thisDir, json_file):
     # for unit in sorting_spikes.get_unit_ids():
     #     print(f'with {this_sorter} sorter, Spike train of a unit:{sorting_spikes.get_unit_spike_train(unit_id=unit)}')
 
-    if analysis_methods.get("aligning_with_stimuli")==True:
-        full_raw_rec = se.read_openephys(oe_folder,load_sync_timestamps=True)
-        aux_events=se.read_openephys_event(oe_folder)
-        events_times=aux_events.get_event_times(channel_id=aux_events.channel_ids[1],segment_index=0)# this record ON phase of sync pulse
-        time_window = np.array([-0.1, 0.0])
-        events_tw = np.array([events_times+time_window[0], events_times+time_window[1]]).T
     
     ##extracting waveform
     # the extracted waveform based on sparser signals (channels) makes the extraction faster. 

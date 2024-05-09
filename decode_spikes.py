@@ -1,10 +1,22 @@
 import time, os, json, warnings, sys
+import spikeinterface.full as sf
 from open_ephys.analysis import Session
 import spikeinterface.core as si
 import spikeinterface.extractors as se
 import matplotlib.pyplot as plt
+import spikeinterface.qualitymetrics as sqm
+
+"""
 from brainbox.population.decode import get_spike_counts_in_bins
 from brainbox.plot import peri_event_time_histogram
+from brainbox.ephys_plots import (
+    plot_cdf,
+    image_rms_plot,
+    scatter_raster_plot,
+    scatter_amp_depth_fr_plot,
+    probe_rms_plot,
+)
+"""
 import numpy as np
 from pathlib import Path
 import pandas as pd
@@ -18,8 +30,8 @@ sys.path.insert(
 )  ## 0 means search for new dir first and 1 means search for sys.path first
 from useful_tools import find_file
 
-sys.path.insert(0, str(parent_dir) + "\\bonfic")
-from analyse_stimulus_evoked_response import classify_trial_type
+# sys.path.insert(0, str(parent_dir) + "\\bonfic")
+# from analyse_stimulus_evoked_response import classify_trial_type
 
 
 def classify_walk(arr, speed_threshold=10, on_consecutive_length=50):
@@ -209,22 +221,6 @@ def align_async_signals(thisDir, json_file):
         sorter_suffix = "_KS4"
     phy_folder_name = "phy" + sorter_suffix
 
-    if (
-        analysis_methods.get("load_curated_spikes") == True
-        and (oe_folder / phy_folder_name).is_dir()
-    ):
-        sorting_spikes = se.read_phy(
-            oe_folder / phy_folder_name, exclude_cluster_groups=["noise"]
-        )
-        if (oe_folder / "preprocessed_compressed.zarr").is_dir():
-            recording_saved = si.read_zarr(oe_folder / "preprocessed_compressed.zarr")
-            print(recording_saved.get_property_keys())
-        elif (oe_folder / "preprocessed").is_dir():
-            recording_saved = si.load_extractor(oe_folder / "preprocessed")
-        else:
-            print(f"no pre-processed folder found. Unable to extract waveform")
-            return sorting_spikes
-        recording_saved.annotate(is_filtered=True)
     ##load adc events from openEphys
     session = Session(oe_folder)
     recording = session.recordnodes[0].recordings[0]
@@ -518,7 +514,38 @@ def align_async_signals(thisDir, json_file):
     # template_metrics = spost.compute_template_metrics(we)
     # qm_params = sq.get_default_qm_params()
     # metric_names = sq.get_quality_metric_list()
-    if analysis_methods.get("load_curated_spikes") == True:
+    if (
+        analysis_methods.get("load_curated_spikes") == True
+        and (oe_folder / phy_folder_name).is_dir()
+    ):
+        sorting_spikes = se.read_phy(
+            oe_folder / phy_folder_name, exclude_cluster_groups=["noise"]
+        )
+        if (oe_folder / "preprocessed_compressed.zarr").is_dir():
+            recording_saved = si.read_zarr(oe_folder / "preprocessed_compressed.zarr")
+            print(recording_saved.get_property_keys())
+        elif (oe_folder / "preprocessed").is_dir():
+            recording_saved = si.load_extractor(oe_folder / "preprocessed")
+        else:
+            print(f"no pre-processed folder found. Unable to extract waveform")
+            return sorting_spikes
+
+        ###start to analyse spikes or loading info from sorted spikes
+        recording_saved.annotate(is_filtered=True)
+
+        # spikeinterface.SortingAnalyzer
+
+        sorting_analyzer = si.create_sorting_analyzer(
+            sorting=sorting_spikes,
+            recording=recording_saved,
+            sparse=True,  # default
+            format="memory",  # default
+        )
+        sorting_analyzer = si.compute("unit_locations", ...)
+        drift_ptps, drift_stds, drift_mads = sqm.compute_drift_metrics(
+            sorting_analyzer=sorting_analyzer, peak_sign="neg"
+        )
+        sorting_analyzer.get_available_extension_names()
         spike_time_list = []
         spike_amp_list = []
         cluster_id_list = []
@@ -543,7 +570,12 @@ def align_async_signals(thisDir, json_file):
         spike_count, cluster_id = get_spike_counts_in_bins(
             spike_time_all_sorted, cluster_id_all_sorted, stim_events_tw
         )
-
+        scatter_amp_depth_fr_plot(
+            spike_amps=0,
+            spike_clusters=cluster_id_all,
+            spike_depths=0,
+            spike_times=spike_time_all,
+        )
         # Compute rate (for all clusters of interest)
         num_trial = stim_events_tw.shape[0]
         num_neuron = len(np.unique(cluster_id_all))
