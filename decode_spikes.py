@@ -5,7 +5,8 @@ import spikeinterface.core as si
 import spikeinterface.extractors as se
 import matplotlib.pyplot as plt
 import spikeinterface.qualitymetrics as sqm
-
+from spikeinterface.widgets import plot_sorting_summary
+import numcodecs
 """
 from brainbox.population.decode import get_spike_counts_in_bins
 from brainbox.plot import peri_event_time_histogram
@@ -32,7 +33,13 @@ from useful_tools import find_file
 
 # sys.path.insert(0, str(parent_dir) + "\\bonfic")
 # from analyse_stimulus_evoked_response import classify_trial_type
-
+n_cpus = os.cpu_count()
+n_jobs = n_cpus - 4
+global_job_kwargs = dict(n_jobs=n_jobs, chunk_duration="1s", progress_bar=True)
+#global_job_kwargs = dict(n_jobs=16, chunk_duration="5s", progress_bar=False)
+si.set_global_job_kwargs(**global_job_kwargs)
+#print(si.get_global_job_kwargs())
+# >>> {'n_jobs': 16, 'chunk_duration': '5s', 'progress_bar': False}
 
 def classify_walk(arr, speed_threshold=10, on_consecutive_length=50):
     walk_events_all = []
@@ -514,6 +521,8 @@ def align_async_signals(thisDir, json_file):
     # template_metrics = spost.compute_template_metrics(we)
     # qm_params = sq.get_default_qm_params()
     # metric_names = sq.get_quality_metric_list()
+    sorting_analyzer=si.load_sorting_analyzer(folder=oe_folder/"sorting_analyzer")
+    print(sorting_analyzer.get_loaded_extension_names())
     if (
         analysis_methods.get("load_curated_spikes") == True
         and (oe_folder / phy_folder_name).is_dir()
@@ -532,7 +541,6 @@ def align_async_signals(thisDir, json_file):
 
         ###start to analyse spikes or loading info from sorted spikes
         recording_saved.annotate(is_filtered=True)
-
         # spikeinterface.SortingAnalyzer
 
         sorting_analyzer = si.create_sorting_analyzer(
@@ -541,11 +549,44 @@ def align_async_signals(thisDir, json_file):
             sparse=True,  # default
             format="memory",  # default
         )
-        sorting_analyzer = si.compute("unit_locations", ...)
-        drift_ptps, drift_stds, drift_mads = sqm.compute_drift_metrics(
-            sorting_analyzer=sorting_analyzer, peak_sign="neg"
+
+        sorting_analyzer.compute(["random_spikes","waveforms","templates","noise_levels","spike_amplitudes", "spike_locations", "unit_locations"])
+        sorting_analyzer.compute(['correlograms','template_similarity'])
+        '''
+        compute_dict = {
+    'principal_components': {'n_components': 3, 'mode': 'by_channel_local'},
+    'templates': {'operators': ["average"]}}
+        sorting_analyzer.compute(compute_dict)
+        sorting_analyzer = si.create_sorting_analyzer(
+            sorting=sorting_spikes,
+            recording=recording_saved,
+            sparse=True,  # default
+            format="binary_folder",
+            folder=oe_folder/"sorting_analyzer" # default
         )
-        sorting_analyzer.get_available_extension_names()
+        compute_dict = {
+    'unit_locations': {'method':["monopolar_triangulation"]}}
+    sorting_analyzer.compute(compute_dict)
+        sorting_analyzer.compute(input="spike_locations",
+                         ms_before=0.5,
+                         ms_after=0.5,
+                         spike_retriever_kwargs=dict(
+                            channel_from_template=True,
+                            radius_um=50,
+                            peak_sign="neg"
+                                          ),
+                         method="center_of_mass")
+        sorting_analyzer.compute(["random_spikes","waveforms","templates","noise_levels","spike_amplitudes",'correlograms','template_similarity'],save=True)
+        import numcodecs
+        sorting_analyzer_zarr=sorting_analyzer.save_as(folder=oe_folder/"sorting_analyzer.zarr",format="zarr")
+        '''        
+
+        
+        
+        drift_ptps, drift_stds, drift_mads = sqm.compute_drift_metrics(
+            sorting_analyzer=sorting_analyzer)
+        # plot_sorting_summary(sorting_analyzer,curation=True,backend='sortingview') use this in jupyter notebook
+        sorting_analyzer.get_loaded_extension_names()
         spike_time_list = []
         spike_amp_list = []
         cluster_id_list = []
