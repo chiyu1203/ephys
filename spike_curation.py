@@ -6,6 +6,7 @@ import spikeinterface.curation as scur
 import spikeinterface.postprocessing as spost
 import spikeinterface.exporters as sep
 import spikeinterface.qualitymetrics as sq
+from spikeinterface.widgets import plot_sorting_summary
 
 warnings.simplefilter("ignore")
 """
@@ -116,19 +117,19 @@ def si2phy(thisDir, json_file):
     pc = we.load_extension("principal_components")
     all_labels, all_pcs = pc.get_data()
     print(all_pcs.shape)
-    amplitudes = spost.compute_spike_amplitudes(
+    _ = spost.compute_spike_amplitudes(
         we, outputs="by_unit", load_if_exists=True, **job_kwargs
     )
-    unit_locations = spost.compute_unit_locations(
+    _ = spost.compute_unit_locations(
         we, method="monopolar_triangulation", load_if_exists=True
     )
-    spike_locations = spost.compute_spike_locations(
+    _ = spost.compute_spike_locations(
         we, method="center_of_mass", load_if_exists=True, **job_kwargs
     )
     ##spike_clusters=find_cluster_from_peaks(recording_saved, peaks, method='stupid', method_kwargs={}, extra_outputs=False, **job_kwargs)
-    ccgs, bins = spost.compute_correlograms(we)
-    similarity = spost.compute_template_similarity(we)
-    template_metrics = spost.compute_template_metrics(we)
+    _, _ = spost.compute_correlograms(we)
+    _ = spost.compute_template_similarity(we)
+    _ = spost.compute_template_metrics(we)
     qm_params = sq.get_default_qm_params()
     metric_names = sq.get_quality_metric_list()
     if we.return_scaled:
@@ -140,7 +141,7 @@ def si2phy(thisDir, json_file):
             **job_kwargs,
         )
     print(we.get_available_extension_names())  # check available extension
-
+    plot_sorting_summary(waveform_extractor=we, curation=True, backend="sortingview")
     ##curation
     # the safest way to curate spikes are manual curation, which phy seems to be a good package to deal with that
     # When exporting spikes data to phy, amplitudes and pc features can also be calculated
@@ -186,6 +187,51 @@ def si2phy(thisDir, json_file):
     if analysis_methods.get("export_report") == True:
         report_folder_name = "report" + sorter_suffix
         sep.export_report(we, output_folder=oe_folder / report_folder_name)
+        ## create and save sorting_analzer. Needs to design a pipeline so that it either use automatic curation or phy curated data
+        sorting_analyzer.compute(
+            [
+                "random_spikes",
+                "waveforms",
+                "templates",
+                "noise_levels",
+                "spike_amplitudes",
+                "spike_locations",
+                "unit_locations",
+            ]
+        )
+        sorting_analyzer.compute(["correlograms", "template_similarity"])
+        """
+        compute_dict = {
+    'principal_components': {'n_components': 3, 'mode': 'by_channel_local'},
+    'templates': {'operators': ["average"]}}
+        sorting_analyzer.compute(compute_dict)
+        sorting_analyzer = si.create_sorting_analyzer(
+            sorting=sorting_spikes,
+            recording=recording_saved,
+            sparse=True,  # default
+            format="binary_folder",
+            folder=oe_folder/"sorting_analyzer" # default
+        )
+        compute_dict = {
+    'unit_locations': {'method':["monopolar_triangulation"]}}
+    sorting_analyzer.compute(compute_dict)
+        sorting_analyzer.compute(input="spike_locations",
+                         ms_before=0.5,
+                         ms_after=0.5,
+                         spike_retriever_kwargs=dict(
+                            channel_from_template=True,
+                            radius_um=50,
+                            peak_sign="neg"
+                                          ),
+                         method="center_of_mass")
+        sorting_analyzer.compute(["random_spikes","waveforms","templates","noise_levels","spike_amplitudes",'correlograms','template_similarity'],save=True)
+        import numcodecs
+        sorting_analyzer_zarr=sorting_analyzer.save_as(folder=oe_folder/"sorting_analyzer.zarr",format="zarr")
+        """
+
+    spost.align_sorting(sorting, unit_peak_shifts)
+    spikeinterface.core.get_template_extremum_channel_peak_shift
+
     return sorting_spikes, we
 
 

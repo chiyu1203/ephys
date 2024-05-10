@@ -6,10 +6,12 @@ import spikeinterface.extractors as se
 import matplotlib.pyplot as plt
 import spikeinterface.qualitymetrics as sqm
 from spikeinterface.widgets import plot_sorting_summary
+import spikeinterface.postprocessing as spost
 import numcodecs
-"""
+import math
+
 from brainbox.population.decode import get_spike_counts_in_bins
-from brainbox.plot import peri_event_time_histogram
+from brainbox.plot import peri_event_time_histogram, driftmap_color, driftmap
 from brainbox.ephys_plots import (
     plot_cdf,
     image_rms_plot,
@@ -17,7 +19,7 @@ from brainbox.ephys_plots import (
     scatter_amp_depth_fr_plot,
     probe_rms_plot,
 )
-"""
+
 import numpy as np
 from pathlib import Path
 import pandas as pd
@@ -36,10 +38,31 @@ from useful_tools import find_file
 n_cpus = os.cpu_count()
 n_jobs = n_cpus - 4
 global_job_kwargs = dict(n_jobs=n_jobs, chunk_duration="1s", progress_bar=True)
-#global_job_kwargs = dict(n_jobs=16, chunk_duration="5s", progress_bar=False)
+# global_job_kwargs = dict(n_jobs=16, chunk_duration="5s", progress_bar=False)
 si.set_global_job_kwargs(**global_job_kwargs)
-#print(si.get_global_job_kwargs())
+# print(si.get_global_job_kwargs())
 # >>> {'n_jobs': 16, 'chunk_duration': '5s', 'progress_bar': False}
+import math
+
+
+def root_sum_squared(tuples):
+    result = 0
+    for tup in tuples:
+        # Sum of squares of tuple elements
+        sum_of_squares = sum(x**2 for x in tup)
+        # Add square root of sum of squares to result
+        result += math.sqrt(sum_of_squares)
+    return result
+
+
+# Example array of tuples
+array_of_tuples = [(3, 4), (5, 12), (9, 12)]
+
+# Calculate root sum squared
+result = root_sum_squared(array_of_tuples)
+
+print("Root sum squared:", result)
+
 
 def classify_walk(arr, speed_threshold=10, on_consecutive_length=50):
     walk_events_all = []
@@ -279,7 +302,6 @@ def align_async_signals(thisDir, json_file):
         else:
             stimulus_meta_info = pd.read_pickle(stimulus_meta_file)
             num_stim = stimulus_meta_info.shape[0]
-        ##load stimulus meta info
 
         isi_on_oe = recording.events.timestamp[
             (recording.events.line == 1) & (recording.events.state == 1)
@@ -521,8 +543,9 @@ def align_async_signals(thisDir, json_file):
     # template_metrics = spost.compute_template_metrics(we)
     # qm_params = sq.get_default_qm_params()
     # metric_names = sq.get_quality_metric_list()
-    sorting_analyzer=si.load_sorting_analyzer(folder=oe_folder/"sorting_analyzer")
-    print(sorting_analyzer.get_loaded_extension_names())
+    # sorting_analyzer = si.load_sorting_analyzer(folder=oe_folder / "sorting_analyzer")
+    # print(sorting_analyzer.get_loaded_extension_names())
+    # test = spost.compute_unit_locations(sorting_analyzer)
     if (
         analysis_methods.get("load_curated_spikes") == True
         and (oe_folder / phy_folder_name).is_dir()
@@ -549,47 +572,89 @@ def align_async_signals(thisDir, json_file):
             sparse=True,  # default
             format="memory",  # default
         )
-
-        sorting_analyzer.compute(["random_spikes","waveforms","templates","noise_levels","spike_amplitudes", "spike_locations", "unit_locations"])
-        sorting_analyzer.compute(['correlograms','template_similarity'])
-        '''
-        compute_dict = {
-    'principal_components': {'n_components': 3, 'mode': 'by_channel_local'},
-    'templates': {'operators': ["average"]}}
-        sorting_analyzer.compute(compute_dict)
-        sorting_analyzer = si.create_sorting_analyzer(
-            sorting=sorting_spikes,
-            recording=recording_saved,
-            sparse=True,  # default
-            format="binary_folder",
-            folder=oe_folder/"sorting_analyzer" # default
+        sorting_analyzer.compute(["principal_components", "templates", "waveforms"])
+        sorting_analyzer.compute(input="spike_amplitudes", peak_sign="neg")
+        ext = sorting_analyzer.get_extension("spike_amplitudes")
+        spike_amp = ext.get_data(outputs="by_unit")
+        fraction_missing = sqm.compute_amplitude_cutoffs(
+            sorting_analyzer=sorting_analyzer, peak_sign="neg"
         )
-        compute_dict = {
-    'unit_locations': {'method':["monopolar_triangulation"]}}
-    sorting_analyzer.compute(compute_dict)
-        sorting_analyzer.compute(input="spike_locations",
-                         ms_before=0.5,
-                         ms_after=0.5,
-                         spike_retriever_kwargs=dict(
-                            channel_from_template=True,
-                            radius_um=50,
-                            peak_sign="neg"
-                                          ),
-                         method="center_of_mass")
-        sorting_analyzer.compute(["random_spikes","waveforms","templates","noise_levels","spike_amplitudes",'correlograms','template_similarity'],save=True)
-        import numcodecs
-        sorting_analyzer_zarr=sorting_analyzer.save_as(folder=oe_folder/"sorting_analyzer.zarr",format="zarr")
-        '''        
-
-        
-        
-        drift_ptps, drift_stds, drift_mads = sqm.compute_drift_metrics(
-            sorting_analyzer=sorting_analyzer)
+        print(
+            f"fraction missing: {fraction_missing} in these units, meaning the fraction of false negatives (missed spikes) by the sorter"
+        )
+        sorting_analyzer.compute(input="spike_locations")
+        ext = sorting_analyzer.get_extension("spike_locations")
+        spike_loc = ext.get_data(outputs="by_unit")
+        # drift_ptps, drift_stds, drift_mads = sqm.compute_drift_metrics(
+        #     sorting_analyzer=sorting_analyzer
+        # )
         # plot_sorting_summary(sorting_analyzer,curation=True,backend='sortingview') use this in jupyter notebook
-        sorting_analyzer.get_loaded_extension_names()
+        # sorting_analyzer.get_loaded_extension_names()
+        # spike_depths = spost.compute_spike_locations(
+        #     sorting_analyzer, outputs="by_unit"
+        # )
+        # amplitudes = sorting_analyzer.compute(
+        #     input="spike_amplitudes", peak_sign="neg", outputs="by_unit"
+        # )
+        """
+        waveform_folder_name = "curated1" + sorter_suffix
+        we = si.extract_waveforms(
+            recording_saved,
+            sorting_spikes,
+            folder=oe_folder / waveform_folder_name,
+            sparse=False,
+        )
+        all_templates = we.get_all_templates()
+        print(f"All templates shape: {all_templates.shape}")
+        for unit in sorting_spikes.get_unit_ids()[::10]:
+            waveforms = we.get_waveforms(unit_id=unit)
+            spiketrain = sorting_spikes.get_unit_spike_train(unit)
+            print(
+                f"Unit {unit} - num waveforms: {waveforms.shape[0]} - num spikes: {len(spiketrain)}"
+            )
+
+        sparsity = si.compute_sparsity(we, method="radius", radius_um=100.0)
+        #  check the sparsity for some units
+        for unit_id in sorting_spikes.unit_ids[::30]:
+            print(unit_id, list(sparsity.unit_id_to_channel_ids[unit_id]))
+        if analysis_methods.get("extract_waveform_sparse_explicit") == True:
+            waveform_folder_name = "waveforms_sparse_explicit" + sorter_suffix
+            we = si.extract_waveforms(
+                recording_saved,
+                sorting_spikes,
+                folder=oe_folder / waveform_folder_name,
+                sparse=sparsity,
+                overwrite=True,
+            )
+            # the waveforms are now sparse
+            for unit_id in we.unit_ids[::10]:
+                waveforms = we.get_waveforms(unit_id=unit_id)
+                print(unit_id, waveforms.shape)
+        ##evaluating the spike sorting
+        pc = spost.compute_principal_components(
+            we, n_components=3, load_if_exists=False
+        )
+        # all_labels, all_pcs = pc.get_all_projections()
+        # print(f"All PC scores shape: {all_pcs.shape}")
+        # we.get_available_extension_names()
+        # pc = we.load_extension("principal_components")
+        # all_labels, all_pcs = pc.get_data()
+        # print(all_pcs.shape)
+
+        spike_time_list = spost.compute_spike_amplitudes(
+            we, outputs="by_unit", load_if_exists=True
+        )
+        spike_unit_locations = spost.compute_unit_locations(
+            we, method="monopolar_triangulation", load_if_exists=True
+        )
+        spike_unit_locations = spost.compute_spike_locations(
+            we, method="center_of_mass", load_if_exists=True
+        )
+        """
         spike_time_list = []
         spike_amp_list = []
         cluster_id_list = []
+        spike_loc_list = []
         for unit in sorting_spikes.get_unit_ids():
             print(
                 f"with {this_sorter} sorter, Spike train of a unit:{sorting_spikes.get_unit_spike_train(unit_id=unit)}"
@@ -599,24 +664,33 @@ def align_async_signals(thisDir, json_file):
             )
             spike_time_list.append(spike_times)
             cluster_id_list.append(np.ones(len(spike_times), dtype=int) * unit)
-            # df.to_csv('example.tsv', sep="\t")
-            # np.savetxt("data3.tsv", a,  delimiter = "\t")
-            # spike_amp_list.append(amplitudes[0][unit])
-            # spike_amps = amplitudes[0][unit]
+            spike_amp_list.append(spike_amp[0][unit])
+            # dont know what is the best way to convert tuple so convert it into pandas dataframe first and then extract np.array from dataframe
+            # maybe list comprehension is faster
+            # access tuple: spike_loc[0][12][0] access array element: spike_loc[0][12][0][0] spike_loc[0][12][0][1]
+            df = pd.DataFrame(spike_loc[0][unit], columns=["x", "y"])
+            df["distance"] = np.sqrt(df["x"] ** 2 + df["y"] ** 2)
+            spike_loc_list.append(df["distance"].values)
+            plt.scatter(spike_times, df["distance"].values)
+            ##try to use this driftmap_color or driftmap
         spike_time_all = np.concatenate(spike_time_list)
         cluster_id_all = np.concatenate(cluster_id_list)
+        spike_amp_all = np.concatenate(spike_amp_list)
+        spike_loc_all = np.concatenate(spike_loc_list)
+
         spike_time_all_sorted, cluster_id_all_sorted = sort_arrays(
             spike_time_all, cluster_id_all
         )
         spike_count, cluster_id = get_spike_counts_in_bins(
             spike_time_all_sorted, cluster_id_all_sorted, stim_events_tw
         )
-        scatter_amp_depth_fr_plot(
-            spike_amps=0,
-            spike_clusters=cluster_id_all,
-            spike_depths=0,
-            spike_times=spike_time_all,
-        )
+        # scatter_amp_depth_fr_plot(
+        #     spike_amps=spike_amp_all,
+        #     spike_clusters=cluster_id_all,
+        #     spike_depths=spike_loc_all,
+        #     spike_times=spike_time_all,display=True
+        # )
+
         # Compute rate (for all clusters of interest)
         num_trial = stim_events_tw.shape[0]
         num_neuron = len(np.unique(cluster_id_all))
