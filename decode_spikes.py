@@ -4,12 +4,13 @@ from open_ephys.analysis import Session
 import spikeinterface.core as si
 import spikeinterface.extractors as se
 import matplotlib.pyplot as plt
+import matplotlib as mpl
+from matplotlib import cm
 import spikeinterface.qualitymetrics as sqm
 from spikeinterface.widgets import plot_sorting_summary
 import spikeinterface.postprocessing as spost
 import numcodecs
 import math
-
 from brainbox.population.decode import get_spike_counts_in_bins
 from brainbox.plot import peri_event_time_histogram, driftmap_color, driftmap
 from brainbox.ephys_plots import (
@@ -25,6 +26,18 @@ from pathlib import Path
 import pandas as pd
 from extraction_barcodes_cl import extract_barcodes
 
+
+class MplColorHelper:
+    def __init__(self, cmap_name, start_val, stop_val):
+        self.cmap_name = cmap_name
+        self.cmap = plt.get_cmap(cmap_name)
+        self.norm = mpl.colors.Normalize(vmin=start_val, vmax=stop_val)
+        self.scalarMap = cm.ScalarMappable(norm=self.norm, cmap=self.cmap)
+
+    def get_rgb(self, val):
+        return self.scalarMap.to_rgba(val)
+
+
 warnings.simplefilter("ignore")
 current_working_directory = Path.cwd()
 parent_dir = current_working_directory.resolve().parents[0]
@@ -32,6 +45,7 @@ sys.path.insert(
     0, str(parent_dir) + "\\utilities"
 )  ## 0 means search for new dir first and 1 means search for sys.path first
 from useful_tools import find_file
+from data_cleaning import sorting_trial_info
 
 # sys.path.insert(0, str(parent_dir) + "\\bonfic")
 # from analyse_stimulus_evoked_response import classify_trial_type
@@ -42,26 +56,16 @@ global_job_kwargs = dict(n_jobs=n_jobs, chunk_duration="1s", progress_bar=True)
 si.set_global_job_kwargs(**global_job_kwargs)
 # print(si.get_global_job_kwargs())
 # >>> {'n_jobs': 16, 'chunk_duration': '5s', 'progress_bar': False}
-import math
 
 
 def root_sum_squared(tuples):
-    result = 0
+    result = []
     for tup in tuples:
         # Sum of squares of tuple elements
         sum_of_squares = sum(x**2 for x in tup)
         # Add square root of sum of squares to result
-        result += math.sqrt(sum_of_squares)
+        result.append(math.sqrt(sum_of_squares))
     return result
-
-
-# Example array of tuples
-array_of_tuples = [(3, 4), (5, 12), (9, 12)]
-
-# Calculate root sum squared
-result = root_sum_squared(array_of_tuples)
-
-print("Root sum squared:", result)
 
 
 def classify_walk(arr, speed_threshold=10, on_consecutive_length=50):
@@ -234,6 +238,8 @@ def sort_arrays(arr1, *arrays):
 
 
 def align_async_signals(thisDir, json_file):
+    colormap_name = "coolwarm"
+    COL = MplColorHelper(colormap_name, 0, 8)
     oe_folder = Path(thisDir)
     if isinstance(json_file, dict):
         analysis_methods = json_file
@@ -294,11 +300,17 @@ def align_async_signals(thisDir, json_file):
         stimulus_meta_file = find_file(stim_directory, pd_ext)
 
         if stimulus_meta_file is None:
+            if oe_folder.name == "2024-02-01_15-25-25":
+                stim_directory = Path(
+                    r"Z:\DATA\experiment_trackball_Optomotor\Zball\GN23018\240422\coherence\session2"
+                )
             print("load raw stimulus information")
             trial_ext = "trial*.csv"
             this_csv = find_file(stim_directory, trial_ext)
             stim_directory = pd.read_csv(this_csv)
-            num_stim = int(stim_directory.shape[0] / 2)
+            meta_info, _ = sorting_trial_info(stim_directory)
+            stimulus_meta_info = meta_info[1::2]
+            num_stim = stimulus_meta_info.shape[0]
         else:
             stimulus_meta_info = pd.read_pickle(stimulus_meta_file)
             num_stim = stimulus_meta_info.shape[0]
@@ -313,7 +325,7 @@ def align_async_signals(thisDir, json_file):
         if analysis_methods.get("analyse_stim_evoked_activity") == True:
             if len(stim_on_oe) > num_stim:
                 stim_events_times = stim_on_oe[
-                    1:
+                    -num_stim:
                 ].values  ##this happens when the S button is pressed after openEphys are recorded.
             else:
                 stim_events_times = stim_on_oe[:].values
@@ -330,88 +342,92 @@ def align_async_signals(thisDir, json_file):
         stim_events_tw = np.array(
             [stim_events_times + time_window[0], stim_events_times + time_window[1]]
         ).T
-
-        if velocity_file is None:
-            print(
-                "no velocity across frames avaliable. Use behavioural summary for responses from each trial"
-            )
-            csv_ext = "trial*.csv"
-            this_csv = find_file(stim_directory, csv_ext)
-            stim_directory = pd.read_csv(this_csv)
-            num_stim = int(stim_directory.shape[0] / 2)
-            walking_trials_threshold = 50
-            turning_trials_threshold = 0.33
-            classify_walk(
-                stimulus_meta_info, turning_trials_threshold, walking_trials_threshold
-            )
-        else:
-            velocity_tbt = np.load(velocity_file)
-            walk_events_start, walk_events_end = classify_walk(
-                velocity_tbt[:, 0 : (stim_duration + ISI_duration) * camera_fps],
-                walk_speed_threshold,
-                walk_consecutive_length,
-            )
-            # walk_events_start = remove_run_during_isi(
-            #     walk_events_start, camera_fps, ISI_duration
-            # )
-            walk_events_start_tw = np.array(
-                [
-                    walk_events_start[1, :] + time_window_behaviours[0] * camera_fps,
-                    walk_events_start[1, :] + time_window_behaviours[1] * camera_fps,
-                ]
-            ).T
-            walk_events_end_tw = np.array(
-                [
-                    walk_events_end[1, :] + time_window_behaviours[0] * camera_fps,
-                    walk_events_end[1, :] + time_window_behaviours[1] * camera_fps,
-                ]
-            ).T
-            # fig, axs = plt.subplots(2, 2, figsize=(6, 6))
-
-            # for i, ax in enumerate(axs.flatten()):
-            #     file = np.load(adc_folder / os.listdir(adc_folder)[i])
-            #     ax.plot(range(len(file)), file)
-            # plt.tight_layout()
-            # plt.show()
-            fig1, (ax, ax1) = plt.subplots(
-                nrows=2, ncols=1, figsize=(18, 7), tight_layout=True
-            )
-            for i in range(0, walk_events_start.shape[1]):
-                velocity_of_interest = velocity_tbt[
-                    walk_events_start[0, i],
-                    walk_events_start_tw[i, 0] : walk_events_start_tw[i, 1],
-                ]
-                ax.plot(
-                    range(0, len(velocity_of_interest)),
-                    velocity_of_interest,
-                    linewidth=7.0,
+        if event_of_interest.lower().startswith("walk"):
+            if velocity_file is None:
+                print(
+                    "no velocity across frames avaliable. Use behavioural summary for responses from each trial"
                 )
-
-            ax.set_xlabel("Time")
-            ax.set_ylabel("Velocity")
-            ax.set_ylim(0, 300)
-            plot_name = "walk_onset.svg"
-            if analysis_methods.get("debug_mode") == False:
-                fig1.savefig(Path(stim_directory) / plot_name)
-            plt.show()
-            if len(barcode_on_oe) == 0 and len(camera_trigger_on_oe) == 0:
-                walk_events_start_oe = estimating_ephys_timepoints(
-                    walk_events_start,
-                    stim_events_times,
-                    camera_fps,
-                    stim_duration,
-                    ISI_duration,
+                csv_ext = "trial*.csv"
+                this_csv = find_file(stim_directory, csv_ext)
+                stim_directory = pd.read_csv(this_csv)
+                num_stim = int(stim_directory.shape[0] / 2)
+                walking_trials_threshold = 50
+                turning_trials_threshold = 0.33
+                classify_walk(
+                    stimulus_meta_info,
+                    turning_trials_threshold,
+                    walking_trials_threshold,
                 )
             else:
-                print(
-                    "work in progress. Here I need to output walk event starts based on oe time"
+                velocity_tbt = np.load(velocity_file)
+                walk_events_start, walk_events_end = classify_walk(
+                    velocity_tbt[:, 0 : (stim_duration + ISI_duration) * camera_fps],
+                    walk_speed_threshold,
+                    walk_consecutive_length,
                 )
-            walk_events_start_oe_tw = np.array(
-                [
-                    walk_events_start_oe + time_window[0],
-                    walk_events_start_oe + time_window[1],
-                ]
-            ).T
+                # walk_events_start = remove_run_during_isi(
+                #     walk_events_start, camera_fps, ISI_duration
+                # )
+                walk_events_start_tw = np.array(
+                    [
+                        walk_events_start[1, :]
+                        + time_window_behaviours[0] * camera_fps,
+                        walk_events_start[1, :]
+                        + time_window_behaviours[1] * camera_fps,
+                    ]
+                ).T
+                walk_events_end_tw = np.array(
+                    [
+                        walk_events_end[1, :] + time_window_behaviours[0] * camera_fps,
+                        walk_events_end[1, :] + time_window_behaviours[1] * camera_fps,
+                    ]
+                ).T
+                # fig, axs = plt.subplots(2, 2, figsize=(6, 6))
+
+                # for i, ax in enumerate(axs.flatten()):
+                #     file = np.load(adc_folder / os.listdir(adc_folder)[i])
+                #     ax.plot(range(len(file)), file)
+                # plt.tight_layout()
+                # plt.show()
+                fig1, (ax, ax1) = plt.subplots(
+                    nrows=2, ncols=1, figsize=(18, 7), tight_layout=True
+                )
+                for i in range(0, walk_events_start.shape[1]):
+                    velocity_of_interest = velocity_tbt[
+                        walk_events_start[0, i],
+                        walk_events_start_tw[i, 0] : walk_events_start_tw[i, 1],
+                    ]
+                    ax.plot(
+                        range(0, len(velocity_of_interest)),
+                        velocity_of_interest,
+                        linewidth=7.0,
+                    )
+
+                ax.set_xlabel("Time")
+                ax.set_ylabel("Velocity")
+                ax.set_ylim(0, 300)
+                plot_name = "walk_onset.svg"
+                if analysis_methods.get("debug_mode") == False:
+                    fig1.savefig(Path(stim_directory) / plot_name)
+                plt.show()
+                if len(barcode_on_oe) == 0 and len(camera_trigger_on_oe) == 0:
+                    walk_events_start_oe = estimating_ephys_timepoints(
+                        walk_events_start,
+                        stim_events_times,
+                        camera_fps,
+                        stim_duration,
+                        ISI_duration,
+                    )
+                else:
+                    print(
+                        "work in progress. Here I need to output walk event starts based on oe time"
+                    )
+                walk_events_start_oe_tw = np.array(
+                    [
+                        walk_events_start_oe + time_window[0],
+                        walk_events_start_oe + time_window[1],
+                    ]
+                ).T
     else:
         print(
             "this part needs more work. basically we should just detect whether there is info about stimulation. If not just skip aligning behaviours with certain stimulus"
@@ -550,9 +566,17 @@ def align_async_signals(thisDir, json_file):
         analysis_methods.get("load_curated_spikes") == True
         and (oe_folder / phy_folder_name).is_dir()
     ):
-        sorting_spikes = se.read_phy(
-            oe_folder / phy_folder_name, exclude_cluster_groups=["noise"]
-        )
+        if analysis_methods.get("include_MUA") == True:
+            sorting_spikes = se.read_phy(
+                oe_folder / phy_folder_name, exclude_cluster_groups=["noise"]
+            )
+            merge_similiar_unit_for_analysis = False
+            unit_labels = sorting_spikes.get_property("quality")
+        else:
+            sorting_spikes = se.read_phy(
+                oe_folder / phy_folder_name, exclude_cluster_groups=["noise", "mua"]
+            )
+
         if (oe_folder / "preprocessed_compressed.zarr").is_dir():
             recording_saved = si.read_zarr(oe_folder / "preprocessed_compressed.zarr")
             print(recording_saved.get_property_keys())
@@ -572,7 +596,10 @@ def align_async_signals(thisDir, json_file):
             sparse=True,  # default
             format="memory",  # default
         )
-        sorting_analyzer.compute(["principal_components", "templates", "waveforms"])
+        sorting_analyzer.compute(
+            ["random_spikes", "isi_histograms", "correlograms", "noise_levels"]
+        )
+        sorting_analyzer.compute(["waveforms", "principal_components", "templates"])
         sorting_analyzer.compute(input="spike_amplitudes", peak_sign="neg")
         ext = sorting_analyzer.get_extension("spike_amplitudes")
         spike_amp = ext.get_data(outputs="by_unit")
@@ -585,9 +612,12 @@ def align_async_signals(thisDir, json_file):
         sorting_analyzer.compute(input="spike_locations")
         ext = sorting_analyzer.get_extension("spike_locations")
         spike_loc = ext.get_data(outputs="by_unit")
-        # drift_ptps, drift_stds, drift_mads = sqm.compute_drift_metrics(
-        #     sorting_analyzer=sorting_analyzer
-        # )
+        sorting_analyzer.compute(input="unit_locations")
+        ext = sorting_analyzer.get_extension("unit_locations")
+        unit_loc = ext.get_data(outputs="by_unit")
+        drift_ptps, drift_stds, drift_mads = sqm.compute_drift_metrics(
+            sorting_analyzer=sorting_analyzer
+        )
         # plot_sorting_summary(sorting_analyzer,curation=True,backend='sortingview') use this in jupyter notebook
         # sorting_analyzer.get_loaded_extension_names()
         # spike_depths = spost.compute_spike_locations(
@@ -655,24 +685,76 @@ def align_async_signals(thisDir, json_file):
         spike_amp_list = []
         cluster_id_list = []
         spike_loc_list = []
-        for unit in sorting_spikes.get_unit_ids():
+        unit_loc_list = []
+        i = 0
+        for this_unit, this_label in zip(sorting_spikes.get_unit_ids(), unit_labels):
             print(
-                f"with {this_sorter} sorter, Spike train of a unit:{sorting_spikes.get_unit_spike_train(unit_id=unit)}"
+                f"with {this_sorter} sorter, Spike train of a unit:{sorting_spikes.get_unit_spike_train(unit_id=this_unit)}"
             )
-            spike_times = sorting_spikes.get_unit_spike_train(unit_id=unit) / float(
-                sorting_spikes.sampling_frequency
-            )
+            spike_times = sorting_spikes.get_unit_spike_train(
+                unit_id=this_unit
+            ) / float(sorting_spikes.sampling_frequency)
             spike_time_list.append(spike_times)
-            cluster_id_list.append(np.ones(len(spike_times), dtype=int) * unit)
-            spike_amp_list.append(spike_amp[0][unit])
+            if merge_similiar_unit_for_analysis == True:
+                print(
+                    "a rough analysis that assign potentially same units into new ids. This method is not back by drifting matrics so should be only used for a quick look"
+                )
+                if this_label == "good":
+                    this_cluster_id = np.ones(len(spike_times), dtype=int) * 1000
+                elif this_label == "mua":
+                    this_cluster_id = np.ones(len(spike_times), dtype=int) * 2000
+                else:
+                    print(
+                        f"{this_label} not found. Please check if this is the kind of units you want to select"
+                    )
+                    continue
+            else:
+                this_cluster_id = np.ones(len(spike_times), dtype=int) * this_unit
+            cluster_id_list.append(this_cluster_id)
+            spike_amp_list.append(spike_amp[0][this_unit])
             # dont know what is the best way to convert tuple so convert it into pandas dataframe first and then extract np.array from dataframe
             # maybe list comprehension is faster
             # access tuple: spike_loc[0][12][0] access array element: spike_loc[0][12][0][0] spike_loc[0][12][0][1]
-            df = pd.DataFrame(spike_loc[0][unit], columns=["x", "y"])
-            df["distance"] = np.sqrt(df["x"] ** 2 + df["y"] ** 2)
-            spike_loc_list.append(df["distance"].values)
-            plt.scatter(spike_times, df["distance"].values)
-            ##try to use this driftmap_color or driftmap
+
+            spike_loc_df = pd.DataFrame(spike_loc[0][this_unit], columns=["x", "y"])
+            spike_loc_df["distance"] = np.sqrt(
+                spike_loc_df["x"] ** 2 + spike_loc_df["y"] ** 2
+            )
+            spike_loc_list.append(spike_loc_df["distance"].values)
+
+            this_unit_loc = np.sqrt(
+                unit_loc[this_unit][0] ** 2 + unit_loc[this_unit][1] ** 2
+            )
+            unit_loc_list.append(this_unit_loc)
+
+            plt.figure()
+            ax = plt.gca()
+            ax.scatter(
+                x=spike_times, y=spike_loc_df["distance"].values, c=COL.get_rgb(i)
+            )
+            ax.set_xlim([0, recording_saved.get_total_duration()])
+            ax.set_ylim([250, 350])
+            fig_name = f"spike_location_unit{this_id}.svg"
+            fig_dir = oe_folder / fig_name
+            ax.figure.savefig(fig_dir)
+            i += 1
+            ax_drift, x_lim, y_lim = driftmap_color(
+                clusters_depths=this_unit_loc,
+                spikes_times=spike_times,
+                spikes_amps=spike_amp[0][this_unit],
+                spikes_depths=spike_loc_df["distance"].values,
+                spikes_clusters=this_cluster_id,
+                ax=None,
+                axesoff=False,
+                return_lims=True,
+            )
+            ax_drift.set_xlim([0, recording_saved.get_total_duration()])
+            ax_drift.set_ylim([250, 350])
+            fig_name = f"driftmap_unit{this_id}.svg"
+            fig_dir = oe_folder / fig_name
+            ax_drift.figure.savefig(fig_dir)
+        ##try to use this driftmap_color or driftmap
+
         spike_time_all = np.concatenate(spike_time_list)
         cluster_id_all = np.concatenate(cluster_id_list)
         spike_amp_all = np.concatenate(spike_amp_list)
@@ -698,28 +780,31 @@ def align_async_signals(thisDir, json_file):
         spike_rate = spike_count / (time_window[1] - time_window[0])
         # this_event>sorting_spikes.get_unit_spike_train(unit_id=unit)/float(sorting_spikes.sampling_frequency)
         # unique, counts = np.unique(cluster_id_all, return_counts=True)#check unique spike counts
-        if analysis_methods.get("analysis_by_stimulus_type") == True:
-            stim_type = analysis_methods.get("stim_type")
-            for this_id in np.unique(cluster_id_all):
-                # for thisStim in stim_type:
+        for this_id in np.unique(cluster_id_all):
+            if analysis_methods.get("analysis_by_stimulus_type") == True:
+                stim_type = analysis_methods.get("stim_type")
+                for this_stim in stim_type:
 
-                #     # troubleshoot this part. Dont know why it exceeds the max size
-                #     this_event = stim_events_times[
-                #         stimulus_meta_info.loc[:, "stim_type"] > thisStim
-                #     ]
-                # peths, binned_spikes = singlecell.calculate_peths(
-                #     spike_time_all,
-                #     cluster_id_all,
-                #     [this_id],
-                #     stim_events_times,
-                #     pre_time=10,
-                #     post_time=20,
-                #     bin_size=0.025,
-                #     smoothing=0.025,
-                #     return_fr=True,
-                # )
-                # walk_events_start_oe time points when walk starts
-                peri_event_time_histogram(
+                    # troubleshoot this part. Dont know why it exceeds the max size
+                    ax = peri_event_time_histogram(
+                        spike_time_all,
+                        cluster_id_all,
+                        event_of_interest[
+                            stimulus_meta_info.loc[:, "stim_type"] == this_stim
+                        ],
+                        this_id,
+                        t_before=abs(time_window_behaviours[0]),
+                        t_after=time_window_behaviours[1],
+                        bin_size=0.025,
+                        smoothing=0.025,
+                        include_raster=True,
+                        raster_kwargs={"color": "black", "lw": 1},
+                    )
+                    fig_name = f"peth_stim{this_stim}_unit{this_id}.svg"
+                    fig_dir = oe_folder / fig_name
+                    ax.figure.savefig(fig_dir)
+            else:
+                ax = peri_event_time_histogram(
                     spike_time_all,
                     cluster_id_all,
                     event_of_interest,
@@ -728,13 +813,9 @@ def align_async_signals(thisDir, json_file):
                     t_after=time_window_behaviours[1],
                     bin_size=0.025,
                     smoothing=0.025,
-                    include_raster=True,
+                    include_raster=False,
                     raster_kwargs={"color": "black", "lw": 1},
                 )
-            # testDir = r"Z:\DATA\experiment_trackball_Optomotor\Zball\GN23012\231126\coherence\session1"
-            # pd_ext = "stimulus_meta_info.pickle"
-            # this_PD = find_file(testDir, pd_ext)
-            # stimulus_meta_info = pd.read_pickle(this_PD)
         return spike_count, cluster_id
 
 
@@ -742,7 +823,8 @@ if __name__ == "__main__":
     # thisDir = r"C:\Users\neuroLaptop\Documents\Open Ephys\P-series-32channels\GN00003\2023-12-28_14-39-40"
     # thisDir = r"Z:\DATA\experiment_trackball_Optomotor\Zball\GN2300x\231123\coherence\2024-05-05_22-57-50"
     # thisDir = r"Z:\DATA\experiment_trackball_Optomotor\Zball\GN23019\240507\coherence\session1\2024-05-07_23-08-55"
-    thisDir = r"Z:\DATA\experiment_trackball_Optomotor\Zball\GN23018\240422\coherence\session2\2024-04-22_01-09-50"
+    # thisDir = r"Z:\DATA\experiment_trackball_Optomotor\Zball\GN23018\240422\coherence\session2\2024-04-22_01-09-50"
+    thisDir = r"Z:\DATA\experiment_trackball_Optomotor\Zball\GN23015\240201\coherence\session1\2024-02-01_15-25-25"
     # thisDir = r"C:\Users\neuroPC\Documents\Open Ephys\2024-02-01_15-25-25"
     json_file = "./analysis_methods_dictionary.json"
     ##Time the function

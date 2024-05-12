@@ -4,6 +4,7 @@
     "analyse_good_channels_only": false,
     "load_raw_traces": false,
     "analyse_entire_recording": true,
+    "include_MUA": true,
     "save_prepocessed_file": false,
     "load_prepocessed_file": true,
     "save_sorting_file": false,

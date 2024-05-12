@@ -7,6 +7,7 @@ analysis_methods = {
     "analyse_good_channels_only": False,
     "load_raw_traces": False,
     "analyse_entire_recording": True,
+    "include_MUA": True,
     "save_prepocessed_file": False,
     "load_prepocessed_file": True,
     "save_sorting_file": False,
