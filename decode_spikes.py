@@ -734,7 +734,7 @@ def align_async_signals(thisDir, json_file):
             )
             ax.set_xlim([0, recording_saved.get_total_duration()])
             ax.set_ylim([250, 350])
-            fig_name = f"spike_location_unit{this_id}.svg"
+            fig_name = f"spike_location_unit{this_unit}.svg"
             fig_dir = oe_folder / fig_name
             ax.figure.savefig(fig_dir)
             i += 1
@@ -748,9 +748,11 @@ def align_async_signals(thisDir, json_file):
                 axesoff=False,
                 return_lims=True,
             )
-            ax_drift.set_xlim([0, recording_saved.get_total_duration()])
-            ax_drift.set_ylim([250, 350])
-            fig_name = f"driftmap_unit{this_id}.svg"
+            # ax_drift.set_xlim([0, recording_saved.get_total_duration()])
+            # ax_drift.set_ylim([250, 350])
+            ax_drift.set_xlim(x_lim)
+            ax_drift.set_ylim(y_lim)
+            fig_name = f"driftmap_unit{this_unit}.svg"
             fig_dir = oe_folder / fig_name
             ax_drift.figure.savefig(fig_dir)
         ##try to use this driftmap_color or driftmap
@@ -780,7 +782,7 @@ def align_async_signals(thisDir, json_file):
         spike_rate = spike_count / (time_window[1] - time_window[0])
         # this_event>sorting_spikes.get_unit_spike_train(unit_id=unit)/float(sorting_spikes.sampling_frequency)
         # unique, counts = np.unique(cluster_id_all, return_counts=True)#check unique spike counts
-        for this_id in np.unique(cluster_id_all):
+        for this_cluster_id in np.unique(cluster_id_all):
             if analysis_methods.get("analysis_by_stimulus_type") == True:
                 stim_type = analysis_methods.get("stim_type")
                 for this_stim in stim_type:
@@ -792,7 +794,7 @@ def align_async_signals(thisDir, json_file):
                         event_of_interest[
                             stimulus_meta_info.loc[:, "stim_type"] == this_stim
                         ],
-                        this_id,
+                        this_cluster_id,
                         t_before=abs(time_window_behaviours[0]),
                         t_after=time_window_behaviours[1],
                         bin_size=0.025,
@@ -800,7 +802,7 @@ def align_async_signals(thisDir, json_file):
                         include_raster=True,
                         raster_kwargs={"color": "black", "lw": 1},
                     )
-                    fig_name = f"peth_stim{this_stim}_unit{this_id}.svg"
+                    fig_name = f"peth_stim{this_stim}_unit{this_cluster_id}.svg"
                     fig_dir = oe_folder / fig_name
                     ax.figure.savefig(fig_dir)
             else:
@@ -808,7 +810,7 @@ def align_async_signals(thisDir, json_file):
                     spike_time_all,
                     cluster_id_all,
                     event_of_interest,
-                    this_id,
+                    this_cluster_id,
                     t_before=abs(time_window_behaviours[0]),
                     t_after=time_window_behaviours[1],
                     bin_size=0.025,
@@ -829,6 +831,8 @@ if __name__ == "__main__":
     json_file = "./analysis_methods_dictionary.json"
     ##Time the function
     tic = time.perf_counter()
+    align_async_signals(thisDir, json_file)
+    thisDir = r"Z:\DATA\experiment_trackball_Optomotor\Zball\GN23018\240422\coherence\session2\2024-04-22_01-09-50"
     align_async_signals(thisDir, json_file)
     toc = time.perf_counter()
     print(f"it takes {toc-tic:0.4f} seconds to run the main function")
