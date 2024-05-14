@@ -1,7 +1,7 @@
 import time, os, json, warnings, sys
-import spikeinterface.full as sf
 from open_ephys.analysis import Session
 import spikeinterface.core as si
+import spikeinterface.widgets as sw
 import spikeinterface.extractors as se
 import matplotlib.pyplot as plt
 import matplotlib as mpl
@@ -26,18 +26,6 @@ from pathlib import Path
 import pandas as pd
 from extraction_barcodes_cl import extract_barcodes
 
-
-class MplColorHelper:
-    def __init__(self, cmap_name, start_val, stop_val):
-        self.cmap_name = cmap_name
-        self.cmap = plt.get_cmap(cmap_name)
-        self.norm = mpl.colors.Normalize(vmin=start_val, vmax=stop_val)
-        self.scalarMap = cm.ScalarMappable(norm=self.norm, cmap=self.cmap)
-
-    def get_rgb(self, val):
-        return self.scalarMap.to_rgba(val)
-
-
 warnings.simplefilter("ignore")
 current_working_directory = Path.cwd()
 parent_dir = current_working_directory.resolve().parents[0]
@@ -54,8 +42,17 @@ n_jobs = n_cpus - 4
 global_job_kwargs = dict(n_jobs=n_jobs, chunk_duration="1s", progress_bar=True)
 # global_job_kwargs = dict(n_jobs=16, chunk_duration="5s", progress_bar=False)
 si.set_global_job_kwargs(**global_job_kwargs)
-# print(si.get_global_job_kwargs())
-# >>> {'n_jobs': 16, 'chunk_duration': '5s', 'progress_bar': False}
+
+
+class MplColorHelper:
+    def __init__(self, cmap_name, start_val, stop_val):
+        self.cmap_name = cmap_name
+        self.cmap = plt.get_cmap(cmap_name)
+        self.norm = mpl.colors.Normalize(vmin=start_val, vmax=stop_val)
+        self.scalarMap = cm.ScalarMappable(norm=self.norm, cmap=self.cmap)
+
+    def get_rgb(self, val):
+        return self.scalarMap.to_rgba(val)
 
 
 def root_sum_squared(tuples):
@@ -382,13 +379,6 @@ def align_async_signals(thisDir, json_file):
                         walk_events_end[1, :] + time_window_behaviours[1] * camera_fps,
                     ]
                 ).T
-                # fig, axs = plt.subplots(2, 2, figsize=(6, 6))
-
-                # for i, ax in enumerate(axs.flatten()):
-                #     file = np.load(adc_folder / os.listdir(adc_folder)[i])
-                #     ax.plot(range(len(file)), file)
-                # plt.tight_layout()
-                # plt.show()
                 fig1, (ax, ax1) = plt.subplots(
                     nrows=2, ncols=1, figsize=(18, 7), tight_layout=True
                 )
@@ -444,124 +434,7 @@ def align_async_signals(thisDir, json_file):
         print("Align spikes with the offset of walk events")
         print("Work in progress")
         return
-    # colormap_name = "coolwarm"
-    # COL = MplColorHelper(colormap_name, 0, 8)
-    # sm = cm.ScalarMappable(cmap=colormap_name)
-    # [exp_date, exp_hour] = csv_file_directory.stem.split("events")[1].split("T")
-    # exp_place = csv_file_directory.parts[3]
 
-    # df = pd.read_pickle(tracking_file)
-    # if analysis_methods.get("filtering_method") == "sg_filter":
-    #     x_all = savgol_filter(df.loc[:, ["intergrated x position"]], 71, 3, axis=0)
-    #     y_all = savgol_filter(df.loc[:, ["intergrated y position"]], 71, 3, axis=0)
-    # else:
-    #     x_all = df.loc[:, ["intergrated x position"]]
-    #     y_all = df.loc[:, ["intergrated y position"]]
-    # ## here write an additional function to classify stationary, moving and total travel distance
-    # vz = df.loc[:, ["delta rotation vector lab z"]].values
-    # travel_distance_fbf = np.sqrt(
-    #     np.add(np.square(np.diff(x_all, axis=0)), np.square(np.diff(y_all, axis=0)))
-    # )
-    # velocity_fbf = travel_distance_fbf * camera_fps
-    # putative_walk = classify_walk(
-    #     velocity_fbf[:, 0], walk_speed_threshold, int(walk_consecutive_length)
-    # )
-    # dif_putative_walk = np.diff(putative_walk, axis=0)
-    # gap_len = np.where(dif_putative_walk > camera_fps * 1)
-    # walk_events_end = putative_walk[gap_len]
-    # walk_events_start = np.concatenate(
-    #     (
-    #         [walk_events_end[0] - gap_len[0][0] - 1],
-    #         walk_events_end[1:] - gap_len[0][1:] + gap_len[0][:-1],
-    #     )
-    # )
-
-    # pcm = plt.pcolormesh(velocity_tbt[24:53], cmap="magma", vmin=0, vmax=100)
-    # # for i in walk_events_start:
-    # #     plt.axvline(x=i, color="w")
-    # plt.show()
-    # if analysis_methods.get("plotting_trajectory") == True:
-    #     plt.plot(x_all, y_all, c=np.arange(len(y_all)), marker=".", alpha=0.5)
-    #     plt.show()
-
-    # sorting_wout_excess_spikes = scur.remove_excess_spikes(
-    #     sorting_spikes, recording_saved
-    # )
-    # sorting_spikes = sorting_wout_excess_spikes
-    # if analysis_methods.get("extract_waveform_sparse") == True:
-    #     waveform_folder_name = "waveforms_sparse" + sorter_suffix
-    #     we = si.extract_waveforms(
-    #         recording_saved,
-    #         sorting_spikes,
-    #         folder=oe_folder / waveform_folder_name,
-    #         sparse=True,
-    #         overwrite=True,
-    #         **job_kwargs,
-    #     )
-    # else:
-    #     waveform_folder_name = "waveforms_dense" + sorter_suffix
-    #     we = si.extract_waveforms(
-    #         recording_saved,
-    #         sorting_spikes,
-    #         folder=oe_folder / waveform_folder_name,
-    #         sparse=False,
-    #         overwrite=True,
-    #         **job_kwargs,
-    #     )
-    #     all_templates = we.get_all_templates()
-    #     print(f"All templates shape: {all_templates.shape}")
-    #     for unit in sorting_spikes.get_unit_ids()[::10]:
-    #         waveforms = we.get_waveforms(unit_id=unit)
-    #         spiketrain = sorting_spikes.get_unit_spike_train(unit)
-    #         print(
-    #             f"Unit {unit} - num waveforms: {waveforms.shape[0]} - num spikes: {len(spiketrain)}"
-    #         )
-
-    #     sparsity = si.compute_sparsity(we, method="radius", radius_um=100.0)
-    #     #  check the sparsity for some units
-    #     for unit_id in sorting_spikes.unit_ids[::30]:
-    #         print(unit_id, list(sparsity.unit_id_to_channel_ids[unit_id]))
-    #     if analysis_methods.get("extract_waveform_sparse_explicit") == True:
-    #         waveform_folder_name = "waveforms_sparse_explicit" + sorter_suffix
-    #         we = si.extract_waveforms(
-    #             recording_saved,
-    #             sorting_spikes,
-    #             folder=oe_folder / waveform_folder_name,
-    #             sparse=sparsity,
-    #             overwrite=True,
-    #             **job_kwargs,
-    #         )
-    #         # the waveforms are now sparse
-    #         for unit_id in we.unit_ids[::10]:
-    #             waveforms = we.get_waveforms(unit_id=unit_id)
-    #             print(unit_id, waveforms.shape)
-    # ##evaluating the spike sorting
-    # pc = spost.compute_principal_components(
-    #     we, n_components=3, load_if_exists=False, **job_kwargs
-    # )
-    # all_labels, all_pcs = pc.get_all_projections()
-    # print(f"All PC scores shape: {all_pcs.shape}")
-    # we.get_available_extension_names()
-    # pc = we.load_extension("principal_components")
-    # all_labels, all_pcs = pc.get_data()
-    # print(all_pcs.shape)
-    # amplitudes = spost.compute_spike_amplitudes(
-    #     we, outputs="by_unit", load_if_exists=True, **job_kwargs
-    # )
-    # unit_locations = spost.compute_unit_locations(
-    #     we, method="monopolar_triangulation", load_if_exists=True
-    # )
-    # spike_locations = spost.compute_spike_locations(
-    #     we, method="center_of_mass", load_if_exists=True, **job_kwargs
-    # )
-    # # spike_clusters=find_cluster_from_peaks(recording_saved, peaks, method='stupid', method_kwargs={}, extra_outputs=False, **job_kwargs)
-    # similarity = spost.compute_template_similarity(we)
-    # template_metrics = spost.compute_template_metrics(we)
-    # qm_params = sq.get_default_qm_params()
-    # metric_names = sq.get_quality_metric_list()
-    # sorting_analyzer = si.load_sorting_analyzer(folder=oe_folder / "sorting_analyzer")
-    # print(sorting_analyzer.get_loaded_extension_names())
-    # test = spost.compute_unit_locations(sorting_analyzer)
     if (
         analysis_methods.get("load_curated_spikes") == True
         and (oe_folder / phy_folder_name).is_dir()
@@ -576,6 +449,8 @@ def align_async_signals(thisDir, json_file):
             sorting_spikes = se.read_phy(
                 oe_folder / phy_folder_name, exclude_cluster_groups=["noise", "mua"]
             )
+            merge_similiar_unit_for_analysis = False
+            unit_labels = sorting_spikes.get_property("quality")
 
         if (oe_folder / "preprocessed_compressed.zarr").is_dir():
             recording_saved = si.read_zarr(oe_folder / "preprocessed_compressed.zarr")
@@ -585,10 +460,10 @@ def align_async_signals(thisDir, json_file):
         else:
             print(f"no pre-processed folder found. Unable to extract waveform")
             return sorting_spikes
-
+        recording_saved.annotate(
+            is_filtered=True
+        )  # note down this recording is bandpass filtered and cmr
         ###start to analyse spikes or loading info from sorted spikes
-        recording_saved.annotate(is_filtered=True)
-        # spikeinterface.SortingAnalyzer
 
         sorting_analyzer = si.create_sorting_analyzer(
             sorting=sorting_spikes,
@@ -618,69 +493,14 @@ def align_async_signals(thisDir, json_file):
         drift_ptps, drift_stds, drift_mads = sqm.compute_drift_metrics(
             sorting_analyzer=sorting_analyzer
         )
+        ax = sw.plot_unit_templates(sorting_analyzer, backend="matplotlib")
+        fig_name = f"preview_unit_template.png"
+        fig_dir = oe_folder / fig_name
+        ax.figure.savefig(fig_dir)
         # plot_sorting_summary(sorting_analyzer,curation=True,backend='sortingview') use this in jupyter notebook
         # sorting_analyzer.get_loaded_extension_names()
-        # spike_depths = spost.compute_spike_locations(
-        #     sorting_analyzer, outputs="by_unit"
-        # )
-        # amplitudes = sorting_analyzer.compute(
-        #     input="spike_amplitudes", peak_sign="neg", outputs="by_unit"
-        # )
-        """
-        waveform_folder_name = "curated1" + sorter_suffix
-        we = si.extract_waveforms(
-            recording_saved,
-            sorting_spikes,
-            folder=oe_folder / waveform_folder_name,
-            sparse=False,
-        )
-        all_templates = we.get_all_templates()
-        print(f"All templates shape: {all_templates.shape}")
-        for unit in sorting_spikes.get_unit_ids()[::10]:
-            waveforms = we.get_waveforms(unit_id=unit)
-            spiketrain = sorting_spikes.get_unit_spike_train(unit)
-            print(
-                f"Unit {unit} - num waveforms: {waveforms.shape[0]} - num spikes: {len(spiketrain)}"
-            )
 
-        sparsity = si.compute_sparsity(we, method="radius", radius_um=100.0)
-        #  check the sparsity for some units
-        for unit_id in sorting_spikes.unit_ids[::30]:
-            print(unit_id, list(sparsity.unit_id_to_channel_ids[unit_id]))
-        if analysis_methods.get("extract_waveform_sparse_explicit") == True:
-            waveform_folder_name = "waveforms_sparse_explicit" + sorter_suffix
-            we = si.extract_waveforms(
-                recording_saved,
-                sorting_spikes,
-                folder=oe_folder / waveform_folder_name,
-                sparse=sparsity,
-                overwrite=True,
-            )
-            # the waveforms are now sparse
-            for unit_id in we.unit_ids[::10]:
-                waveforms = we.get_waveforms(unit_id=unit_id)
-                print(unit_id, waveforms.shape)
-        ##evaluating the spike sorting
-        pc = spost.compute_principal_components(
-            we, n_components=3, load_if_exists=False
-        )
-        # all_labels, all_pcs = pc.get_all_projections()
-        # print(f"All PC scores shape: {all_pcs.shape}")
-        # we.get_available_extension_names()
-        # pc = we.load_extension("principal_components")
-        # all_labels, all_pcs = pc.get_data()
-        # print(all_pcs.shape)
-
-        spike_time_list = spost.compute_spike_amplitudes(
-            we, outputs="by_unit", load_if_exists=True
-        )
-        spike_unit_locations = spost.compute_unit_locations(
-            we, method="monopolar_triangulation", load_if_exists=True
-        )
-        spike_unit_locations = spost.compute_spike_locations(
-            we, method="center_of_mass", load_if_exists=True
-        )
-        """
+        ## start to organise spikes so that peri_event_time_histogram can be made
         spike_time_list = []
         spike_amp_list = []
         cluster_id_list = []
@@ -755,6 +575,7 @@ def align_async_signals(thisDir, json_file):
             fig_name = f"driftmap_unit{this_unit}.svg"
             fig_dir = oe_folder / fig_name
             ax_drift.figure.savefig(fig_dir)
+
         ##try to use this driftmap_color or driftmap
 
         spike_time_all = np.concatenate(spike_time_list)
@@ -780,8 +601,6 @@ def align_async_signals(thisDir, json_file):
         num_neuron = len(np.unique(cluster_id_all))
         spike_rate = np.zeros((num_neuron, num_trial))
         spike_rate = spike_count / (time_window[1] - time_window[0])
-        # this_event>sorting_spikes.get_unit_spike_train(unit_id=unit)/float(sorting_spikes.sampling_frequency)
-        # unique, counts = np.unique(cluster_id_all, return_counts=True)#check unique spike counts
         for this_cluster_id in np.unique(cluster_id_all):
             if analysis_methods.get("analysis_by_stimulus_type") == True:
                 stim_type = analysis_methods.get("stim_type")
@@ -823,7 +642,6 @@ def align_async_signals(thisDir, json_file):
 
 if __name__ == "__main__":
     # thisDir = r"C:\Users\neuroLaptop\Documents\Open Ephys\P-series-32channels\GN00003\2023-12-28_14-39-40"
-    # thisDir = r"Z:\DATA\experiment_trackball_Optomotor\Zball\GN2300x\231123\coherence\2024-05-05_22-57-50"
     # thisDir = r"Z:\DATA\experiment_trackball_Optomotor\Zball\GN23019\240507\coherence\session1\2024-05-07_23-08-55"
     # thisDir = r"Z:\DATA\experiment_trackball_Optomotor\Zball\GN23018\240422\coherence\session2\2024-04-22_01-09-50"
     thisDir = r"Z:\DATA\experiment_trackball_Optomotor\Zball\GN23015\240201\coherence\session1\2024-02-01_15-25-25"
@@ -831,8 +649,6 @@ if __name__ == "__main__":
     json_file = "./analysis_methods_dictionary.json"
     ##Time the function
     tic = time.perf_counter()
-    align_async_signals(thisDir, json_file)
-    thisDir = r"Z:\DATA\experiment_trackball_Optomotor\Zball\GN23018\240422\coherence\session2\2024-04-22_01-09-50"
     align_async_signals(thisDir, json_file)
     toc = time.perf_counter()
     print(f"it takes {toc-tic:0.4f} seconds to run the main function")
