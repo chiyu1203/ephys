@@ -25,6 +25,7 @@ import numpy as np
 from pathlib import Path
 import pandas as pd
 from extraction_barcodes_cl import extract_barcodes
+from spike_curation import calculate_analyzer_extension,get_preprocessed_recording,spike_overview
 
 warnings.simplefilter("ignore")
 current_working_directory = Path.cwd()
@@ -253,6 +254,7 @@ def align_async_signals(thisDir, json_file):
     elif this_sorter.lower() == "kilosort4":
         sorter_suffix = "_KS4"
     phy_folder_name = "phy" + sorter_suffix
+    analyser_folder_name="sorting_analyser"+ sorter_suffix
 
     ##load adc events from openEphys
     session = Session(oe_folder)
@@ -440,148 +442,33 @@ def align_async_signals(thisDir, json_file):
         and (oe_folder / phy_folder_name).is_dir()
     ):
         if analysis_methods.get("include_MUA") == True:
-            sorting_spikes = se.read_phy(
-                oe_folder / phy_folder_name, exclude_cluster_groups=["noise"]
-            )
-            merge_similiar_unit_for_analysis = False
-            unit_labels = sorting_spikes.get_property("quality")
+            cluster_group_interest=["noise"]
         else:
-            sorting_spikes = se.read_phy(
-                oe_folder / phy_folder_name, exclude_cluster_groups=["noise", "mua"]
-            )
-            merge_similiar_unit_for_analysis = False
-            unit_labels = sorting_spikes.get_property("quality")
-
-        if (oe_folder / "preprocessed_compressed.zarr").is_dir():
-            recording_saved = si.read_zarr(oe_folder / "preprocessed_compressed.zarr")
-            print(recording_saved.get_property_keys())
-        elif (oe_folder / "preprocessed").is_dir():
-            recording_saved = si.load_extractor(oe_folder / "preprocessed")
-        else:
-            print(f"no pre-processed folder found. Unable to extract waveform")
-            return sorting_spikes
-        recording_saved.annotate(
-            is_filtered=True
-        )  # note down this recording is bandpass filtered and cmr
+            cluster_group_interest=["noise", "mua"]
+        sorting_spikes = se.read_phy(
+            oe_folder / phy_folder_name, exclude_cluster_groups=cluster_group_interest
+        )            
+        merge_similiar_unit_for_analysis = False
+        unit_labels = sorting_spikes.get_property("quality")
+        recording_saved=get_preprocessed_recording(oe_folder)
         ###start to analyse spikes or loading info from sorted spikes
-
-        sorting_analyzer = si.create_sorting_analyzer(
-            sorting=sorting_spikes,
-            recording=recording_saved,
-            sparse=True,  # default
-            format="memory",  # default
-        )
-        sorting_analyzer.compute(
-            ["random_spikes", "isi_histograms", "correlograms", "noise_levels"]
-        )
-        sorting_analyzer.compute(["waveforms", "principal_components", "templates"])
-        sorting_analyzer.compute(input="spike_amplitudes", peak_sign="neg")
-        ext = sorting_analyzer.get_extension("spike_amplitudes")
-        spike_amp = ext.get_data(outputs="by_unit")
-        fraction_missing = sqm.compute_amplitude_cutoffs(
-            sorting_analyzer=sorting_analyzer, peak_sign="neg"
-        )
-        print(
-            f"fraction missing: {fraction_missing} in these units, meaning the fraction of false negatives (missed spikes) by the sorter"
-        )
-        sorting_analyzer.compute(input="spike_locations")
-        ext = sorting_analyzer.get_extension("spike_locations")
-        spike_loc = ext.get_data(outputs="by_unit")
-        sorting_analyzer.compute(input="unit_locations")
-        ext = sorting_analyzer.get_extension("unit_locations")
-        unit_loc = ext.get_data(outputs="by_unit")
-        drift_ptps, drift_stds, drift_mads = sqm.compute_drift_metrics(
-            sorting_analyzer=sorting_analyzer
-        )
-        ax = sw.plot_unit_templates(sorting_analyzer, backend="matplotlib")
-        fig_name = f"preview_unit_template.png"
-        fig_dir = oe_folder / fig_name
-        ax.figure.savefig(fig_dir)
+        if analysis_methods.get("load_sorting_analyser") == True and (oe_folder / analyser_folder_name).is_dir():
+            sorting_analyzer=si.load_sorting_analyzer(folder=oe_folder / analyser_folder_name)
+        
+        else:
+            sorting_analyzer = si.create_sorting_analyzer(
+                sorting=sorting_spikes,
+                recording=recording_saved,
+                sparse=True,  # default
+                format="memory",  # default
+            )
+            calculate_analyzer_extension(sorting_analyzer)
+            
+        spike_time_all,cluster_id_all,spike_amp_all,spike_loc_all=spike_overview(oe_folder,this_sorter,sorting_spikes,sorting_analyzer,recording_saved,unit_labels):
         # plot_sorting_summary(sorting_analyzer,curation=True,backend='sortingview') use this in jupyter notebook
         # sorting_analyzer.get_loaded_extension_names()
 
         ## start to organise spikes so that peri_event_time_histogram can be made
-        spike_time_list = []
-        spike_amp_list = []
-        cluster_id_list = []
-        spike_loc_list = []
-        unit_loc_list = []
-        i = 0
-        for this_unit, this_label in zip(sorting_spikes.get_unit_ids(), unit_labels):
-            print(
-                f"with {this_sorter} sorter, Spike train of a unit:{sorting_spikes.get_unit_spike_train(unit_id=this_unit)}"
-            )
-            spike_times = sorting_spikes.get_unit_spike_train(
-                unit_id=this_unit
-            ) / float(sorting_spikes.sampling_frequency)
-            spike_time_list.append(spike_times)
-            if merge_similiar_unit_for_analysis == True:
-                print(
-                    "a rough analysis that assign potentially same units into new ids. This method is not back by drifting matrics so should be only used for a quick look"
-                )
-                if this_label == "good":
-                    this_cluster_id = np.ones(len(spike_times), dtype=int) * 1000
-                elif this_label == "mua":
-                    this_cluster_id = np.ones(len(spike_times), dtype=int) * 2000
-                else:
-                    print(
-                        f"{this_label} not found. Please check if this is the kind of units you want to select"
-                    )
-                    continue
-            else:
-                this_cluster_id = np.ones(len(spike_times), dtype=int) * this_unit
-            cluster_id_list.append(this_cluster_id)
-            spike_amp_list.append(spike_amp[0][this_unit])
-            # dont know what is the best way to convert tuple so convert it into pandas dataframe first and then extract np.array from dataframe
-            # maybe list comprehension is faster
-            # access tuple: spike_loc[0][12][0] access array element: spike_loc[0][12][0][0] spike_loc[0][12][0][1]
-
-            spike_loc_df = pd.DataFrame(spike_loc[0][this_unit], columns=["x", "y"])
-            spike_loc_df["distance"] = np.sqrt(
-                spike_loc_df["x"] ** 2 + spike_loc_df["y"] ** 2
-            )
-            spike_loc_list.append(spike_loc_df["distance"].values)
-
-            this_unit_loc = np.sqrt(
-                unit_loc[this_unit][0] ** 2 + unit_loc[this_unit][1] ** 2
-            )
-            unit_loc_list.append(this_unit_loc)
-
-            plt.figure()
-            ax = plt.gca()
-            ax.scatter(
-                x=spike_times, y=spike_loc_df["distance"].values, c=COL.get_rgb(i)
-            )
-            ax.set_xlim([0, recording_saved.get_total_duration()])
-            ax.set_ylim([250, 350])
-            fig_name = f"spike_location_unit{this_unit}.svg"
-            fig_dir = oe_folder / fig_name
-            ax.figure.savefig(fig_dir)
-            i += 1
-            ax_drift, x_lim, y_lim = driftmap_color(
-                clusters_depths=this_unit_loc,
-                spikes_times=spike_times,
-                spikes_amps=spike_amp[0][this_unit],
-                spikes_depths=spike_loc_df["distance"].values,
-                spikes_clusters=this_cluster_id,
-                ax=None,
-                axesoff=False,
-                return_lims=True,
-            )
-            # ax_drift.set_xlim([0, recording_saved.get_total_duration()])
-            # ax_drift.set_ylim([250, 350])
-            ax_drift.set_xlim(x_lim)
-            ax_drift.set_ylim(y_lim)
-            fig_name = f"driftmap_unit{this_unit}.svg"
-            fig_dir = oe_folder / fig_name
-            ax_drift.figure.savefig(fig_dir)
-
-        ##try to use this driftmap_color or driftmap
-
-        spike_time_all = np.concatenate(spike_time_list)
-        cluster_id_all = np.concatenate(cluster_id_list)
-        spike_amp_all = np.concatenate(spike_amp_list)
-        spike_loc_all = np.concatenate(spike_loc_list)
 
         spike_time_all_sorted, cluster_id_all_sorted = sort_arrays(
             spike_time_all, cluster_id_all

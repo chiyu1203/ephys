@@ -12,6 +12,8 @@ analysis_methods = {
     "load_prepocessed_file": True,
     "save_sorting_file": False,
     "load_sorting_file": True,
+    "save_analyser_to_disc": False,
+    "load_analyser_from_disc": True,
     "extract_waveform_sparse": False,
     "extract_waveform_sparse_explicit": False,
     "export_to_phy": True,
