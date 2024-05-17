@@ -185,89 +185,10 @@ def raw2si(thisDir, json_file):
     w_rs=sw.plot_rasters(sorting_spikes, time_range=(0,30),backend="matplotlib")
     if analysis_methods.get("save_sorting_file")==True and analysis_methods.get("overwrite_curated_dataset")==True:
         sorting_loaded_spikes=sorting_spikes.save(folder=oe_folder / sorting_folder_name, overwrite=True)
-        return print("Spiking sorting done. The rest of the tasks can be done in other PCs")
+    
+    return print("Spiking sorting done. The rest of the tasks can be done in other PCs")
     # for unit in sorting_spikes.get_unit_ids():
     #     print(f'with {this_sorter} sorter, Spike train of a unit:{sorting_spikes.get_unit_spike_train(unit_id=unit)}')
-
-    
-    ##extracting waveform
-    # the extracted waveform based on sparser signals (channels) makes the extraction faster. 
-    # However, if the channels are not dense enough the right waveform can not be properly extracted.
-    sorting_wout_excess_spikes = scur.remove_excess_spikes(sorting_spikes, recording_saved)
-    sorting_spikes=sorting_wout_excess_spikes
-    if analysis_methods.get("extract_waveform_sparse")==True:
-        waveform_folder_name="waveforms_sparse"+sorter_suffix
-        we = si.extract_waveforms(recording_saved, sorting_spikes, folder=oe_folder / waveform_folder_name, 
-                          sparse=True, overwrite=True,**job_kwargs)
-    else:
-        waveform_folder_name="waveforms_dense"+sorter_suffix
-        we = si.extract_waveforms(recording_saved, sorting_spikes, folder=oe_folder / waveform_folder_name, 
-                            sparse=False, overwrite=True, **job_kwargs)
-        all_templates = we.get_all_templates()
-        print(f"All templates shape: {all_templates.shape}")
-        for unit in sorting_spikes.get_unit_ids()[::10]:
-            waveforms = we.get_waveforms(unit_id=unit)
-            spiketrain = sorting_spikes.get_unit_spike_train(unit)
-            print(f"Unit {unit} - num waveforms: {waveforms.shape[0]} - num spikes: {len(spiketrain)}")
-
-        sparsity = si.compute_sparsity(we, method='radius', radius_um=100.0)
-        #  check the sparsity for some units
-        for unit_id in sorting_spikes.unit_ids[::30]:
-            print(unit_id, list(sparsity.unit_id_to_channel_ids[unit_id]))
-        if analysis_methods.get("extract_waveform_sparse_explicit")==True:
-            waveform_folder_name="waveforms_sparse_explicit"+sorter_suffix
-            we = si.extract_waveforms(recording_saved, sorting_spikes, folder=oe_folder / waveform_folder_name, 
-                            sparse=sparsity, overwrite=True,**job_kwargs)
-            # the waveforms are now sparse
-            for unit_id in we.unit_ids[::10]:
-                waveforms = we.get_waveforms(unit_id=unit_id)
-                print(unit_id, waveforms.shape)
-    ##evaluating the spike sorting 
-    pc = spost.compute_principal_components(we, n_components=3, load_if_exists=False, **job_kwargs)
-    all_labels, all_pcs = pc.get_all_projections()
-    print(f"All PC scores shape: {all_pcs.shape}")
-    we.get_available_extension_names()
-    pc = we.load_extension("principal_components")
-    all_labels, all_pcs = pc.get_data()
-    print(all_pcs.shape)
-    amplitudes = spost.compute_spike_amplitudes(we, outputs="by_unit", load_if_exists=True, **job_kwargs)
-    unit_locations = spost.compute_unit_locations(we, method="monopolar_triangulation", load_if_exists=True)
-    spike_locations = spost.compute_spike_locations(we, method="center_of_mass", load_if_exists=True, **job_kwargs)
-    ##spike_clusters=find_cluster_from_peaks(recording_saved, peaks, method='stupid', method_kwargs={}, extra_outputs=False, **job_kwargs)
-    ccgs, bins = spost.compute_correlograms(we)
-    similarity = spost.compute_template_similarity(we)
-    template_metrics = spost.compute_template_metrics(we)
-    qm_params = sq.get_default_qm_params()
-    metric_names = sq.get_quality_metric_list()
-    if we.return_scaled:
-        qm = sq.compute_quality_metrics(we, metric_names=metric_names, verbose=True,  qm_params=qm_params, **job_kwargs)
-    print(we.get_available_extension_names())# check available extension
-    #get_spike_counts_in_bins
-    #event_channel_ids=channel_ids
-    #events = event.get_events(channel_id=channel_ids[1], segment_index=0)# a complete record of events including [('time', '<f8'), ('duration', '<f8'), ('label', '<U100')]
-
-
-    ##curation
-    # the safest way to curate spikes are manual curation, which phy seems to be a good package to deal with that
-    # When exporting spikes data to phy, amplitudes and pc features can also be calculated    
-    # if you do not wish to use phy, we can calculate quality metrics with other packages in spikeinterface.
-    ##exporting to phy 
-    ##still need to check whether methods are used to compute pc features and amplitude when exporting to phy, and whether
-    ## we want those methods to be default methods. 
-    ## If not, we should get some spost methods before this step and turn the two computer options in export_to_phy off. 
-    if analysis_methods.get("export_to_phy")==True and analysis_methods.get("overwrite_existing_phy")==True:
-        phy_folder_name="phy"+sorter_suffix
-        sep.export_to_phy(we, output_folder=oe_folder / phy_folder_name, 
-                    compute_amplitudes=True, compute_pc_features=True, copy_binary=True,remove_if_exists=True,
-                    **job_kwargs)
-    else:
-        print(qm)
-        
-    ##outputing a report
-    if analysis_methods.get("export_report")==True:
-        report_folder_name="report"+sorter_suffix
-        sep.export_report(we, output_folder=oe_folder / report_folder_name)
-    return recording_saved
 
 if __name__ == "__main__":
     #thisDir = r"C:\Users\neuroLaptop\Documents\Open Ephys\P-series-32channels\GN00003\2023-12-28_14-39-40"
@@ -278,6 +199,6 @@ if __name__ == "__main__":
     json_file = "./analysis_methods_dictionary.json"
     ##Time the function
     tic = time.perf_counter()
-    recording_saved,sorting_spikes=raw2si(thisDir, json_file)
+    raw2si(thisDir, json_file)
     toc = time.perf_counter()
     print(f"it takes {toc-tic:0.4f} seconds to run the main function")
