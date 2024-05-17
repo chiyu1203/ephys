@@ -13,8 +13,10 @@ conda config --set channel_priority strict
 ````
 Then installing spikeinterface and ibllib from source. When cloning their repositories, I usually store them in a GitHub folder in the Document.
 If you want to follow this structure, then the following command will be useful. For further info, check out their github page or documentation webpage.
+
 Note1: I forked ibllib because I wanted to test some ploting functions that is only for our own lab so we do not clone the original ibl repo.
-Note2: ibllib use scipy 1.12 but installing one of these packages open-ephys-python-tools zarr docker cuda-python numcodecs hdbscan 
+
+Note2: ibllib use scipy 1.12 but installing one of these packages **open-ephys-python-tools zarr docker cuda-python numcodecs hdbscan** 
 needs scipy 1.13 so I hopes there is no conflict between them 
 ````
 cd Documents\GitHub
