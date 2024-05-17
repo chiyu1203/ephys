@@ -13,6 +13,9 @@ conda config --set channel_priority strict
 python -m pip install kilosort[gui]
 pip uninstall torch
 conda install pytorch pytorch-cuda=11.8 -c pytorch -c nvidia
+
+conda install pytorch torchvision torchaudio pytorch-cuda=11.8 -c pytorch -c nvidia
+
 pip install open-ephys-python-tools spikeinterface zarr docker cuda-python numcodecs hdbscan
 ````
 Probably dont need the packages below anymore
