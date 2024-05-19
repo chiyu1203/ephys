@@ -239,7 +239,7 @@ def align_async_signals(thisDir, json_file):
     sorter_suffix = generate_sorter_suffix(this_sorter)
     result_folder_name = "results" + sorter_suffix
     sorting_folder_name = "sorting" + sorter_suffix
-    analyser_folder_name = "sorting_analyser" + sorter_suffix
+    analyser_folder_name = "analyser" + sorter_suffix
     phy_folder_name = phy_folder_name = "phy" + sorter_suffix
     report_folder_name = "report" + sorter_suffix
 
