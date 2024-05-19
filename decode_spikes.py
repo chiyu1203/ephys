@@ -1,15 +1,9 @@
 import time, os, json, warnings, sys
 from open_ephys.analysis import Session
 import spikeinterface.core as si
-import spikeinterface.widgets as sw
 import spikeinterface.extractors as se
 import matplotlib.pyplot as plt
-import matplotlib as mpl
-from matplotlib import cm
-import spikeinterface.qualitymetrics as sqm
 from spikeinterface.widgets import plot_sorting_summary
-import spikeinterface.postprocessing as spost
-import numcodecs
 import math
 from brainbox.population.decode import get_spike_counts_in_bins
 from brainbox.plot import peri_event_time_histogram, driftmap_color, driftmap
@@ -25,7 +19,13 @@ import numpy as np
 from pathlib import Path
 import pandas as pd
 from extraction_barcodes_cl import extract_barcodes
-from spike_curation import calculate_analyzer_extension,get_preprocessed_recording,spike_overview
+from spike_curation import (
+    calculate_analyzer_extension,
+    get_preprocessed_recording,
+    spike_overview,
+    generate_sorter_suffix,
+    MplColorHelper,
+)
 
 warnings.simplefilter("ignore")
 current_working_directory = Path.cwd()
@@ -43,17 +43,6 @@ n_jobs = n_cpus - 4
 global_job_kwargs = dict(n_jobs=n_jobs, chunk_duration="1s", progress_bar=True)
 # global_job_kwargs = dict(n_jobs=16, chunk_duration="5s", progress_bar=False)
 si.set_global_job_kwargs(**global_job_kwargs)
-
-
-class MplColorHelper:
-    def __init__(self, cmap_name, start_val, stop_val):
-        self.cmap_name = cmap_name
-        self.cmap = plt.get_cmap(cmap_name)
-        self.norm = mpl.colors.Normalize(vmin=start_val, vmax=stop_val)
-        self.scalarMap = cm.ScalarMappable(norm=self.norm, cmap=self.cmap)
-
-    def get_rgb(self, val):
-        return self.scalarMap.to_rgba(val)
 
 
 def root_sum_squared(tuples):
@@ -247,14 +236,12 @@ def align_async_signals(thisDir, json_file):
             analysis_methods = json.loads(f.read())
     this_sorter = analysis_methods.get("sorter_name")
     this_experimenter = analysis_methods.get("experimenter")
-    if this_sorter.lower() == "spykingcircus2":
-        sorter_suffix = "_SC2"
-    elif this_sorter.lower() == "kilosort3":
-        sorter_suffix = "_KS3"
-    elif this_sorter.lower() == "kilosort4":
-        sorter_suffix = "_KS4"
-    phy_folder_name = "phy" + sorter_suffix
-    analyser_folder_name="sorting_analyser"+ sorter_suffix
+    sorter_suffix = generate_sorter_suffix(this_sorter)
+    result_folder_name = "results" + sorter_suffix
+    sorting_folder_name = "sorting" + sorter_suffix
+    analyser_folder_name = "sorting_analyser" + sorter_suffix
+    phy_folder_name = phy_folder_name = "phy" + sorter_suffix
+    report_folder_name = "report" + sorter_suffix
 
     ##load adc events from openEphys
     session = Session(oe_folder)
@@ -437,101 +424,108 @@ def align_async_signals(thisDir, json_file):
         print("Work in progress")
         return
 
+    ###start loading info from sorted spikes
+    recording_saved = get_preprocessed_recording(oe_folder)
     if (
-        analysis_methods.get("load_curated_spikes") == True
-        and (oe_folder / phy_folder_name).is_dir()
+        analysis_methods.get("load_analyser_from_disc") == True
+        and (oe_folder / analyser_folder_name).is_dir()
     ):
+        sorting_analyzer = si.load_sorting_analyzer(
+            folder=oe_folder / analyser_folder_name
+        )
+        print(f"{sorting_analyzer}")
+        recording_saved = sorting_analyzer.recording
+        sorting_spikes = sorting_analyzer.sorting
+        unit_labels = sorting_spikes.get_property("quality")
+    else:
         if analysis_methods.get("include_MUA") == True:
-            cluster_group_interest=["noise"]
+            cluster_group_interest = ["noise"]
         else:
-            cluster_group_interest=["noise", "mua"]
+            cluster_group_interest = ["noise", "mua"]
         sorting_spikes = se.read_phy(
             oe_folder / phy_folder_name, exclude_cluster_groups=cluster_group_interest
-        )            
-        merge_similiar_unit_for_analysis = False
+        )
         unit_labels = sorting_spikes.get_property("quality")
-        recording_saved=get_preprocessed_recording(oe_folder)
-        ###start to analyse spikes or loading info from sorted spikes
-        if analysis_methods.get("load_sorting_analyser") == True and (oe_folder / analyser_folder_name).is_dir():
-            sorting_analyzer=si.load_sorting_analyzer(folder=oe_folder / analyser_folder_name)
-        
-        else:
-            sorting_analyzer = si.create_sorting_analyzer(
-                sorting=sorting_spikes,
-                recording=recording_saved,
-                sparse=True,  # default
-                format="memory",  # default
-            )
-            calculate_analyzer_extension(sorting_analyzer)
-            
-        spike_time_all,cluster_id_all,spike_amp_all,spike_loc_all=spike_overview(oe_folder,this_sorter,sorting_spikes,sorting_analyzer,recording_saved,unit_labels):
-        # plot_sorting_summary(sorting_analyzer,curation=True,backend='sortingview') use this in jupyter notebook
-        # sorting_analyzer.get_loaded_extension_names()
-
-        ## start to organise spikes so that peri_event_time_histogram can be made
-
-        spike_time_all_sorted, cluster_id_all_sorted = sort_arrays(
-            spike_time_all, cluster_id_all
+        recording_saved = get_preprocessed_recording(oe_folder)
+        sorting_analyzer = si.create_sorting_analyzer(
+            sorting=sorting_spikes,
+            recording=recording_saved,
+            sparse=True,  # default
+            format="memory",  # default
         )
-        spike_count, cluster_id = get_spike_counts_in_bins(
-            spike_time_all_sorted, cluster_id_all_sorted, stim_events_tw
-        )
-        # scatter_amp_depth_fr_plot(
-        #     spike_amps=spike_amp_all,
-        #     spike_clusters=cluster_id_all,
-        #     spike_depths=spike_loc_all,
-        #     spike_times=spike_time_all,display=True
-        # )
+        calculate_analyzer_extension(sorting_analyzer)
 
-        # Compute rate (for all clusters of interest)
-        num_trial = stim_events_tw.shape[0]
-        num_neuron = len(np.unique(cluster_id_all))
-        spike_rate = np.zeros((num_neuron, num_trial))
-        spike_rate = spike_count / (time_window[1] - time_window[0])
-        for this_cluster_id in np.unique(cluster_id_all):
-            if analysis_methods.get("analysis_by_stimulus_type") == True:
-                stim_type = analysis_methods.get("stim_type")
-                for this_stim in stim_type:
+    ## go through the peri_event_time_histogram of every cluster
+    spike_time_all, cluster_id_all, spike_amp_all, spike_loc_all = spike_overview(
+        oe_folder,
+        this_sorter,
+        sorting_spikes,
+        sorting_analyzer,
+        recording_saved,
+        unit_labels,
+    )
+    print(f"printing an overview of spikes detected by {this_sorter} from {oe_folder}")
 
-                    # troubleshoot this part. Dont know why it exceeds the max size
-                    ax = peri_event_time_histogram(
-                        spike_time_all,
-                        cluster_id_all,
-                        event_of_interest[
-                            stimulus_meta_info.loc[:, "stim_type"] == this_stim
-                        ],
-                        this_cluster_id,
-                        t_before=abs(time_window_behaviours[0]),
-                        t_after=time_window_behaviours[1],
-                        bin_size=0.025,
-                        smoothing=0.025,
-                        include_raster=True,
-                        raster_kwargs={"color": "black", "lw": 1},
-                    )
-                    fig_name = f"peth_stim{this_stim}_unit{this_cluster_id}.svg"
-                    fig_dir = oe_folder / fig_name
-                    ax.figure.savefig(fig_dir)
-            else:
+    # sort spike time for the function get_spike_counts_in_bins
+    spike_time_all_sorted, cluster_id_all_sorted = sort_arrays(
+        spike_time_all, cluster_id_all
+    )
+    spike_count, cluster_id = get_spike_counts_in_bins(
+        spike_time_all_sorted, cluster_id_all_sorted, stim_events_tw
+    )
+    # work in progress: testing how to use this function
+    # scatter_amp_depth_fr_plot(
+    #     spike_amps=spike_amp_all,
+    #     spike_clusters=cluster_id_all,
+    #     spike_depths=spike_loc_all,
+    #     spike_times=spike_time_all,display=True
+    # )
+
+    ## go through the peri_event_time_histogram of every cluster
+    for this_cluster_id in np.unique(cluster_id_all):
+        if analysis_methods.get("analysis_by_stimulus_type") == True:
+            stim_type = analysis_methods.get("stim_type")
+            for this_stim in stim_type:
+
+                # troubleshoot this part. Dont know why it exceeds the max size
                 ax = peri_event_time_histogram(
                     spike_time_all,
                     cluster_id_all,
-                    event_of_interest,
+                    event_of_interest[
+                        stimulus_meta_info.loc[:, "stim_type"] == this_stim
+                    ],
                     this_cluster_id,
                     t_before=abs(time_window_behaviours[0]),
                     t_after=time_window_behaviours[1],
                     bin_size=0.025,
                     smoothing=0.025,
-                    include_raster=False,
+                    include_raster=True,
                     raster_kwargs={"color": "black", "lw": 1},
                 )
-        return spike_count, cluster_id
+                fig_name = f"peth_stim{this_stim}_unit{this_cluster_id}.svg"
+                fig_dir = oe_folder / fig_name
+                ax.figure.savefig(fig_dir)
+        else:
+            ax = peri_event_time_histogram(
+                spike_time_all,
+                cluster_id_all,
+                event_of_interest,
+                this_cluster_id,
+                t_before=abs(time_window_behaviours[0]),
+                t_after=time_window_behaviours[1],
+                bin_size=0.025,
+                smoothing=0.025,
+                include_raster=False,
+                raster_kwargs={"color": "black", "lw": 1},
+            )
+    return spike_count, cluster_id
 
 
 if __name__ == "__main__":
     # thisDir = r"C:\Users\neuroLaptop\Documents\Open Ephys\P-series-32channels\GN00003\2023-12-28_14-39-40"
     # thisDir = r"Z:\DATA\experiment_trackball_Optomotor\Zball\GN23019\240507\coherence\session1\2024-05-07_23-08-55"
-    # thisDir = r"Z:\DATA\experiment_trackball_Optomotor\Zball\GN23018\240422\coherence\session2\2024-04-22_01-09-50"
-    thisDir = r"Z:\DATA\experiment_trackball_Optomotor\Zball\GN23015\240201\coherence\session1\2024-02-01_15-25-25"
+    thisDir = r"Z:\DATA\experiment_trackball_Optomotor\Zball\GN23018\240422\coherence\session2\2024-04-22_01-09-50"
+    # thisDir = r"Z:\DATA\experiment_trackball_Optomotor\Zball\GN23015\240201\coherence\session1\2024-02-01_15-25-25"
     # thisDir = r"C:\Users\neuroPC\Documents\Open Ephys\2024-02-01_15-25-25"
     json_file = "./analysis_methods_dictionary.json"
     ##Time the function

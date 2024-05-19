@@ -3,7 +3,6 @@ import spikeinterface.core as si
 from pathlib import Path
 from raw2si import generate_sorter_suffix
 import spikeinterface.curation as scur
-import spikeinterface.postprocessing as spost
 import spikeinterface.exporters as sep
 import spikeinterface.qualitymetrics as sqm
 import spikeinterface.extractors as se
@@ -13,6 +12,8 @@ from spikeinterface.widgets import plot_sorting_summary
 from brainbox.plot import peri_event_time_histogram, driftmap_color, driftmap
 import pandas as pd
 import spikeinterface.widgets as sw
+import matplotlib as mpl
+from matplotlib import cm
 
 warnings.simplefilter("ignore")
 n_cpus = os.cpu_count()
@@ -25,6 +26,21 @@ This pipeline uses spikeinterface as a backbone. This file includes extracting w
 """
 
 
+class MplColorHelper:
+    def __init__(self, cmap_name, start_val, stop_val):
+        self.cmap_name = cmap_name
+        self.cmap = plt.get_cmap(cmap_name)
+        self.norm = mpl.colors.Normalize(vmin=start_val, vmax=stop_val)
+        self.scalarMap = cm.ScalarMappable(norm=self.norm, cmap=self.cmap)
+
+    def get_rgb(self, val):
+        return self.scalarMap.to_rgba(val)
+
+
+colormap_name = "coolwarm"
+COL = MplColorHelper(colormap_name, 0, 8)
+
+
 def spike_overview(
     oe_folder,
     this_sorter,
@@ -32,7 +48,9 @@ def spike_overview(
     sorting_analyzer,
     recording_saved,
     unit_labels,
+    merge_similiar_unit_for_overview=False,
 ):
+    # load analysed spike data
     ext = sorting_analyzer.get_extension("spike_locations")
     spike_loc = ext.get_data(outputs="by_unit")
     ext = sorting_analyzer.get_extension("unit_locations")
@@ -45,23 +63,18 @@ def spike_overview(
     print(
         f"fraction missing: {fraction_missing} in these units, meaning the fraction of false negatives (missed spikes) by the sorter"
     )
+
+    # spost.align_sorting(sorting_analyzer, drift_ptps)
+    # si.get_template_extremum_channel_peak_shift
     ax = sw.plot_unit_templates(sorting_analyzer, backend="matplotlib")
     fig_name = f"preview_unit_template.png"
     fig_dir = oe_folder / fig_name
     ax.figure.savefig(fig_dir)
-
-    drift_ptps, drift_stds, drift_mads = sqm.compute_drift_metrics(
-        sorting_analyzer=sorting_analyzer
-    )
-    spost.align_sorting(sorting_analyzer, drift_ptps)
-    si.get_template_extremum_channel_peak_shift
-
     spike_time_list = []
     spike_amp_list = []
     cluster_id_list = []
     spike_loc_list = []
     unit_loc_list = []
-    merge_similiar_unit_for_overview = False
     i = 0
     for this_unit, this_label in zip(sorting_spikes.get_unit_ids(), unit_labels):
         print(
@@ -111,7 +124,7 @@ def spike_overview(
         fig_name = f"spike_location_unit{this_unit}.svg"
         fig_dir = oe_folder / fig_name
         ax.figure.savefig(fig_dir)
-        i += 1
+        # plot drift map based on brainbox's plotting function
         ax_drift, x_lim, y_lim = driftmap_color(
             clusters_depths=this_unit_loc,
             spikes_times=spike_times,
@@ -129,6 +142,7 @@ def spike_overview(
         fig_name = f"driftmap_unit{this_unit}.svg"
         fig_dir = oe_folder / fig_name
         ax_drift.figure.savefig(fig_dir)
+        i += 1
 
     ##try to use this driftmap_color or driftmap
     return (
@@ -158,10 +172,11 @@ def calculate_analyzer_extension(sorting_analyzer):
     sorting_analyzer.compute(
         ["random_spikes", "isi_histograms", "correlograms", "noise_levels"]
     )
-    sorting_analyzer.compute(["waveforms", "principal_components", "templates"])
+    # sorting_analyzer.compute(["waveforms", "principal_components", "templates"])
+    sorting_analyzer.compute("waveforms")
     compute_dict = {
         "principal_components": {"n_components": 3, "mode": "by_channel_local"},
-        "templates": {"operators": "average"},
+        "templates": {"operators": ["average"]},
     }
     sorting_analyzer.compute(compute_dict)
     compute_dict = {
@@ -170,11 +185,11 @@ def calculate_analyzer_extension(sorting_analyzer):
         "spike_amplitudes": {"peak_sign": "neg"},
     }
     sorting_analyzer.compute(compute_dict)
+    # sorting_analyzer.compute(["unit_locations", "spike_locations", "spike_amplitudes"])
     sorting_analyzer.compute(
         [
             "template_metrics",
             "template_similarity",
-            "amplitude_scalings",
             "quality_metrics",
         ]
     )
@@ -229,7 +244,8 @@ def si2phy(thisDir, json_file):
             recording=recording_saved,
             sparse=True,  # default
             format="binary_folder",
-            folder=oe_folder / analyser_folder_name,  # default  # default
+            folder=oe_folder / analyser_folder_name,
+            overwrite=True,  # default  # default
         )
         calculate_analyzer_extension(sorting_analyzer)
         _, _, _, _ = spike_overview(
@@ -286,18 +302,24 @@ def si2phy(thisDir, json_file):
         return print(
             f"{sorting_folder_name} is not found. Noting can be done here without some putative spikes..."
         )
+
+    ax = sw.plot_unit_templates(sorting_analyzer, backend="matplotlib")
+    fig_name = f"preview_unit_template.png"
+    fig_dir = oe_folder / fig_name
+    ax.figure.savefig(fig_dir)
+
+    # drift_ptps, drift_stds, drift_mads = sqm.compute_drift_metrics(
+    #     sorting_analyzer=sorting_analyzer
+    # )
     if analysis_methods.get("export_report") == True:
         sep.export_report(
             sorting_analyzer, output_folder=oe_folder / report_folder_name
         )
 
-    return sorting_spikes
-
 
 if __name__ == "__main__":
-    # thisDir = r"C:\Users\neuroLaptop\Documents\Open Ephys\P-series-32channels\GN00003\2023-12-28_14-39-40"
-    thisDir = r"Z:\DATA\experiment_trackball_Optomotor\Zball\GN2300x\231123\coherence\2024-05-05_22-57-50"
-    thisDir = r"Z:\DATA\experiment_trackball_Optomotor\Zball\GN23019\240507\coherence\session1\2024-05-07_23-08-55"
+    # thisDir = r"Z:\DATA\experiment_trackball_Optomotor\Zball\GN23019\240507\coherence\session1\2024-05-07_23-08-55"
+    thisDir = r"Z:\DATA\experiment_trackball_Optomotor\Zball\GN23018\240422\coherence\session2\2024-04-22_01-09-50"
     # thisDir = r"C:\Users\neuroPC\Documents\Open Ephys\2024-02-01_15-25-25"
     json_file = "./analysis_methods_dictionary.json"
     ##Time the function
