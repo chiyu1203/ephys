@@ -185,6 +185,7 @@ def calculate_analyzer_extension(sorting_analyzer):
         "spike_amplitudes": {"peak_sign": "neg"},
     }
     sorting_analyzer.compute(compute_dict)
+    sorting_analyzer.compute("amplitude_scalings")
     # sorting_analyzer.compute(["unit_locations", "spike_locations", "spike_amplitudes"])
     sorting_analyzer.compute(
         [
@@ -237,6 +238,8 @@ def si2phy(thisDir, json_file):
         sorting_spikes = se.read_phy(
             oe_folder / phy_folder_name, exclude_cluster_groups=cluster_group_interest
         )
+        sorting_duduplicated = scur.remove_duplicated_spikes(sorting_spikes)
+        sorting_spikes = sorting_duduplicated
         unit_labels = sorting_spikes.get_property("quality")
         recording_saved = get_preprocessed_recording(oe_folder)
         sorting_analyzer = si.create_sorting_analyzer(
@@ -320,6 +323,7 @@ def si2phy(thisDir, json_file):
 if __name__ == "__main__":
     # thisDir = r"Z:\DATA\experiment_trackball_Optomotor\Zball\GN23019\240507\coherence\session1\2024-05-07_23-08-55"
     thisDir = r"Z:\DATA\experiment_trackball_Optomotor\Zball\GN23018\240422\coherence\session2\2024-04-22_01-09-50"
+    # thisDir = r"Z:\DATA\experiment_trackball_Optomotor\Zball\GN23015\240201\coherence\session1\2024-02-01_15-25-25"
     # thisDir = r"C:\Users\neuroPC\Documents\Open Ephys\2024-02-01_15-25-25"
     json_file = "./analysis_methods_dictionary.json"
     ##Time the function
