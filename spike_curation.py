@@ -181,14 +181,23 @@ def calculate_analyzer_extension(sorting_analyzer):
     sorting_analyzer.compute(compute_dict)
     compute_dict = {
         "unit_locations": {"method": "monopolar_triangulation"},
-        "spike_locations": {"method": "monopolar_triangulation"},
         "spike_amplitudes": {"peak_sign": "neg"},
     }
     sorting_analyzer.compute(compute_dict)
-    sorting_analyzer.compute("amplitude_scalings")
-    # sorting_analyzer.compute(["unit_locations", "spike_locations", "spike_amplitudes"])
+    #isolate analysis of spike location here as it has more parameters
+    sorting_analyzer.compute(
+    input="spike_locations",
+    ms_before=0.5,
+    ms_after=0.5,
+    spike_retriever_kwargs=dict(
+        channel_from_template=True,
+        radius_um=50,
+        peak_sign="neg"
+    ),
+    method="center_of_mass")
     sorting_analyzer.compute(
         [
+            "amplitude_scalings",
             "template_metrics",
             "template_similarity",
             "quality_metrics",
