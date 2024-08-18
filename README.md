@@ -48,3 +48,22 @@ Probably dont need the packages below anymore
 ````
 conda install --yes -c conda-forge -v ipython jupyter pytest ipympl 
 ````
+## data collection
+Closed-loop experiment (since we use fictrac to track animal real time. There are additional steps to do before running fictrac):
+# Multicamera filmming
+
+1. Open pylon viewer and turn on camera 1557 so that we can load feature into the camera (somehow fictrac automatically use this camera so we load a particular feature file:432x480_hw in this camera for fictrac)
+
+2. If use bonVision based visual paradigm, open the designed workflow and use arduino to trigger the cameras and then turn on fictrac.
+
+2-1. If use Unity based visual paradigm,  turn on Bonsai workflow multicamera_hw, and use the same steps to start the arduino and press R for recording. Then run fictrac and then run python_script zmqlistener. And then connect the barcode arduino and then finally run Unity files (Here is a problem with which monitors Unity to target. Needs to fix soon). Press Esc to stop the Unity file (this seems to take around 10 mins to save and compress the data; Unity is buggy on this pc so needs to use task manager to shut down this software). Then turn off fictrac and then turn off bonsai workflow.
+
+In addition, I shall not think about running unity and ephys before I add this feature 
+````
+when running ephys with Unity programme. One big problem is that stimuli are presented when the monitors are closed up so either I editted the unity programme to make the control scence to present at the second monitors and VR scene at the main monitors, or I completely remove the control scence and directly load parameters in the Swarm scene
+````
+
+# no-Multicamera filmming
+
+
+
