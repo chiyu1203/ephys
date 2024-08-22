@@ -66,7 +66,7 @@ conda install --yes -c conda-forge -v ipython jupyter pytest ipympl
 
 2. Use Unity based visual paradigm: Open pylon viewer and turn on camera 1557 so that we can load feature into the camera (somehow fictrac automatically use this camera so we load a particular feature file:432x480_hw in this camera for fictrac) and then close Pylon Viewer.
 
-2-1. turn on Bonsai workflow multicamera_hw, and use the same steps to start the arduino and press **R** for recording. Then run fictrac and then run python_script zmqlistener. And then start OpenEphys recording >>> connect the barcode arduino >>> run Unity files (Here is a problem with which monitors Unity to target. Belows is the details). 
+2-1. turn on Bonsai workflow multicamera_hw, and use the same steps to start the arduino and press **R** for recording. Then run fictrac and then run python_script fictrac\VR_array\socket_zmq_republisher.py. And then start OpenEphys recording >>> connect the barcode arduino >>> run Unity files (Here is a problem with which monitors Unity to target. Belows is the details). 
 
 Press **Esc** to stop the Unity file (this seems to take around 10 mins to save and compress the data; Unity is buggy on this pc so needs to use task manager to shut down this software). Then turn off fictrac and then turn off bonsai workflow.
 
