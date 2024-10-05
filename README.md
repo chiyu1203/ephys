@@ -58,7 +58,6 @@ conda install --yes -c conda-forge -v ipython jupyter pytest ipympl
 
 3. turn on IR LED,
 
-4. 
 
 # Multicamera filmming
 
@@ -72,14 +71,11 @@ Press **Esc** to stop the Unity file (this seems to take around 10 mins to save 
 
 In addition, I shall not think about running unity and ephys before I add this feature 
 
->when running ephys with Unity programme. One big problem is that stimuli are presented when the monitors are closed up so either I editted the unity programme to make the control scence to present at the second monitors and VR scene at the main monitors, or I completely remove the control scence and directly load parameters in the Swarm scene
+>when running Unity programme on Ephys setup. One big problem is that stimuli are presented when the monitors are closed up so ~~either I editted the unity programme to make the control scence to present at the second monitors and VR scene at the main monitors~~ not easy. I shall completely remove the control scence and directly load parameters in the Swarm scene. A quick way to shut down the second monitor is just to unplug it.
+>how to implement stimulus alignment with Ephys without using sync pulse is not clear.
+
 
 # no-Multicamera filmming
 
 The fundamental difference between mult-camera filming or not is whether to use arduino to trigger the camera. Thus, if only using one camera to capture the behaviour or when synchronising camera shutter is not important, then use feature file that does not come with **_hw**. The rest of the step should be more or less the same.
-
-
-
-
-
 
