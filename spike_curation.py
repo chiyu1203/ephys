@@ -185,18 +185,21 @@ def calculate_analyzer_extension(sorting_analyzer):
     }
     sorting_analyzer.compute(compute_dict)
     #isolate analysis of spike location here as it has more parameters
-    sorting_analyzer.compute(
-    input="spike_locations",
-    ms_before=0.5,
-    ms_after=0.5,
-    spike_retriever_kwargs=dict(
-        channel_from_template=True,
-        radius_um=50,
-        peak_sign="neg"
-    ),
-    method="center_of_mass")
+    # sorting_analyzer.compute(input="spike_locations")
+    # drift_ptps, drift_stds, drift_mads = sqm.compute_drift_metrics(sorting_analyzer=sorting_analyzer,peak_sign="neg")
+    # sorting_analyzer.compute(
+    # input="spike_locations",
+    # ms_before=0.5,
+    # ms_after=0.5,
+    # spike_retriever_kwargs=dict(
+    #     channel_from_template=True,
+    #     radius_um=50,
+    #     peak_sign="neg"
+    # ),
+    # method="center_of_mass")
     sorting_analyzer.compute(
         [
+            "spike_locations",
             "amplitude_scalings",
             "template_metrics",
             "template_similarity",
@@ -221,10 +224,7 @@ def si2phy(thisDir, json_file):
     analyser_folder_name = "analyser" + sorter_suffix
     phy_folder_name = phy_folder_name = "phy" + sorter_suffix
     report_folder_name = "report" + sorter_suffix
-    # n_cpus = os.cpu_count()
-    # n_jobs = n_cpus - 4
-    # job_kwargs = dict(n_jobs=n_jobs, chunk_duration="1s", progress_bar=True)
-    remove_excess_spikes = 0
+    remove_excess_spikes = 1
 
     if (
         analysis_methods.get("load_analyser_from_disc") == True
@@ -283,7 +283,7 @@ def si2phy(thisDir, json_file):
             sorting_wout_excess_spikes = scur.remove_excess_spikes(
                 sorting_spikes, recording_saved
             )
-        sorting_spikes = sorting_wout_excess_spikes
+            sorting_spikes = sorting_wout_excess_spikes
         sorting_analyzer = si.create_sorting_analyzer(
             sorting=sorting_spikes,
             recording=recording_saved,
@@ -331,9 +331,10 @@ def si2phy(thisDir, json_file):
 
 if __name__ == "__main__":
     # thisDir = r"Z:\DATA\experiment_trackball_Optomotor\Zball\GN23019\240507\coherence\session1\2024-05-07_23-08-55"
-    thisDir = r"Z:\DATA\experiment_trackball_Optomotor\Zball\GN23018\240422\coherence\session2\2024-04-22_01-09-50"
+    # thisDir = r"Z:\DATA\experiment_trackball_Optomotor\Zball\GN23018\240422\coherence\session2\2024-04-22_01-09-50"
     # thisDir = r"Z:\DATA\experiment_trackball_Optomotor\Zball\GN23015\240201\coherence\session1\2024-02-01_15-25-25"
     # thisDir = r"C:\Users\neuroPC\Documents\Open Ephys\2024-02-01_15-25-25"
+    thisDir = r"D:\Open Ephys\2025-02-23_20-39-04"
     json_file = "./analysis_methods_dictionary.json"
     ##Time the function
     tic = time.perf_counter()

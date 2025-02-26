@@ -6,7 +6,7 @@ import spikeinterface.postprocessing as spost
 import spikeinterface.sorters as ss
 import spikeinterface.qualitymetrics as sq
 import spikeinterface.exporters as sep
-from spikeinterface.sortingcomponents.motion_interpolation import interpolate_motion
+#from spikeinterface.sortingcomponents.motion import InterpolateMotionRecording
 #from spikeinterface.sortingcomponents.clustering import find_cluster_from_peaks
 import spikeinterface.widgets as sw
 import matplotlib.pyplot as plt
@@ -167,12 +167,16 @@ def raw2si(thisDir, json_file):
                 rec_correct_motion=spre.correct_motion(recording=recording_saved, preset="nonrigid_accurate", folder=motion_folder)
             else:         
                 motion_info=spre.load_motion_info(motion_folder)
-                rec_correct_motion = interpolate_motion(
-                  recording=recording_saved,
-                  motion=motion_info['motion'],
-                  temporal_bins=motion_info['temporal_bins'],
-                  spatial_bins=motion_info['spatial_bins'],
-                  **motion_info['parameters']['interpolate_motion_kwargs'])
+                # rec_correct_motion = InterpolateMotionRecording(recording=recording_saved, motion=motion_info['motion'], temporal_bins=motion_info['temporal_bins'], spatial_bins=motion_info['spatial_bins'],
+                #                                  spatial_interpolation_method='kriging',
+                #                                  border_mode='remove_channels')
+                #old version
+                #rec_correct_motion = interpolate_motion(
+                #  recording=recording_saved,
+                #  motion=motion_info['motion'],
+                #  temporal_bins=motion_info['temporal_bins'],
+                #  spatial_bins=motion_info['spatial_bins'],
+                #  **motion_info['parameters']['interpolate_motion_kwargs'])
             
             recording_saved=rec_correct_motion
             sorter_params=ss.get_default_sorter_params(this_sorter)
@@ -195,7 +199,11 @@ if __name__ == "__main__":
     #thisDir = r"Z:\DATA\experiment_openEphys\P-series-32channels\2024-02-01_15-25-25"
     #thisDir = r"C:\Users\neuroPC\Documents\Open Ephys\2024-05-01_17-39-51"
     #thisDir = r"Z:\DATA\experiment_trackball_Optomotor\Zball\GN23015\240201\coherence\session1\2024-02-01_15-25-25"
-    thisDir = r"Z:\DATA\experiment_trackball_Optomotor\Zball\GN23016\240201\coherence\session1\2024-02-01_18-55-51"
+    #thisDir = r"Z:\DATA\experiment_trackball_Optomotor\Zball\GN23016\240201\coherence\session1\2024-02-01_18-55-51"
+    #thisDir = r"Z:\DATA\experiment_trackball_Optomotor\Zball\GN24001\240529\coherence\session1\2024-05-29_15-33-31"
+    thisDir = r"D:\Open Ephys\2025-02-23_20-39-04"
+    #thisDir = r"Z:\DATA\experiment_trackball_Optomotor\Zball\GN23019\240507\coherence\session1\2024-05-07_23-08-55"
+    #thisDir = r"Z:\DATA\experiment_trackball_Optomotor\Zball\GN23018\240422\coherence\session2\2024-04-22_01-09-50"
     json_file = "./analysis_methods_dictionary.json"
     ##Time the function
     tic = time.perf_counter()
