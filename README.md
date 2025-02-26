@@ -48,16 +48,37 @@ Probably dont need the packages below anymore
 ````
 conda install --yes -c conda-forge -v ipython jupyter pytest ipympl 
 ````
-## data collection
 
+Use phy for manual curation of spike sorting: go to the directory where phy mata is stored. E.g.
+
+````
+D:\Open Ephys\2025-02-23_20-39-04\phy_KS4>phy template-gui params.py
+````
+
+## data collection (doing a 3 hour recording with a 32-channel probe generates data at around 25 GB, double check if neuroPC has enough capacity before starting a session)
 # Preparation
 
-1. Use dehumilifier to reduce the humidity overnight and heat up the room in the morning.
+1. Turn on air conditioning and PC to heat up the room in the morning [Optional] Use dehumilifier to reduce the humidity overnight.
 
-2. prepare locusts saline, dyes, PBS, PFA, tin foil, and a beaker with trypsin for electrode, 2 pipettes (one for loading dye and the other one for loading saline) and 1 pipetteman. Place these reagents in a box with ice.
+2. Prepare locusts saline, dyes, PBS, PFA, tin foil (to wrap the dye), parafilm and a beaker with trypsin for electrode, 1 pipettes (for loading dye) and 1 pipetteman, distill water and isopropyl alcohol. Place those reagents on ice in a box. Then rinse the probe with isopropyl alcohol to clear the remaining dye (followed by rinsing with distilled water).
 
-3. turn on IR LED,
+3. place the locust on ice for 5 mins and then dissect the locust in the tube-holder. Make an insertion site on the exoskeleton. The site should be in between the antenna (and somewhere ventral to the antenna). Then slice it (either 1. in between the antenna if you want to preserve them or 2. cut off the antenna nerve and then remove most of the exoskeleton) all the way to black part (save the black part).
 
+4. Remove airsacs, cuticle, and fat body until you can see the brain. [Optional] cut off the gut (have not decided whether I should remove the gut or not). Install one or two metal bars (coated with wax) to stablise the brain. Fix the metal tube with wax (starting from the ventral part of the head) and then remove the neural sheet.
+
+5. glue the head with the headstage and insert the ground wire into the dorsal side of the head and place the ground bin inside the hole of the plastic bar
+
+6. Place the locust on the airball and then prepare to stain the electrode. (Remember to connect the SPL wire with the intan chip before putting them on the stereotaxis)
+
+7. Once the probe is in place, turn on LinLab2 and place the microscope inside the rig to identify potential location (AP axis = x, + means anterior; LM axis = y, + means lateral, DV axis = z, + mean ventral)
+
+8. Make sure the brain is dry enough so that the dye does not diffuse when touching the surface of the brain. Once the probe touch the surface of the target area, rezero LinLab.
+
+9. Start to lower the probe with creeper function on LinLab, every 50 um (2um/s). Use Stimulus_toolkit to search for visual related neurons.
+
+10. Once a good spot is found, use saline-soaked kimiwipe to keep the brain moist, and then remove the microscope and position the third monitor. Turn off the micromanipulator and LinLab to remove additional electrical noise
+
+11. Once the recording is done, use saline-soaked kimiwipe to keep the brain moist, and then try to pull the electrode back (5um/s)
 
 # Multicamera filmming
 
