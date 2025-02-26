@@ -60,25 +60,35 @@ D:\Open Ephys\2025-02-23_20-39-04\phy_KS4>phy template-gui params.py
 
 1. Turn on air conditioning and PC to heat up the room in the morning [Optional] Use dehumilifier to reduce the humidity overnight.
 
-2. Prepare locusts saline, dyes, PBS, PFA, tin foil (to wrap the dye), parafilm and a beaker with trypsin for electrode, 1 pipettes (for loading dye) and 1 pipetteman, distill water and isopropyl alcohol. Place those reagents on ice in a box. Then rinse the probe with isopropyl alcohol to clear the remaining dye (followed by rinsing with distilled water).
+2. Prepare locust saline, dyes, PBS, PFA, tin foil (to wrap the dye), parafilm and a beaker with trypsin for electrode, a beaker for locust saline, 1 pipettes (for loading dye) and 1 pipetteman, distill water and isopropyl alcohol. Place those reagents on ice in a box except for locust saline. Then rinse the probe with isopropyl alcohol to clear the remaining dye (followed by rinsing with distilled water).
 
 3. place the locust on ice for 5 mins and then dissect the locust in the tube-holder. Make an insertion site on the exoskeleton. The site should be in between the antenna (and somewhere ventral to the antenna). Then slice it (either 1. in between the antenna if you want to preserve them or 2. cut off the antenna nerve and then remove most of the exoskeleton) all the way to black part (save the black part).
 
-4. Remove airsacs, cuticle, and fat body until you can see the brain. [Optional] cut off the gut (have not decided whether I should remove the gut or not). Install one or two metal bars (coated with wax) to stablise the brain. Fix the metal tube with wax (starting from the ventral part of the head) and then remove the neural sheet.
+4. Remove airsacs, cuticle, and fat body until you can see the brain. [Optional] cut off the gut: to do that, it is actually better to cut the face all the way until mouth so that there are space to find the gut (have not decided whether I should remove the gut or not). Install one or two metal bars (coated with wax) to stablise the brain (wax get removed easily if the coating was not done properly. Or the problem is due to the wax). Fix the metal tube with wax (the ventral part of the head; for the dorsal part, just use insersion site to stablise them) and then remove the neural sheet.
+  
+Note: The downside of removing the gut is that the head would become a big dry hole so I was not sure if putting the ground pin at the dorsal side of the head would work. One idea is to stuff moist kimwipe beneath the brain. Or maybe buy dura-gel would be a good idea. However, keep in mind during the surgery that if the brain does not move too much due to animal's breath, it should be possible to do the recording without removing the gut
 
-5. glue the head with the headstage and insert the ground wire into the dorsal side of the head and place the ground bin inside the hole of the plastic bar
+5. When removing the neural sheet, focus on dorsal to the central complex and ripe the neural sheet along DV axis (with two fine forceps). This is because the probe is inserted along along DV axis 
 
-6. Place the locust on the airball and then prepare to stain the electrode. (Remember to connect the SPL wire with the intan chip before putting them on the stereotaxis)
+6. glue the head with the headstage and insert the ground wire into the dorsal side of the head and place the ground bin inside the hole of the plastic bar
 
-7. Once the probe is in place, turn on LinLab2 and place the microscope inside the rig to identify potential location (AP axis = x, + means anterior; LM axis = y, + means lateral, DV axis = z, + mean ventral)
+7. Place the locust on the airball and then prepare to stain the electrode. (Remember to connect the SPL wire with the intan chip before putting them on the stereotaxis)
 
-8. Make sure the brain is dry enough so that the dye does not diffuse when touching the surface of the brain. Once the probe touch the surface of the target area, rezero LinLab.
+8. Once the probe is in place (Remember to get the ground wire stick well to the metal bar. Otherwise, it will block field of view of the camera), turn on LinLab2, micromanipulators and place the microscope inside the rig to identify potential location (AP axis = x, + means anterior; LM axis = y, + means lateral, DV axis = z, + mean ventral)
 
-9. Start to lower the probe with creeper function on LinLab, every 50 um (2um/s). Use Stimulus_toolkit to search for visual related neurons.
+9. Make sure the brain is dry enough so that the dye does not diffuse when touching the surface of the brain. Once the probe touch the surface of the target area, rezero LinLab.
 
-10. Once a good spot is found, use saline-soaked kimiwipe to keep the brain moist, and then remove the microscope and position the third monitor. Turn off the micromanipulator and LinLab to remove additional electrical noise
+11. Start to lower the probe with creeper function on LinLab, every 50 um (2um/s). Use Stimulus_toolkit to search for visual related neurons.
 
-11. Once the recording is done, use saline-soaked kimiwipe to keep the brain moist, and then try to pull the electrode back (5um/s)
+12. Once a good spot is found, use saline-soaked kimiwipe to keep the brain moist, and then remove the microscope and position the third monitor. Turn off the micromanipulator and LinLab to remove additional electrical noise.
+
+13. The procedure of the recording is (1) start bonsai workflow, and start arduino trigger (2) start recording on OpenEphys (3) plug in barcode (4) start the stimulus
+
+14. get PFA and trypsin ready when the recording to closed to finish (no need to dilute PFA but trypsin is stored in 10x)
+
+15. Once the recording is done, use saline-soaked kimiwipe to keep the brain moist, and then try to pull the electrode back (5um/s). And then remove the barcode USB and temperature USB
+
+16. Add PBS into dissection stage and then move the head to the stage. Note: it is actually fine to just cut off the labula complex and save dissection time. Finally place the brain into the 4% PFA and store it at the cold room overnight.
 
 # Multicamera filmming
 
