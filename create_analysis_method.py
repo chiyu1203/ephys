@@ -3,6 +3,8 @@ import json
 file_name = "analysis_methods_dictionary.json"
 analysis_methods = {
     "experimenter": "chiyu",
+    "probe_type":"H10_stacked",
+    "motion_corrector":"kilosort",
     "sorter_name": "kilosort4",
     "analyse_good_channels_only": False,
     "load_raw_traces": False,
