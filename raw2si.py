@@ -1,4 +1,4 @@
-import time, os, json, warnings
+import time, os, json, warnings,shutil
 import spikeinterface.core as si
 import spikeinterface.extractors as se
 import spikeinterface.preprocessing as spre
@@ -7,7 +7,8 @@ import spikeinterface.sorters as ss
 import spikeinterface.qualitymetrics as sq
 import spikeinterface.exporters as sep
 #from spikeinterface.sortingcomponents.motion import InterpolateMotionRecording
-#from spikeinterface.sortingcomponents.clustering import find_cluster_from_peaks
+from spikeinterface.sortingcomponents.motion import correct_motion_on_peaks,interpolate_motion
+from spikeinterface.sortingcomponents.clustering import find_cluster_from_peaks
 import spikeinterface.widgets as sw
 import matplotlib.pyplot as plt
 ##from brainbox.population.decode import get_spike_counts_in_bins
@@ -43,6 +44,9 @@ def raw2si(thisDir, json_file):
             analysis_methods = json.loads(f.read())
     this_sorter=analysis_methods.get("sorter_name")
     this_experimenter=analysis_methods.get("experimenter")
+    probe_type=analysis_methods.get("probe_type")
+    motion_corrector=analysis_methods.get("motion_corrector")
+    load_existing_motion_info=True
     sorter_suffix=generate_sorter_suffix(this_sorter)
     result_folder_name="results"+sorter_suffix
     sorting_folder_name="sorting"+sorter_suffix
@@ -90,12 +94,20 @@ def raw2si(thisDir, json_file):
                 trace_snippet = full_raw_rec.get_traces(start_frame=int(fs*0), end_frame=int(fs*2))
 
             #load probe information
-            manufacturer = 'cambridgeneurotech'
-            probe_name = 'ASSY-37-P-2'
-            probe = pi.get_probe(manufacturer, probe_name)
-            print(probe)
-            probe.wiring_to_device('ASSY-116>RHD2132')
-            probe.to_dataframe(complete=True).loc[:, ["contact_ids", "shank_ids", "device_channel_indices"]]
+            if probe_type=='P2':
+
+                manufacturer = 'cambridgeneurotech'
+                probe_name = 'ASSY-37-P-2'
+                probe = pi.get_probe(manufacturer, probe_name)
+                print(probe)
+                probe.wiring_to_device('ASSY-116>RHD2132')
+                probe.to_dataframe(complete=True).loc[:, ["contact_ids", "shank_ids", "device_channel_indices"]]
+            elif probe_type=='H10_stacked':
+                stacked_probes=pi.read_probeinterface('H10_stacked_probes.json')
+                probe=stacked_probes.probes[0]
+            else:
+                print('the name of probe not identified. stop the programme')
+                return
             #drop AUX channels here
             raw_rec = full_raw_rec.set_probe(probe)
             probe_rec = raw_rec.get_probe()
@@ -113,7 +125,7 @@ def raw2si(thisDir, json_file):
                 detection, which means neural traces gone through bandpass filter and common reference. 
                 However, applying common reference takes signals from channels of interest which requires us to decide what we want to do with other bad or noisy channels first.
                 '''
-                bad_channel_ids, channel_labels = spre.detect_bad_channels(recording_f, method='coherence+psd')
+                bad_channel_ids, channel_labels = spre.detect_bad_channels(recording_f, method='coherence+psd')#bad_channel_ids=np.array(['CH1','CH2','CH3','CH4','CH5','CH6','CH7','CH8','CH9','CH10','CH11','CH12','CH13','CH14','CH15','CH16'],dtype='<U64')
                 print('bad_channel_ids', bad_channel_ids)
                 print('channel_labels', channel_labels)
 
@@ -147,29 +159,16 @@ def raw2si(thisDir, json_file):
                                                     compressor=compressor,
                                                     **job_kwargs)
             print(f"First time to save this file. Testing compressor: {compressor_name}")
-
+        
+        ############################# correcting drift/motion ########################## 
         # update parameters of sorters. For non-kilosort sorters, here is an additional step to correct motion artifact.
-        if this_sorter.startswith("kilosort"):
-            if this_sorter == "kilosort3":
-                kilosort_3_path = r'C:\Users\neuroPC\Documents\GitHub\Kilosort-3.0.2'
-                ss.Kilosort3Sorter.set_kilosort3_path(kilosort_3_path)
-                sorter_params = {'do_correction': False}
-            else:
-                print("use kilosort4")
-                sorter_params={'dminx': 250,'nearest_templates':10}
-            sorting_spikes = ss.run_sorter(sorter_name=this_sorter, recording=recording_saved, remove_existing_folder=True,
-                                    output_folder=oe_folder / result_folder_name,
-                                    verbose=True, **sorter_params)
-            #sorter_params.update({"projection_threshold": [9, 9]})##this is a parameters from Christopher Michael Jernigan's experiences with Wasps
-        else:
-            motion_folder=oe_folder / "motion"
-            if not os.path.exists(motion_folder): 
-                rec_correct_motion=spre.correct_motion(recording=recording_saved, preset="nonrigid_accurate", folder=motion_folder)
-            else:         
-                motion_info=spre.load_motion_info(motion_folder)
-                # rec_correct_motion = InterpolateMotionRecording(recording=recording_saved, motion=motion_info['motion'], temporal_bins=motion_info['temporal_bins'], spatial_bins=motion_info['spatial_bins'],
-                #                                  spatial_interpolation_method='kriging',
-                #                                  border_mode='remove_channels')
+                    
+
+            '''
+
+                rec_correct_motion = InterpolateMotionRecording(recording=recording_saved, motion=motion_info['motion'], temporal_bins=motion_info['temporal_bins'], spatial_bins=motion_info['spatial_bins'],
+                                                 spatial_interpolation_method='kriging',
+                                                 border_mode='remove_channels')
                 #old version
                 #rec_correct_motion = interpolate_motion(
                 #  recording=recording_saved,
@@ -179,13 +178,140 @@ def raw2si(thisDir, json_file):
                 #  **motion_info['parameters']['interpolate_motion_kwargs'])
             
             recording_saved=rec_correct_motion
+            '''
+
+        if motion_corrector==('dredge'):
+            motion_folder=oe_folder / "motion"
+            #dredge_preset_params = spre.get_motion_parameters_preset("dredge")
+            if motion_folder.exists() and load_existing_motion_info:
+                motion_info=spre.load_motion_info(motion_folder)
+                recording_corrected=interpolate_motion(recording=recording_saved, motion=motion_info['motion'], temporal_bins=motion_info['temporal_bins'], spatial_bins=motion_info['spatial_bins'])
+            else:
+                recording_corrected, motion, motion_info = spre.correct_motion(recording=recording_saved, preset=preset, folder=folder,overwrite=False, output_motion=True, output_motion_info=True,estimate_motion_kwargs={'win_step_um':win_um,'win_scale_um':win_um},**job_kwargs)#the default mode will remove channels at the border, trying using force_extrapolate
+        elif motion_corrector==('kilosort'):
+            use_kilosort_motion_correction=True
+            rec_for_sorting=recording_saved
+        elif motion_corrector==('testing'):
+            ## this is a section to test which algorithm is better
+            
+                some_presets = ("rigid_fast", "kilosort_like",  "nonrigid_accurate", "nonrigid_fast_and_accurate", "dredge", "dredge_fast")
+
+                run_times=[]
+                
+                win_um=125
+                for preset in some_presets:
+                    print("Computing with", preset)
+                    folder = oe_folder / f"motion_folder_dataset{win_um}" / preset
+                    if load_existing_motion_info and folder.exists():
+                        motion_info=spre.load_motion_info(folder)
+                    else:
+                        recording_corrected, motion, motion_info = spre.correct_motion(
+                            recording=recording_saved, preset=preset, folder=folder,overwrite=False, output_motion=True, output_motion_info=True,estimate_motion_kwargs={'win_step_um':win_um,'win_scale_um':win_um},**job_kwargs
+                        )#the default mode will remove channels at the border, trying using force_extrapolate
+                        fig = plt.figure(figsize=(14, 8))
+                        sw.plot_motion_info(
+                            motion_info, recording_corrected,
+                            figure=fig,
+                            depth_lim=(0, 400),
+                            color_amplitude=True,
+                            amplitude_cmap="inferno",
+                            scatter_decimate=10,
+                        )
+                        fig.suptitle(f"{preset=}")
+                        fig.savefig(folder/'estimated_motion_result.png')
+                    run_times.append(motion_info["run_times"])
+                    '''this part is not yet useful because it does not seem that the motion is estimated and corrected  correctly in 3D
+                    #fig2, axs = plt.subplots(ncols=2, figsize=(12, 8), sharey=True)
+                    fig2=plt.figure()
+                    ax=fig2.add_subplot(121,projection='3d')
+                    #ax = axs[0]
+                    #sw.plot_probe_map(recording_corrected, ax=ax)
+
+                    peaks = motion_info["peaks"]
+                    time_lim0 = 0.0#750.0
+                    time_lim1 = 1000.0#1500.0
+                    mask = (peaks["sample_index"] > int(fs * time_lim0)) & (peaks["sample_index"] < int(fs * time_lim1))
+                    sl = slice(None, None, 5)
+                    amps = np.abs(peaks["amplitude"][mask][sl])
+                    amps /= np.quantile(amps, 0.95)
+                    c = plt.get_cmap("inferno")(amps)
+
+                    color_kargs = dict(alpha=0.2, s=2, c=c)
+
+                    peak_locations = motion_info["peak_locations"]
+                    # color='black',
+                    ax.scatter(peak_locations["x"][mask][sl], peak_locations["y"][mask][sl],peak_locations["z"][mask][sl], **color_kargs)
+                    ax.set_ylim(0, 400)
+                    peak_locations2 = correct_motion_on_peaks(peaks, peak_locations, motion,recording_saved)
+                    
+                    ax=fig2.add_subplot(122,projection='3d')
+                    #ax = axs[1]
+                    #sw.plot_probe_map(recording_saved, ax=ax)
+                    #  color='black',
+                    ax.scatter(peak_locations2["x"][mask][sl], peak_locations2["y"][mask][sl],peak_locations2["z"][mask][sl],**color_kargs)
+
+                    ax.set_ylim(0, 400)
+                    fig2.suptitle(f"{preset=}")
+                    fig2.savefig(folder/'estimated_motion_location.png')'
+                    '''
+
+                keys = run_times[0].keys()
+
+                bottom = np.zeros(len(run_times))
+                fig3, ax = plt.subplots(figsize=(14, 6))
+                for k in keys:
+                    rtimes = np.array([rt[k] for rt in run_times])
+                    if np.any(rtimes > 0.0):
+                        ax.bar(some_presets, rtimes, bottom=bottom, label=k)
+                    bottom += rtimes
+                ax.legend()
+                fig3.savefig(oe_folder / f"motion_folder_dataset{win_um}"/'run_time_accuracy_comparsion.png')
+                return
+        else:
+            print('input name of motion corrector not identified so do not correct motion/drift')
+        ############################# whitening ##########################    
+        if use_kilosort_motion_correction:
+            print('use the default whitening method in the kilosort')
+            pass
+        else:
+            #apply whitening to remove spatial correction in the data
+            step_chan=25
+            rec_for_sorting=spre.whiten(recording=recording_corrected,mode='local',radius_um=step_chan*2,dtype=float)
+
+        ############################# spike sorting ########################## 
+        sorter_params=si.get_default_analyzer_extension_params('this_sorter')
+        if this_sorter.startswith("kilosort") and use_kilosort_motion_correction:
+            if this_sorter == "kilosort3":
+
+                kilosort_3_path = r'C:\Users\neuroPC\Documents\GitHub\Kilosort-3.0.2'
+                ss.Kilosort3Sorter.set_kilosort3_path(kilosort_3_path)
+                sorter_params = {'do_correction': False}
+            else:
+                print("use kilosort4")
+
+            sorting_spikes = ss.run_sorter(sorter_name=this_sorter, recording=recording_saved, remove_existing_folder=True,do_CAR=False,skip_kilosort_preprocessing=True,
+                                    output_folder=oe_folder / result_folder_name,
+                                    verbose=True, **sorter_params)
+        elif this_sorter.startswith("kilosort"):
+            if this_sorter == "kilosort3":
+                kilosort_3_path = r'C:\Users\neuroPC\Documents\GitHub\Kilosort-3.0.2'
+                ss.Kilosort3Sorter.set_kilosort3_path(kilosort_3_path)
+                sorter_params = {'do_correction': False}
+            else:
+                print("use kilosort4")
+                #sorter_params={'dminx': 250,'nearest_templates':10}
+            sorting_spikes = ss.run_sorter(sorter_name=this_sorter, recording=rec_for_sorting, remove_existing_folder=True,do_CAR=False,
+                                    output_folder=oe_folder / result_folder_name,
+                                    verbose=True, **sorter_params)
+            #sorter_params.update({"projection_threshold": [9, 9]})##this is a parameters from Christopher Michael Jernigan's experiences with Wasps
+        else:
             sorter_params=ss.get_default_sorter_params(this_sorter)
-        # run spike sorting on recording of interest            
-            sorting_spikes = ss.run_sorter(sorter_name=this_sorter, recording=recording_saved, remove_existing_folder=True,
+            print(f"run spike sorting with {this_sorter}")
+            sorting_spikes = ss.run_sorter(sorter_name=this_sorter, recording=rec_for_sorting, remove_existing_folder=True,
                                         output_folder=oe_folder / result_folder_name,
                                         verbose=True,job_kwargs=job_kwargs)
         ##this will return a sorting object
-    
+    ############################# spike sorting preview and saving ##########################     
     w_rs=sw.plot_rasters(sorting_spikes, time_range=(0,30),backend="matplotlib")
     if analysis_methods.get("save_sorting_file")==True and analysis_methods.get("overwrite_curated_dataset")==True:
         sorting_loaded_spikes=sorting_spikes.save(folder=oe_folder / sorting_folder_name, overwrite=True)
@@ -201,7 +327,8 @@ if __name__ == "__main__":
     #thisDir = r"Z:\DATA\experiment_trackball_Optomotor\Zball\GN23015\240201\coherence\session1\2024-02-01_15-25-25"
     #thisDir = r"Z:\DATA\experiment_trackball_Optomotor\Zball\GN23016\240201\coherence\session1\2024-02-01_18-55-51"
     #thisDir = r"Z:\DATA\experiment_trackball_Optomotor\Zball\GN24001\240529\coherence\session1\2024-05-29_15-33-31"
-    thisDir = r"Z:\DATA\experiment_openEphys\P-series-32channels\2025-02-26_17-00-43"
+    #thisDir = r"D:\Open Ephys\2025-03-10_20-25-05"
+    thisDir = r"D:\Open Ephys\2025-03-19_18-02-13"
     #thisDir = r"D:\Open Ephys\2025-02-23_20-39-04"
     #thisDir = r"Z:\DATA\experiment_trackball_Optomotor\Zball\GN23019\240507\coherence\session1\2024-05-07_23-08-55"
     #thisDir = r"Z:\DATA\experiment_trackball_Optomotor\Zball\GN23018\240422\coherence\session2\2024-04-22_01-09-50"
