@@ -249,10 +249,17 @@ def align_async_signals(thisDir, json_file):
     camera_trigger_on_oe = recording.events.timestamp[
         (recording.events.line == 2) & (recording.events.state == 1)
     ]
-    # barcode_on_oe = recording.events.timestamp[
-    #     (recording.events.line == 3) & (recording.events.state == 1)
-    # ]
-
+    pd_on_oe = recording.events.timestamp[
+        (recording.events.line == 1) & (recording.events.state == 1)
+    ]
+    pd_off_oe = recording.events.timestamp[
+        (recording.events.line == 1) & (recording.events.state == 0)
+    ]
+    print(f"Onset of ISI and preStim: {pd_off_oe.values-pd_on_oe[:-1].values}")
+    print(f"Onset of Stim: {pd_on_oe[2:].values-pd_off_oe[1:].values}")
+    np.where(camera_trigger_on_oe.values > pd_off_oe.values[1])
+    np.where(camera_trigger_on_oe.values > pd_on_oe.values[2])
+    # print(f"trial id during the first stim: {np.where((camera_trigger_on_oe.values>pd_off_oe.values[1]) & (camera_trigger_on_oe.values<pd_on_oe.values[2]))}")
     barcode_on_oe = recording.events.sample_number[recording.events.line == 3]
     if len(barcode_on_oe) > 0:
         _, signals_time_and_bars_array = extract_barcodes(
@@ -524,7 +531,8 @@ def align_async_signals(thisDir, json_file):
 if __name__ == "__main__":
     # thisDir = r"C:\Users\neuroLaptop\Documents\Open Ephys\P-series-32channels\GN00003\2023-12-28_14-39-40"
     # thisDir = r"Z:\DATA\experiment_trackball_Optomotor\Zball\GN23019\240507\coherence\session1\2024-05-07_23-08-55"
-    thisDir = r"Z:\DATA\experiment_trackball_Optomotor\Zball\GN23018\240422\coherence\session2\2024-04-22_01-09-50"
+    # thisDir = r"Z:\DATA\experiment_trackball_Optomotor\Zball\GN23018\240422\coherence\session2\2024-04-22_01-09-50"
+    thisDir = r"Z:\DATA\experiment_openEphys\P-series-32channels\2025-02-26_17-00-43"
     # thisDir = r"Z:\DATA\experiment_trackball_Optomotor\Zball\GN23015\240201\coherence\session1\2024-02-01_15-25-25"
     # thisDir = r"C:\Users\neuroPC\Documents\Open Ephys\2024-02-01_15-25-25"
     json_file = "./analysis_methods_dictionary.json"
