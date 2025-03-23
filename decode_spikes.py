@@ -393,7 +393,7 @@ def align_async_signals(thisDir, json_file):
                 ax.set_ylabel("Velocity")
                 ax.set_ylim(0, 300)
                 plot_name = "walk_onset.svg"
-                if analysis_methods.get("debug_mode") == False:
+                if analysis_methods.get("save_output") == True:
                     fig1.savefig(Path(stim_directory) / plot_name)
                 plt.show()
                 if len(barcode_on_oe) == 0 and len(camera_trigger_on_oe) == 0:
