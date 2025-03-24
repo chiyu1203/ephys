@@ -8,12 +8,13 @@ import spikeinterface.postprocessing as spost
 import spikeinterface.sorters as ss
 import spikeinterface.qualitymetrics as sq
 import spikeinterface.exporters as sep
-
+from open_ephys.analysis import Session
 # from spikeinterface.sortingcomponents.clustering import find_cluster_from_peaks
 # from spikeinterface.sortingcomponents.motion import InterpolateMotionRecording
 from spikeinterface.sortingcomponents.motion import (
     correct_motion_on_peaks,
     interpolate_motion,
+    estimate_motion,
 )
 import spikeinterface.widgets as sw
 import matplotlib.pyplot as plt
@@ -41,6 +42,153 @@ def generate_sorter_suffix(this_sorter):
         sorter_suffix = "_KS4"
     return sorter_suffix
 
+def LFP_band_drift_estimation(group,raw_rec,oe_folder):
+    lfprec = spre.bandpass_filter(raw_rec,freq_min=0.5,freq_max=250,margin_ms=1500.,filter_order=3,dtype="float32",add_reflect_padding=True)
+    lfprec = spre.resample(lfprec, resample_rate=250, margin_ms=1000)
+    lfprec = spre.average_across_direction(lfprec)
+    fig0=plt.figure()
+    ax=fig0.add_subplot(121)
+    sw.plot_traces(lfprec, backend="matplotlib", mode="auto",ax=ax,time_range=(0, 1))
+    #sw.plot_traces(lfprec, backend="matplotlib", mode="auto", ax=ax, clim=(-0.05, 0.05),time_range=(0, 20))
+    motion_lfp = estimate_motion(lfprec, method='dredge_lfp', rigid=True, progress_bar=True)
+    ax=fig0.add_subplot(122)
+    sw.plot_motion(motion_lfp, mode='line', ax=ax)
+    motion_folder = oe_folder / f"motion{group}"
+    fig0.savefig(motion_folder / "dredge_lfp.png")
+
+
+def correct_drift_and_motion(group,recording_saved,oe_folder,analysis_methods,job_kwargs):
+    load_existing_motion_info = True
+    motion_corrector = analysis_methods.get("motion_corrector")
+    motion_folder = oe_folder / f"motion{group}"
+    if motion_corrector == ("dredge"):
+        # dredge_preset_params = spre.get_motion_parameters_preset("dredge")
+        if motion_folder.exists() and load_existing_motion_info:
+            motion_info = spre.load_motion_info(motion_folder)
+            recording_corrected = interpolate_motion(
+                recording=recording_saved,
+                motion=motion_info["motion"],
+                temporal_bins=motion_info["temporal_bins"],
+                spatial_bins=motion_info["spatial_bins"],
+            )
+        else:
+            win_um = 75
+            recording_corrected, _, motion_info = spre.correct_motion(
+                recording=recording_saved,
+                preset=preset,
+                folder=motion_folder,
+                overwrite=False,
+                output_motion=True,
+                output_motion_info=True,
+                estimate_motion_kwargs={
+                    "win_step_um": win_um,
+                    "win_scale_um": win_um,
+                },
+                **job_kwargs,
+            )  # the default mode will remove channels at the border, trying using force_extrapolate
+    elif motion_corrector == ("testing"):
+        # This is a section to test which algorithm is better for motion correction. 
+        # This is based on this page https://spikeinterface.readthedocs.io/en/latest/how_to/handle_drift.html
+
+        some_presets = (
+            "rigid_fast",
+            "kilosort_like",
+            "nonrigid_accurate",
+            "nonrigid_fast_and_accurate",
+            "dredge",
+            "dredge_fast",
+        )
+
+        run_times = []
+
+        win_um = 75
+        for preset in some_presets:
+            print("Computing with", preset)
+            test_folder = oe_folder / f"motion_folder{group}_dataset{win_um}" / preset
+            if load_existing_motion_info and test_folder.exists():
+                motion_info = spre.load_motion_info(test_folder)
+            else:
+                recording_corrected, _, motion_info = spre.correct_motion(
+                    recording=recording_saved,
+                    preset=preset,
+                    folder=test_folder,
+                    overwrite=False,
+                    output_motion=True,
+                    output_motion_info=True,
+                    estimate_motion_kwargs={
+                        "win_step_um": win_um,
+                        "win_scale_um": win_um,
+                    },
+                    **job_kwargs,
+                )  # the default mode will remove channels at the border, trying using force_extrapolate
+                fig = plt.figure(figsize=(14, 8))
+                sw.plot_motion_info(
+                    motion_info,
+                    recording_corrected,
+                    figure=fig,
+                    depth_lim=(0, 400),
+                    color_amplitude=True,
+                    amplitude_cmap="inferno",
+                    scatter_decimate=10,
+                )
+                fig.suptitle(f"{preset=}")
+                fig.savefig(test_folder / "estimated_motion_result.png")
+            run_times.append(motion_info["run_times"])
+            """this part is not yet useful because it does not seem that the motion is estimated and corrected  correctly in 3D
+            #fig2, axs = plt.subplots(ncols=2, figsize=(12, 8), sharey=True)
+            fig2=plt.figure()
+            ax=fig2.add_subplot(121,projection='3d')
+            #ax = axs[0]
+            #sw.plot_probe_map(recording_corrected, ax=ax)
+
+            peaks = motion_info["peaks"]
+            time_lim0 = 0.0#750.0
+            time_lim1 = 1000.0#1500.0
+            mask = (peaks["sample_index"] > int(fs * time_lim0)) & (peaks["sample_index"] < int(fs * time_lim1))
+            sl = slice(None, None, 5)
+            amps = np.abs(peaks["amplitude"][mask][sl])
+            amps /= np.quantile(amps, 0.95)
+            c = plt.get_cmap("inferno")(amps)
+
+            color_kargs = dict(alpha=0.2, s=2, c=c)
+
+            peak_locations = motion_info["peak_locations"]
+            # color='black',
+            ax.scatter(peak_locations["x"][mask][sl], peak_locations["y"][mask][sl],peak_locations["z"][mask][sl], **color_kargs)
+            ax.set_ylim(0, 400)
+            peak_locations2 = correct_motion_on_peaks(peaks, peak_locations, motion,recording_saved)
+            
+            ax=fig2.add_subplot(122,projection='3d')
+            #ax = axs[1]
+            #sw.plot_probe_map(recording_saved, ax=ax)
+            #  color='black',
+            ax.scatter(peak_locations2["x"][mask][sl], peak_locations2["y"][mask][sl],peak_locations2["z"][mask][sl],**color_kargs)
+
+            ax.set_ylim(0, 400)
+            fig2.suptitle(f"{preset=}")
+            fig2.savefig(test_folder/'estimated_motion_location.png')'
+            """
+
+        keys = run_times[0].keys()
+
+        bottom = np.zeros(len(run_times))
+        fig3, ax = plt.subplots(figsize=(14, 6))
+        for k in keys:
+            rtimes = np.array([rt[k] for rt in run_times])
+            if np.any(rtimes > 0.0):
+                ax.bar(some_presets, rtimes, bottom=bottom, label=k)
+            bottom += rtimes
+        ax.legend()
+        fig3.savefig(oe_folder / f"motion_folder{group}_dataset{win_um}" / "run_time_accuracy_comparsion.png")
+        recording_corrected = recording_saved
+        plt.close('all')
+    else:
+        print(
+            "input name of motion corrector not identified so do not correct motion/drift"
+        )
+        recording_corrected = recording_saved
+    return recording_corrected
+
 
 def raw2si(thisDir, json_file):
     oe_folder = Path(thisDir)
@@ -54,7 +202,6 @@ def raw2si(thisDir, json_file):
     this_experimenter = analysis_methods.get("experimenter")
     probe_type = analysis_methods.get("probe_type")
     motion_corrector = analysis_methods.get("motion_corrector")
-    load_existing_motion_info = True
     sorter_suffix = generate_sorter_suffix(this_sorter)
     result_folder_name = "results" + sorter_suffix
     sorting_folder_name = "sorting" + sorter_suffix
@@ -99,18 +246,29 @@ def raw2si(thisDir, json_file):
             fs = recording_saved.get_sampling_frequency()
         else:
             print("Load meta information from openEphys")
-            full_raw_rec = se.read_openephys(oe_folder, load_sync_timestamps=True)
+            # session = Session(oe_folder)
+            # recording = session.recordnodes[0].recordings[0]
+            # camera_trigger_on_oe = recording.events.timestamp[
+            #     (recording.events.line == 2) & (recording.events.state == 1)
+            # ]
+            # pd_on_oe = recording.events.timestamp[
+            #     (recording.events.line == 1) & (recording.events.state == 1)
+            # ]
+            # pd_off_oe = recording.events.timestamp[
+            #     (recording.events.line == 1) & (recording.events.state == 0)
+            # ]
+            raw_rec = se.read_openephys(oe_folder, load_sync_timestamps=True)
             # To show the start of recording time
-            # full_raw_rec.get_times()[0]
+            # raw_rec.get_times()[0]
             event = se.read_openephys_event(oe_folder)
             # event_channel_ids=channel_ids
             # events = event.get_events(channel_id=channel_ids[1], segment_index=0)# a complete record of events including [('time', '<f8'), ('duration', '<f8'), ('label', '<U100')]
             events_times = event.get_event_times(
                 channel_id=event.channel_ids[1], segment_index=0
             )  # this record ON phase of sync pulse
-            fs = full_raw_rec.get_sampling_frequency()
+            fs = raw_rec.get_sampling_frequency()
             if analysis_methods.get("load_raw_traces") == True:
-                trace_snippet = full_raw_rec.get_traces(
+                trace_snippet = raw_rec.get_traces(
                     start_frame=int(fs * 0), end_frame=int(fs * 2)
                 )
 
@@ -131,7 +289,7 @@ def raw2si(thisDir, json_file):
                 print("the name of probe not identified. stop the programme")
                 return
             # drop AUX channels here
-            raw_rec = full_raw_rec.set_probe(probe)
+            raw_rec = raw_rec.set_probe(probe,group_mode='by_shank')
             probe_rec = raw_rec.get_probe()
             probe_rec.to_dataframe(complete=True).loc[
                 :, ["contact_ids", "device_channel_indices"]
@@ -140,8 +298,18 @@ def raw2si(thisDir, json_file):
             raw_rec.annotate(
                 description=f"Dataset of {this_experimenter}"
             )  # should change here for something related in the future
+            ################ estimate motion with LFP band ################
+
+            #As we do not analyse LFP data, there was no need to correct motion based on LFP band. However, this estimation can be good to cross-validate with spike-band based motion estimation
+            # https://spikeinterface.readthedocs.io/en/latest/how_to/drift_with_lfp.html
+            lfp_drift_estimation=False
+            if lfp_drift_estimation:
+                raw_rec_dict = raw_rec.split_by(property='group', outputs='dict')
+                for group, rec_per_shank in raw_rec_dict.items():
+                    LFP_band_drift_estimation(group,rec_per_shank,oe_folder)
             ################ preprocessing ################
             # apply band pass filter
+
             recording_f = spre.bandpass_filter(raw_rec, freq_min=600, freq_max=6000)
             # apply common median reference to remove common noise
             if analysis_methods.get("analyse_good_channels_only") == True:
@@ -153,6 +321,7 @@ def raw2si(thisDir, json_file):
                 bad_channel_ids, channel_labels = spre.detect_bad_channels(
                     recording_f, method="coherence+psd"
                 )  # bad_channel_ids=np.array(['CH1','CH2','CH3','CH4','CH5','CH6','CH7','CH8','CH9','CH10','CH11','CH12','CH13','CH14','CH15','CH16'],dtype='<U64')
+                #bad channel ids in ['CH2' 'CH22' 'CH25' 'CH27' 'CH29' 'CH30' 'CH31' 'CH32' 'CH33' 'CH34''CH35' 'CH36' 'CH37' 'CH38' 'CH39' 'CH41' 'CH43' 'CH80' 'CH112'] in 2025-03-19_18-02-13"
                 print("bad_channel_ids", bad_channel_ids)
                 print("channel_labels", channel_labels)
 
@@ -160,6 +329,9 @@ def raw2si(thisDir, json_file):
                     bad_channel_ids
                 )  # need to check if I can do this online
 
+
+
+            ##not sure if I should apply CAR by shank by shank
             recording_cmr = spre.common_reference(
                 recording_f, reference="global", operator="median"
             )
@@ -224,140 +396,25 @@ def raw2si(thisDir, json_file):
         # Note: if we use kilosort without using its own preprocessing steps, remember to turn off those steps when calling the function.
         # For more information, please refer to https://github.com/SpikeInterface/spikeinterface/issues/3483
 
-        if motion_corrector == ("dredge"):
-            motion_folder = oe_folder / "motion"
-            # dredge_preset_params = spre.get_motion_parameters_preset("dredge")
-            if motion_folder.exists() and load_existing_motion_info:
-                motion_info = spre.load_motion_info(motion_folder)
-                recording_corrected = interpolate_motion(
-                    recording=recording_saved,
-                    motion=motion_info["motion"],
-                    temporal_bins=motion_info["temporal_bins"],
-                    spatial_bins=motion_info["spatial_bins"],
-                )
-            else:
-                win_um = 75
-                recording_corrected, _, motion_info = spre.correct_motion(
-                    recording=recording_saved,
-                    preset=preset,
-                    folder=motion_folder,
-                    overwrite=False,
-                    output_motion=True,
-                    output_motion_info=True,
-                    estimate_motion_kwargs={
-                        "win_step_um": win_um,
-                        "win_scale_um": win_um,
-                    },
-                    **job_kwargs,
-                )  # the default mode will remove channels at the border, trying using force_extrapolate
-        elif motion_corrector == ("kilosort"):
-            use_kilosort_motion_correction = True
-            rec_for_sorting = recording_saved
-        elif motion_corrector == ("testing"):
-            ## this is a section to test which algorithm is better for motion correction. This is based on this page https://spikeinterface.readthedocs.io/en/latest/how_to/handle_drift.html
-            some_presets = (
-                "rigid_fast",
-                "kilosort_like",
-                "nonrigid_accurate",
-                "nonrigid_fast_and_accurate",
-                "dredge",
-                "dredge_fast",
-            )
-
-            run_times = []
-
-            win_um = 125
-            for preset in some_presets:
-                print("Computing with", preset)
-                test_folder = oe_folder / f"motion_folder_dataset{win_um}" / preset
-                if load_existing_motion_info and test_folder.exists():
-                    motion_info = spre.load_motion_info(test_folder)
-                else:
-                    recording_corrected, _, motion_info = spre.correct_motion(
-                        recording=recording_saved,
-                        preset=preset,
-                        folder=test_folder,
-                        overwrite=False,
-                        output_motion=True,
-                        output_motion_info=True,
-                        estimate_motion_kwargs={
-                            "win_step_um": win_um,
-                            "win_scale_um": win_um,
-                        },
-                        **job_kwargs,
-                    )  # the default mode will remove channels at the border, trying using force_extrapolate
-                    fig = plt.figure(figsize=(14, 8))
-                    sw.plot_motion_info(
-                        motion_info,
-                        recording_corrected,
-                        figure=fig,
-                        depth_lim=(0, 400),
-                        color_amplitude=True,
-                        amplitude_cmap="inferno",
-                        scatter_decimate=10,
-                    )
-                    fig.suptitle(f"{preset=}")
-                    fig.savefig(test_folder / "estimated_motion_result.png")
-                run_times.append(motion_info["run_times"])
-                """this part is not yet useful because it does not seem that the motion is estimated and corrected  correctly in 3D
-                #fig2, axs = plt.subplots(ncols=2, figsize=(12, 8), sharey=True)
-                fig2=plt.figure()
-                ax=fig2.add_subplot(121,projection='3d')
-                #ax = axs[0]
-                #sw.plot_probe_map(recording_corrected, ax=ax)
-
-                peaks = motion_info["peaks"]
-                time_lim0 = 0.0#750.0
-                time_lim1 = 1000.0#1500.0
-                mask = (peaks["sample_index"] > int(fs * time_lim0)) & (peaks["sample_index"] < int(fs * time_lim1))
-                sl = slice(None, None, 5)
-                amps = np.abs(peaks["amplitude"][mask][sl])
-                amps /= np.quantile(amps, 0.95)
-                c = plt.get_cmap("inferno")(amps)
-
-                color_kargs = dict(alpha=0.2, s=2, c=c)
-
-                peak_locations = motion_info["peak_locations"]
-                # color='black',
-                ax.scatter(peak_locations["x"][mask][sl], peak_locations["y"][mask][sl],peak_locations["z"][mask][sl], **color_kargs)
-                ax.set_ylim(0, 400)
-                peak_locations2 = correct_motion_on_peaks(peaks, peak_locations, motion,recording_saved)
-                
-                ax=fig2.add_subplot(122,projection='3d')
-                #ax = axs[1]
-                #sw.plot_probe_map(recording_saved, ax=ax)
-                #  color='black',
-                ax.scatter(peak_locations2["x"][mask][sl], peak_locations2["y"][mask][sl],peak_locations2["z"][mask][sl],**color_kargs)
-
-                ax.set_ylim(0, 400)
-                fig2.suptitle(f"{preset=}")
-                fig2.savefig(test_folder/'estimated_motion_location.png')'
-                """
-
-            keys = run_times[0].keys()
-
-            bottom = np.zeros(len(run_times))
-            fig3, ax = plt.subplots(figsize=(14, 6))
-            for k in keys:
-                rtimes = np.array([rt[k] for rt in run_times])
-                if np.any(rtimes > 0.0):
-                    ax.bar(some_presets, rtimes, bottom=bottom, label=k)
-                bottom += rtimes
-            ax.legend()
-            fig3.savefig(
-                oe_folder
-                / f"motion_folder_dataset{win_um}"
-                / "run_time_accuracy_comparsion.png"
-            )
-            return
-        else:
-            print(
-                "input name of motion corrector not identified so do not correct motion/drift"
-            )
-            recording_corrected = recording_saved
+        # split into a dict
+        #recording_saved = spre.astype(recording_saved, "float")
+        recordings_dict = recording_saved.split_by(property='group', outputs='dict')
+        
+        corrected_list = {}
+        for group, sub_recording in recordings_dict.items():
+            recording_corrected=correct_drift_and_motion(group,sub_recording,oe_folder,analysis_methods,job_kwargs)
+            corrected_list[group]=recording_corrected
+        # if len(corrected_list)>1:
+        #     recording_corrected = si.aggregate_channels(corrected_list)
+        
+        if motion_corrector =='testing':
+            return print("drift/correction testing done")
         ############################# whitening ##########################
-        if use_kilosort_motion_correction:
-            print("use the default whitening method in the kilosort")
+        elif motion_corrector =='kilosort':
+        #use_kilosort_motion_correction = True
+            rec_for_sorting = recording_corrected
+        #if use_kilosort_motion_correction:
+            print("use the default motion correction and whitening method in the kilosort")
             pass
         else:
             # apply whitening to remove spatial correction in the data
@@ -370,16 +427,25 @@ def raw2si(thisDir, json_file):
             )
 
         ############################# spike sorting ##########################
-        sorter_params = si.get_default_analyzer_extension_params("this_sorter")
+        #print(f'theses sorters are installed in this PC {ss.installed_sorters()}')
+        print(f"run spike sorting with {this_sorter}")
+        sorter_params = ss.get_default_sorter_params(this_sorter)
         if this_sorter.startswith("kilosort"):
-            if use_kilosort_motion_correction:
+            #update parameters based on motion correction method
+            if motion_corrector =='kilosort':
                 pass
             else:
                 sorter_params.update({"skip_kilosort_preprocessing": True})
+            #update parameters based on probe type    
+            if probe_type=='H10_stacked':
+                sorter_params.update({"dminx": 18.5,"nblocks": 0,"batch_size": 180000})
+            elif probe_type=='P2':
+                sorter_params.update({"dminx": 22.5,"nearest_templates": 16, "max_channel_distance": 32,"nblocks": 0,"batch_size": 180000})
+            #update parameters based on the version of kilosort
             if this_sorter == "kilosort3":
                 kilosort_3_path = r"C:\Users\neuroPC\Documents\GitHub\Kilosort-3.0.2"
                 ss.Kilosort3Sorter.set_kilosort3_path(kilosort_3_path)
-                sorter_params = {"do_correction": False}
+                sorter_params.update({"do_correction": False})
             else:
                 print("use kilosort4")
                 # sorter_params={'dminx': 250,'nearest_templates':10}
@@ -394,8 +460,6 @@ def raw2si(thisDir, json_file):
             )
             # sorter_params.update({"projection_threshold": [9, 9]})##this is a parameters from Christopher Michael Jernigan's experiences with Wasps
         else:
-            sorter_params = ss.get_default_sorter_params(this_sorter)
-            print(f"run spike sorting with {this_sorter}")
             sorting_spikes = ss.run_sorter(
                 sorter_name=this_sorter,
                 recording=rec_for_sorting,
@@ -406,12 +470,12 @@ def raw2si(thisDir, json_file):
             )
         ##this will return a sorting object
     ############################# spike sorting preview and saving ##########################
-    w_rs = sw.plot_rasters(sorting_spikes, time_range=(0, 30), backend="matplotlib")
-    if (
-        analysis_methods.get("save_sorting_file") == True
-        and analysis_methods.get("overwrite_curated_dataset") == True
-    ):
-        sorting_spikes.save(folder=oe_folder / sorting_folder_name, overwrite=True)
+        w_rs = sw.plot_rasters(sorting_spikes, time_range=(0, 30), backend="matplotlib")
+        if (
+            analysis_methods.get("save_sorting_file") == True
+            and analysis_methods.get("overwrite_curated_dataset") == True
+        ):
+            sorting_spikes.save(folder=oe_folder / sorting_folder_name, overwrite=True)
 
     return print("Spiking sorting done. The rest of the tasks can be done in other PCs")
     # for unit in sorting_spikes.get_unit_ids():
@@ -426,7 +490,10 @@ if __name__ == "__main__":
     # thisDir = r"Z:\DATA\experiment_trackball_Optomotor\Zball\GN23016\240201\coherence\session1\2024-02-01_18-55-51"
     # thisDir = r"Z:\DATA\experiment_trackball_Optomotor\Zball\GN24001\240529\coherence\session1\2024-05-29_15-33-31"
     # thisDir = r"D:\Open Ephys\2025-03-10_20-25-05"
-    thisDir = r"D:\Open Ephys\2025-03-19_18-02-13"
+    #thisDir = r"D:\Open Ephys\2025-03-19_18-02-13"
+    #thisDir = r"Z:\DATA\experiment_openEphys\H-series-128channels\2025-03-23_20-47-26"
+    #thisDir = r"Z:\DATA\experiment_openEphys\H-series-128channels\2025-03-23_21-33-38"
+    thisDir = r"Z:\DATA\experiment_openEphys\H-series-128channels\2025-03-23_20-47-26"
     # thisDir = r"D:\Open Ephys\2025-02-23_20-39-04"
     # thisDir = r"Z:\DATA\experiment_trackball_Optomotor\Zball\GN23019\240507\coherence\session1\2024-05-07_23-08-55"
     # thisDir = r"Z:\DATA\experiment_trackball_Optomotor\Zball\GN23018\240422\coherence\session2\2024-04-22_01-09-50"
