@@ -1,4 +1,4 @@
-import time, os, json, warnings, shutil
+import time, os, json, warnings
 import probeinterface as pi
 from probeinterface.plotting import plot_probe
 import spikeinterface.core as si
@@ -9,6 +9,7 @@ import spikeinterface.sorters as ss
 import spikeinterface.qualitymetrics as sq
 import spikeinterface.exporters as sep
 from open_ephys.analysis import Session
+from estimate_drift_motion import AP_band_drift_estimation, LFP_band_drift_estimation
 # from spikeinterface.sortingcomponents.clustering import find_cluster_from_peaks
 # from spikeinterface.sortingcomponents.motion import InterpolateMotionRecording
 from spikeinterface.sortingcomponents.motion import (
@@ -41,154 +42,6 @@ def generate_sorter_suffix(this_sorter):
     elif this_sorter.lower() == "kilosort4":
         sorter_suffix = "_KS4"
     return sorter_suffix
-
-def LFP_band_drift_estimation(group,raw_rec,oe_folder):
-    lfprec = spre.bandpass_filter(raw_rec,freq_min=0.5,freq_max=250,margin_ms=1500.,filter_order=3,dtype="float32",add_reflect_padding=True)
-    lfprec = spre.resample(lfprec, resample_rate=250, margin_ms=1000)
-    lfprec = spre.average_across_direction(lfprec)
-    fig0=plt.figure()
-    ax=fig0.add_subplot(121)
-    sw.plot_traces(lfprec, backend="matplotlib", mode="auto",ax=ax,time_range=(0, 1))
-    #sw.plot_traces(lfprec, backend="matplotlib", mode="auto", ax=ax, clim=(-0.05, 0.05),time_range=(0, 20))
-    motion_lfp = estimate_motion(lfprec, method='dredge_lfp', rigid=True, progress_bar=True)
-    ax=fig0.add_subplot(122)
-    sw.plot_motion(motion_lfp, mode='line', ax=ax)
-    motion_folder = oe_folder / f"motion{group}"
-    fig0.savefig(motion_folder / "dredge_lfp.png")
-
-
-def correct_drift_and_motion(group,recording_saved,oe_folder,analysis_methods,job_kwargs):
-    load_existing_motion_info = True
-    motion_corrector = analysis_methods.get("motion_corrector")
-    motion_folder = oe_folder / f"motion{group}"
-    if motion_corrector == ("dredge"):
-        # dredge_preset_params = spre.get_motion_parameters_preset("dredge")
-        if motion_folder.exists() and load_existing_motion_info:
-            motion_info = spre.load_motion_info(motion_folder)
-            recording_corrected = interpolate_motion(
-                recording=recording_saved,
-                motion=motion_info["motion"],
-                temporal_bins=motion_info["temporal_bins"],
-                spatial_bins=motion_info["spatial_bins"],
-            )
-        else:
-            win_um = 75
-            recording_corrected, _, motion_info = spre.correct_motion(
-                recording=recording_saved,
-                preset=preset,
-                folder=motion_folder,
-                overwrite=False,
-                output_motion=True,
-                output_motion_info=True,
-                estimate_motion_kwargs={
-                    "win_step_um": win_um,
-                    "win_scale_um": win_um,
-                },
-                **job_kwargs,
-            )  # the default mode will remove channels at the border, trying using force_extrapolate
-    elif motion_corrector == ("testing"):
-        # This is a section to test which algorithm is better for motion correction. 
-        # This is based on this page https://spikeinterface.readthedocs.io/en/latest/how_to/handle_drift.html
-
-        some_presets = (
-            "rigid_fast",
-            "kilosort_like",
-            "nonrigid_accurate",
-            "nonrigid_fast_and_accurate",
-            "dredge",
-            "dredge_fast",
-        )
-
-        run_times = []
-
-        win_um = 75
-        for preset in some_presets:
-            print("Computing with", preset)
-            test_folder = oe_folder / f"motion_folder{group}_dataset{win_um}" / preset
-            if load_existing_motion_info and test_folder.exists():
-                motion_info = spre.load_motion_info(test_folder)
-            else:
-                recording_corrected, _, motion_info = spre.correct_motion(
-                    recording=recording_saved,
-                    preset=preset,
-                    folder=test_folder,
-                    overwrite=False,
-                    output_motion=True,
-                    output_motion_info=True,
-                    estimate_motion_kwargs={
-                        "win_step_um": win_um,
-                        "win_scale_um": win_um,
-                    },
-                    **job_kwargs,
-                )  # the default mode will remove channels at the border, trying using force_extrapolate
-                fig = plt.figure(figsize=(14, 8))
-                sw.plot_motion_info(
-                    motion_info,
-                    recording_corrected,
-                    figure=fig,
-                    depth_lim=(0, 400),
-                    color_amplitude=True,
-                    amplitude_cmap="inferno",
-                    scatter_decimate=10,
-                )
-                fig.suptitle(f"{preset=}")
-                fig.savefig(test_folder / "estimated_motion_result.png")
-            run_times.append(motion_info["run_times"])
-            """this part is not yet useful because it does not seem that the motion is estimated and corrected  correctly in 3D
-            #fig2, axs = plt.subplots(ncols=2, figsize=(12, 8), sharey=True)
-            fig2=plt.figure()
-            ax=fig2.add_subplot(121,projection='3d')
-            #ax = axs[0]
-            #sw.plot_probe_map(recording_corrected, ax=ax)
-
-            peaks = motion_info["peaks"]
-            time_lim0 = 0.0#750.0
-            time_lim1 = 1000.0#1500.0
-            mask = (peaks["sample_index"] > int(fs * time_lim0)) & (peaks["sample_index"] < int(fs * time_lim1))
-            sl = slice(None, None, 5)
-            amps = np.abs(peaks["amplitude"][mask][sl])
-            amps /= np.quantile(amps, 0.95)
-            c = plt.get_cmap("inferno")(amps)
-
-            color_kargs = dict(alpha=0.2, s=2, c=c)
-
-            peak_locations = motion_info["peak_locations"]
-            # color='black',
-            ax.scatter(peak_locations["x"][mask][sl], peak_locations["y"][mask][sl],peak_locations["z"][mask][sl], **color_kargs)
-            ax.set_ylim(0, 400)
-            peak_locations2 = correct_motion_on_peaks(peaks, peak_locations, motion,recording_saved)
-            
-            ax=fig2.add_subplot(122,projection='3d')
-            #ax = axs[1]
-            #sw.plot_probe_map(recording_saved, ax=ax)
-            #  color='black',
-            ax.scatter(peak_locations2["x"][mask][sl], peak_locations2["y"][mask][sl],peak_locations2["z"][mask][sl],**color_kargs)
-
-            ax.set_ylim(0, 400)
-            fig2.suptitle(f"{preset=}")
-            fig2.savefig(test_folder/'estimated_motion_location.png')'
-            """
-
-        keys = run_times[0].keys()
-
-        bottom = np.zeros(len(run_times))
-        fig3, ax = plt.subplots(figsize=(14, 6))
-        for k in keys:
-            rtimes = np.array([rt[k] for rt in run_times])
-            if np.any(rtimes > 0.0):
-                ax.bar(some_presets, rtimes, bottom=bottom, label=k)
-            bottom += rtimes
-        ax.legend()
-        fig3.savefig(oe_folder / f"motion_folder{group}_dataset{win_um}" / "run_time_accuracy_comparsion.png")
-        recording_corrected = recording_saved
-        plt.close('all')
-    else:
-        print(
-            "input name of motion corrector not identified so do not correct motion/drift"
-        )
-        recording_corrected = recording_saved
-    return recording_corrected
-
 
 def raw2si(thisDir, json_file):
     oe_folder = Path(thisDir)
@@ -399,11 +252,11 @@ def raw2si(thisDir, json_file):
         # split into a dict
         #recording_saved = spre.astype(recording_saved, "float")
         recordings_dict = recording_saved.split_by(property='group', outputs='dict')
-        
-        corrected_list = {}
+        win_um=75
+        recording_corrected_dict = {}
         for group, sub_recording in recordings_dict.items():
-            recording_corrected=correct_drift_and_motion(group,sub_recording,oe_folder,analysis_methods,job_kwargs)
-            corrected_list[group]=recording_corrected
+            recording_corrected,_=AP_band_drift_estimation(group,sub_recording,oe_folder,analysis_methods,win_um,job_kwargs)
+            recording_corrected_dict[group]=recording_corrected
         # if len(corrected_list)>1:
         #     recording_corrected = si.aggregate_channels(corrected_list)
         
