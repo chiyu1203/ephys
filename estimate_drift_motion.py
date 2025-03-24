@@ -106,7 +106,7 @@ def AP_band_drift_estimation(group,recording_saved,oe_folder,analysis_methods,wi
                 fig.suptitle(f"{preset=}")
                 fig.savefig(test_folder / "estimated_motion_result.png")
             run_times.append(motion_info["run_times"])
-            motion_info_list.append(motion_info["run_times"])
+            motion_info_list.append(motion_info)
             """this part is not yet useful because it does not seem that the motion is estimated and corrected  correctly in 3D
             #fig2, axs = plt.subplots(ncols=2, figsize=(12, 8), sharey=True)
             fig2=plt.figure()
@@ -161,6 +161,7 @@ def AP_band_drift_estimation(group,recording_saved,oe_folder,analysis_methods,wi
         )
         recording_corrected = recording_saved
     return recording_corrected,motion_info_list
+
 def run_estimation(thisDir, json_file):
     oe_folder = Path(thisDir)
     if isinstance(json_file, dict):
