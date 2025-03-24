@@ -9,7 +9,7 @@
  "include_MUA": true,
  "save_prepocessed_file": false,
  "load_prepocessed_file": false,
- "load_existing_motion_info":false,
+ "load_existing_motion_info":true,
  "save_sorting_file": true,
  "load_sorting_file": false,
  "save_analyser_to_disc": true,

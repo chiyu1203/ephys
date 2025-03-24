@@ -256,10 +256,32 @@ def raw2si(thisDir, json_file):
         #recording_saved = spre.astype(recording_saved, "float")
         recordings_dict = recording_saved.split_by(property='group', outputs='dict')
         win_um=100
+        sorter_params = ss.get_default_sorter_params(this_sorter)
+        sorter_params.update({"dminx": 18.5,"nblocks": 0,"batch_size": 180000})
+        sorter_params.update({"skip_kilosort_preprocessing": True})
+        step_chan = 35
         recording_corrected_dict = {}
         for group, sub_recording in recordings_dict.items():
+            print(len(sub_recording.ids_to_indices()))
+            if len(sub_recording.ids_to_indices())<27:
+                continue
             recording_corrected,_=AP_band_drift_estimation(group,sub_recording,oe_folder,analysis_methods,win_um,job_kwargs)
-            recording_corrected_dict[group]=recording_corrected
+            #recording_corrected_dict[group]=recording_corrected
+            rec_for_sorting = spre.whiten(
+                recording=recording_corrected,
+                mode="local",
+                radius_um=step_chan * 2,
+                dtype=float,
+            )
+            sorting_spikes = ss.run_sorter(
+                sorter_name=this_sorter,
+                recording=rec_for_sorting,
+                remove_existing_folder=True,
+                output_folder=oe_folder / result_folder_name,
+                verbose=True,
+                **sorter_params,
+            )
+            recording_corrected_dict[group]=sorting_spikes
         # if len(corrected_list)>1:
         #     recording_corrected = si.aggregate_channels(corrected_list)
         
@@ -274,7 +296,7 @@ def raw2si(thisDir, json_file):
             pass
         else:
             # apply whitening to remove spatial correction in the data
-            step_chan = 25
+            step_chan = 35
             rec_for_sorting = spre.whiten(
                 recording=recording_corrected,
                 mode="local",
