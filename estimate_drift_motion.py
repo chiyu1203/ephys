@@ -16,6 +16,7 @@ from spikeinterface.sortingcomponents.motion import (
 
 def LFP_band_drift_estimation(group,raw_rec,oe_folder):
     lfprec = spre.bandpass_filter(raw_rec,freq_min=0.5,freq_max=250,margin_ms=1500.,filter_order=3,dtype="float32",add_reflect_padding=True)
+    lfprec = spre.common_reference(lfprec,reference="global", operator="median")
     lfprec = spre.resample(lfprec, resample_rate=250, margin_ms=1000)
     lfprec = spre.average_across_direction(lfprec)
     fig0=plt.figure()
@@ -25,17 +26,22 @@ def LFP_band_drift_estimation(group,raw_rec,oe_folder):
     motion_lfp = estimate_motion(lfprec, method='dredge_lfp', rigid=True, progress_bar=True)
     ax=fig0.add_subplot(122)
     sw.plot_motion(motion_lfp, mode='line', ax=ax)
-    motion_folder = oe_folder / f"motion{group}"
+    motion_folder = oe_folder / f"lfp_motion_shank{group}"
+    if Path(motion_folder).is_dir():
+        pass
+    else:
+        motion_folder.mkdir(parents=True, exist_ok=True)
     fig0.savefig(motion_folder / "dredge_lfp.png")
+    plt.show()
     return motion_lfp
 
 
 def AP_band_drift_estimation(group,recording_saved,oe_folder,analysis_methods,win_um,job_kwargs):
-    load_existing_motion_info = True
+    load_existing_motion_info=analysis_methods.get("load_existing_motion_info")
     motion_corrector = analysis_methods.get("motion_corrector")
     motion_folder = oe_folder / f"motion{group}"
     motion_info_list=[]
-    if motion_corrector == ("dredge"):
+    if motion_corrector == ("dredge") or motion_corrector == ("rigid_fast"):
         # dredge_preset_params = spre.get_motion_parameters_preset("dredge")
         if motion_folder.exists() and load_existing_motion_info:
             motion_info = spre.load_motion_info(motion_folder)
@@ -265,8 +271,8 @@ if __name__ == "__main__":
     #thisDir = r"D:\Open Ephys\2025-03-10_20-25-05"
     #thisDir = r"D:\Open Ephys\2025-03-19_18-02-13"
     #thisDir = r"Z:\DATA\experiment_openEphys\H-series-128channels\2025-03-23_20-47-26"
-    thisDir = r"Z:\DATA\experiment_openEphys\H-series-128channels\2025-03-23_21-33-38"
-    #thisDir = r"Z:\DATA\experiment_openEphys\H-series-128channels\2025-03-23_20-47-26"
+    #thisDir = r"Z:\DATA\experiment_openEphys\H-series-128channels\2025-03-23_21-33-38"
+    thisDir = r"Z:\DATA\experiment_openEphys\H-series-128channels\2025-03-23_20-47-26"
     json_file = "./analysis_methods_dictionary.json"
     ##Time the function
     tic = time.perf_counter()

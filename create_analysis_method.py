@@ -9,6 +9,7 @@ analysis_methods = {
     "analyse_good_channels_only": False,
     "load_raw_traces": False,
     "analyse_entire_recording": True,
+    "load_existing_motion_info":False,
     "save_prepocessed_file": False,
     "load_prepocessed_file": True,
     "save_sorting_file": True,

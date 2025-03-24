@@ -162,8 +162,8 @@ def raw2si(thisDir, json_file):
                     LFP_band_drift_estimation(group,rec_per_shank,oe_folder)
             ################ preprocessing ################
             # apply band pass filter
-
-            recording_f = spre.bandpass_filter(raw_rec, freq_min=600, freq_max=6000)
+            raw_rec = spre.astype(raw_rec, np.float32)
+            recording_f = spre.bandpass_filter(raw_rec, freq_min=600, freq_max=6000,dtype="float32")
             # apply common median reference to remove common noise
             if analysis_methods.get("analyse_good_channels_only") == True:
                 """
@@ -206,39 +206,42 @@ def raw2si(thisDir, json_file):
         # we might want to remove the raw data to save space
         # more information about this idea can be found here https://github.com/SpikeInterface/spikeinterface/issues/2996#issuecomment-2486394230
         compressor_name = "zstd"
-        if (oe_folder / "preprocessed_compressed.zarr").is_dir():
-            if (
-                analysis_methods.get("save_prepocessed_file") == True
-                and analysis_methods.get("overwrite_curated_dataset") == True
-            ):
+        if analysis_methods.get("save_prepocessed_file") == True:
+            if (oe_folder / "preprocessed_compressed.zarr").is_dir():
+                if analysis_methods.get("overwrite_curated_dataset") == True:
+                    compressor = numcodecs.Blosc(
+                        cname="zstd", clevel=9, shuffle=numcodecs.Blosc.BITSHUFFLE
+                    )
+                    recording_saved = rec_of_interest.save(
+                        format="zarr",
+                        folder=oe_folder / "preprocessed_compressed.zarr",
+                        compressor=compressor,
+                        overwrite=True,
+                        **job_kwargs,
+                    )
+                    print(f"Overwrite existing file with compressor: {compressor_name}")
+                else:
+                    recording_saved = rec_of_interest
+                    print(
+                        "Skip saving this Recording object and converting it to a binary file. Please make sure your sorters are happy with that"
+                    )
+            else:
                 compressor = numcodecs.Blosc(
-                    cname="zstd", clevel=9, shuffle=numcodecs.Blosc.BITSHUFFLE
+                    cname=compressor_name, clevel=9, shuffle=numcodecs.Blosc.BITSHUFFLE
                 )
                 recording_saved = rec_of_interest.save(
                     format="zarr",
                     folder=oe_folder / "preprocessed_compressed.zarr",
                     compressor=compressor,
-                    overwrite=True,
                     **job_kwargs,
                 )
-                print(f"Overwrite existing file with compressor: {compressor_name}")
-            else:
-                recording_saved = rec_of_interest
                 print(
-                    "Skip saving this Recording object and converting it to a binary file. Please make sure your sorters are happy with that"
+                    f"First time to save this file. Testing compressor: {compressor_name}"
                 )
         else:
-            compressor = numcodecs.Blosc(
-                cname=compressor_name, clevel=9, shuffle=numcodecs.Blosc.BITSHUFFLE
-            )
-            recording_saved = rec_of_interest.save(
-                format="zarr",
-                folder=oe_folder / "preprocessed_compressed.zarr",
-                compressor=compressor,
-                **job_kwargs,
-            )
+            recording_saved = rec_of_interest
             print(
-                f"First time to save this file. Testing compressor: {compressor_name}"
+                "Skip saving this Recording object and converting it to a binary file. Please make sure your sorters are happy with that"
             )
 
         ############################# correcting drift/motion ##########################
@@ -252,7 +255,7 @@ def raw2si(thisDir, json_file):
         # split into a dict
         #recording_saved = spre.astype(recording_saved, "float")
         recordings_dict = recording_saved.split_by(property='group', outputs='dict')
-        win_um=75
+        win_um=100
         recording_corrected_dict = {}
         for group, sub_recording in recordings_dict.items():
             recording_corrected,_=AP_band_drift_estimation(group,sub_recording,oe_folder,analysis_methods,win_um,job_kwargs)
