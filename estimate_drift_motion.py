@@ -48,15 +48,15 @@ def AP_band_drift_estimation(group,recording_saved,oe_folder,analysis_methods,wi
             recording_corrected = interpolate_motion(
                 recording=recording_saved,
                 motion=motion_info["motion"],
-                temporal_bins=motion_info["temporal_bins"],
-                spatial_bins=motion_info["spatial_bins"],
+                #temporal_bins=motion_info["temporal_bins"],
+                #spatial_bins=motion_info["spatial_bins"],
             )
-        else:
+        elif analysis_methods.get("overwrite_curated_dataset"):
             recording_corrected, _, motion_info = spre.correct_motion(
                 recording=recording_saved,
-                preset=preset,
+                preset=motion_corrector,
                 folder=motion_folder,
-                overwrite=False,
+                overwrite=True,
                 output_motion=True,
                 output_motion_info=True,
                 estimate_motion_kwargs={
@@ -65,6 +65,9 @@ def AP_band_drift_estimation(group,recording_saved,oe_folder,analysis_methods,wi
                 },
                 **job_kwargs,
             )
+        else:
+            motion_info=[]
+            print('no motion correction is done')
         motion_info_list.append(motion_info)  # the default mode will remove channels at the border, trying using force_extrapolate
     elif motion_corrector == ("testing"):
         # This is a section to test which algorithm is better for motion correction. 
