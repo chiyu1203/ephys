@@ -142,7 +142,8 @@ def raw2si(thisDir, json_file):
                 print("the name of probe not identified. stop the programme")
                 return
             # drop AUX channels here
-            raw_rec = raw_rec.set_probe(probe,group_mode='by_shank')
+            #raw_rec = raw_rec.set_probe(probe,group_mode='by_shank')
+            raw_rec = raw_rec.set_probe(probe)
             probe_rec = raw_rec.get_probe()
             probe_rec.to_dataframe(complete=True).loc[
                 :, ["contact_ids", "device_channel_indices"]
@@ -153,18 +154,22 @@ def raw2si(thisDir, json_file):
             )  # should change here for something related in the future
             ################ estimate motion with LFP band ################
 
-            #As we do not analyse LFP data, there was no need to correct motion based on LFP band. However, this estimation can be good to cross-validate with spike-band based motion estimation
+            #As we do not analyse LFP data, there was no need to correct motion based on LFP band. However, this estimation can be good to validate the result from spike-band based motion estimation
             # https://spikeinterface.readthedocs.io/en/latest/how_to/drift_with_lfp.html
             lfp_drift_estimation=False
             if lfp_drift_estimation:
                 raw_rec_dict = raw_rec.split_by(property='group', outputs='dict')
                 for group, rec_per_shank in raw_rec_dict.items():
                     LFP_band_drift_estimation(group,rec_per_shank,oe_folder)
+
+
             ################ preprocessing ################
             # apply band pass filter
-            raw_rec = spre.astype(raw_rec, np.float32)
+            ### need to double check whether there is a need to convert data type to float32. It seems that this will increase the size of the data
             recording_f = spre.bandpass_filter(raw_rec, freq_min=600, freq_max=6000,dtype="float32")
-            # apply common median reference to remove common noise
+            #recording_f = spre.bandpass_filter(raw_rec, freq_min=600, freq_max=6000,dtype="float32")# it sounds that people recommend to run two separate bandpass filter for motion estimation and for spike sorting.
+            
+
             if analysis_methods.get("analyse_good_channels_only") == True:
                 """
                 This step should be done before saving preprocessed files because ideally the preprocessed file we want to create is something ready for spiking
@@ -173,8 +178,7 @@ def raw2si(thisDir, json_file):
                 """
                 bad_channel_ids, channel_labels = spre.detect_bad_channels(
                     recording_f, method="coherence+psd"
-                )  # bad_channel_ids=np.array(['CH1','CH2','CH3','CH4','CH5','CH6','CH7','CH8','CH9','CH10','CH11','CH12','CH13','CH14','CH15','CH16'],dtype='<U64')
-                #bad channel ids in ['CH2' 'CH22' 'CH25' 'CH27' 'CH29' 'CH30' 'CH31' 'CH32' 'CH33' 'CH34''CH35' 'CH36' 'CH37' 'CH38' 'CH39' 'CH41' 'CH43' 'CH80' 'CH112'] in 2025-03-19_18-02-13"
+                )
                 print("bad_channel_ids", bad_channel_ids)
                 print("channel_labels", channel_labels)
 
@@ -182,12 +186,15 @@ def raw2si(thisDir, json_file):
                     bad_channel_ids
                 )  # need to check if I can do this online
 
-
-
-            ##not sure if I should apply CAR by shank by shank
+            ##start to split the recording into groups here because remove bad channels function is not ready to receive dict as input
+            recordings_dict = recording_f.split_by(property='group', outputs='dict')
+            # apply common median reference to remove common noise
             recording_cmr = spre.common_reference(
-                recording_f, reference="global", operator="median"
+                recordings_dict, reference="global", operator="median"
             )
+            # recording_cmr = spre.common_reference(
+            #     recording_f, reference="global", operator="median"
+            # )
         if "recording_cmr" in locals():
             rec_of_interest = recording_cmr
         else:
@@ -212,6 +219,8 @@ def raw2si(thisDir, json_file):
                     compressor = numcodecs.Blosc(
                         cname="zstd", clevel=9, shuffle=numcodecs.Blosc.BITSHUFFLE
                     )
+                    if type(rec_of_interest) == dict:#create a temporary boolean here to account for that save.() function can not take dict as input
+                        rec_of_interest=rec_of_interest[0]
                     recording_saved = rec_of_interest.save(
                         format="zarr",
                         folder=oe_folder / "preprocessed_compressed.zarr",
@@ -229,6 +238,8 @@ def raw2si(thisDir, json_file):
                 compressor = numcodecs.Blosc(
                     cname=compressor_name, clevel=9, shuffle=numcodecs.Blosc.BITSHUFFLE
                 )
+                if type(rec_of_interest) == dict:#create a temporary boolean here to account for that save.() function can not take dict as input
+                    rec_of_interest=rec_of_interest[0]
                 recording_saved = rec_of_interest.save(
                     format="zarr",
                     folder=oe_folder / "preprocessed_compressed.zarr",
@@ -251,63 +262,49 @@ def raw2si(thisDir, json_file):
         # Motion correction method Dredge seems do well with shorter probe https://www.youtube.com/watch?v=RYKHoipT-2A
         # Note: if we use kilosort without using its own preprocessing steps, remember to turn off those steps when calling the function.
         # For more information, please refer to https://github.com/SpikeInterface/spikeinterface/issues/3483
-
-        # split into a dict
-        #recording_saved = spre.astype(recording_saved, "float")
-        recordings_dict = recording_saved.split_by(property='group', outputs='dict')
-        win_um=100
-        sorter_params = ss.get_default_sorter_params(this_sorter)
-        sorter_params.update({"dminx": 18.5,"nblocks": 0,"batch_size": 180000})
-        sorter_params.update({"skip_kilosort_preprocessing": True})
-        step_chan = 35
-        recording_corrected_dict = {}
-        for group, sub_recording in recordings_dict.items():
-            print(len(sub_recording.ids_to_indices()))
-            if len(sub_recording.ids_to_indices())<27:
-                continue
-            recording_corrected,_=AP_band_drift_estimation(group,sub_recording,oe_folder,analysis_methods,win_um,job_kwargs)
-            #recording_corrected_dict[group]=recording_corrected
-            rec_for_sorting = spre.whiten(
-                recording=recording_corrected,
-                mode="local",
-                radius_um=step_chan * 2,
-                dtype=float,
-            )
-            sorting_spikes = ss.run_sorter(
-                sorter_name=this_sorter,
-                recording=rec_for_sorting,
-                remove_existing_folder=True,
-                output_folder=oe_folder / result_folder_name,
-                verbose=True,
-                **sorter_params,
-            )
-            recording_corrected_dict[group]=sorting_spikes
-        # if len(corrected_list)>1:
-        #     recording_corrected = si.aggregate_channels(corrected_list)
         
+        # use manual splitting for motion for now because correct_motion function does not take dict as input yet
+        #the first two parameters to test in motion correction: "win_step_um" and "win_scale_um"
+        win_um=100        
+        recording_corrected_dict = {}
+        if type(recording_saved) == dict:#create a temporary boolean here to account for cases when split shank based on group is not needed
+            for group, sub_recording in recording_saved.items():
+                print(f"this probe has number of channels to analyse: {len(sub_recording.ids_to_indices())}")
+                if len(sub_recording.ids_to_indices())<27:
+                    continue
+                recording_corrected,_=AP_band_drift_estimation(group,sub_recording,oe_folder,analysis_methods,win_um,job_kwargs)
+                recording_corrected_dict[group]=recording_corrected
+        else:
+            group=0
+            recording_corrected,_=AP_band_drift_estimation(group,recording_saved,oe_folder,analysis_methods,win_um,job_kwargs)
+            recording_corrected_dict[group]=recording_corrected
+            
+
         if motion_corrector =='testing':
-            return print("drift/correction testing done")
+            return print("drift/correction testing is finished")
         ############################# whitening ##########################
         elif motion_corrector =='kilosort':
         #use_kilosort_motion_correction = True
-            rec_for_sorting = recording_corrected
+            rec_for_sorting = recording_saved
         #if use_kilosort_motion_correction:
             print("use the default motion correction and whitening method in the kilosort")
             pass
         else:
-            # apply whitening to remove spatial correction in the data
             step_chan = 35
+            # create a temporary option here to account for manual splitting during motion correction
+            if len(recording_corrected_dict)>1:
+                recording_corrected=recording_corrected_dict
             rec_for_sorting = spre.whiten(
                 recording=recording_corrected,
                 mode="local",
                 radius_um=step_chan * 2,
                 dtype=float,
             )
-
         ############################# spike sorting ##########################
         #print(f'theses sorters are installed in this PC {ss.installed_sorters()}')
         print(f"run spike sorting with {this_sorter}")
         sorter_params = ss.get_default_sorter_params(this_sorter)
+        print(f"the default parameters are: {sorter_params}")
         if this_sorter.startswith("kilosort"):
             #update parameters based on motion correction method
             if motion_corrector =='kilosort':
@@ -327,17 +324,29 @@ def raw2si(thisDir, json_file):
             else:
                 print("use kilosort4")
                 # sorter_params={'dminx': 250,'nearest_templates':10}
-            sorting_spikes = ss.run_sorter(
+
+            if len(recording_corrected_dict)>1:
+                sorting_spikes = ss.run_sorter_by_property(
                 sorter_name=this_sorter,
                 recording=rec_for_sorting,
-                remove_existing_folder=True,
-                do_CAR=False,
-                output_folder=oe_folder / result_folder_name,
+                grouping_property='group',
+                working_folder=oe_folder / result_folder_name,
                 verbose=True,
-                **sorter_params,
-            )
+                **sorter_params
+                )
+            else:
+                sorting_spikes = ss.run_sorter(
+                    sorter_name=this_sorter,
+                    recording=rec_for_sorting,
+                    remove_existing_folder=True,
+                    output_folder=oe_folder / result_folder_name,
+                    verbose=True,
+                    **sorter_params,
+                )
             # sorter_params.update({"projection_threshold": [9, 9]})##this is a parameters from Christopher Michael Jernigan's experiences with Wasps
         else:
+            ### add some lines here to update the parameters based on the sorter type
+            #e.g. sorter_params.update({"projection_threshold": [9, 9]})
             sorting_spikes = ss.run_sorter(
                 sorter_name=this_sorter,
                 recording=rec_for_sorting,
@@ -345,9 +354,13 @@ def raw2si(thisDir, json_file):
                 output_folder=oe_folder / result_folder_name,
                 verbose=True,
                 job_kwargs=job_kwargs,
+                sorter_params=sorter_params,
             )
         ##this will return a sorting object
     ############################# spike sorting preview and saving ##########################
+        if len(recording_corrected_dict)>1:#create a temporary option here to account for that save.() function can not take dict as input
+            sorting_spikes=si.aggregate_channels(sorting_spikes)
+
         w_rs = sw.plot_rasters(sorting_spikes, time_range=(0, 30), backend="matplotlib")
         if (
             analysis_methods.get("save_sorting_file") == True
@@ -371,7 +384,8 @@ if __name__ == "__main__":
     #thisDir = r"D:\Open Ephys\2025-03-19_18-02-13"
     #thisDir = r"Z:\DATA\experiment_openEphys\H-series-128channels\2025-03-23_20-47-26"
     #thisDir = r"Z:\DATA\experiment_openEphys\H-series-128channels\2025-03-23_21-33-38"
-    thisDir = r"Z:\DATA\experiment_openEphys\H-series-128channels\2025-03-23_20-47-26"
+    #thisDir = r"Z:\DATA\experiment_openEphys\H-series-128channels\2025-03-23_20-47-26"
+    thisDir = r"C:\Users\neuroLaptop\Documents\2025-03-23_20-47-26"
     # thisDir = r"D:\Open Ephys\2025-02-23_20-39-04"
     # thisDir = r"Z:\DATA\experiment_trackball_Optomotor\Zball\GN23019\240507\coherence\session1\2024-05-07_23-08-55"
     # thisDir = r"Z:\DATA\experiment_trackball_Optomotor\Zball\GN23018\240422\coherence\session2\2024-04-22_01-09-50"

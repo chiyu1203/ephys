@@ -67,6 +67,7 @@ def AP_band_drift_estimation(group,recording_saved,oe_folder,analysis_methods,wi
             )
         else:
             motion_info=[]
+            recording_corrected = recording_saved
             print('no motion correction is done')
         motion_info_list.append(motion_info)  # the default mode will remove channels at the border, trying using force_extrapolate
     elif motion_corrector == ("testing"):
