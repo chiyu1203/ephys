@@ -55,6 +55,7 @@ def raw2si(thisDir, json_file):
     this_experimenter = analysis_methods.get("experimenter")
     probe_type = analysis_methods.get("probe_type")
     motion_corrector = analysis_methods.get("motion_corrector")
+    plot_traces = analysis_methods.get("plot_traces")
     sorter_suffix = generate_sorter_suffix(this_sorter)
     result_folder_name = "results" + sorter_suffix
     sorting_folder_name = "sorting" + sorter_suffix
@@ -143,7 +144,7 @@ def raw2si(thisDir, json_file):
                 return
             # drop AUX channels here
             #raw_rec = raw_rec.set_probe(probe,group_mode='by_shank')
-            raw_rec = raw_rec.set_probe(probe)
+            raw_rec = raw_rec.set_probe(probe,group_mode='by_shank')
             probe_rec = raw_rec.get_probe()
             probe_rec.to_dataframe(complete=True).loc[
                 :, ["contact_ids", "device_channel_indices"]
@@ -161,6 +162,8 @@ def raw2si(thisDir, json_file):
                 raw_rec_dict = raw_rec.split_by(property='group', outputs='dict')
                 for group, rec_per_shank in raw_rec_dict.items():
                     LFP_band_drift_estimation(group,rec_per_shank,oe_folder)
+            
+
 
 
             ################ preprocessing ################
@@ -188,6 +191,17 @@ def raw2si(thisDir, json_file):
 
             ##start to split the recording into groups here because remove bad channels function is not ready to receive dict as input
             recordings_dict = recording_f.split_by(property='group', outputs='dict')
+            if plot_traces:
+                fig0=plt.figure()
+                for group, rec_per_shank in recordings_dict.items():
+                    figcode=int(f"22{group+1}")
+                    ax=fig0.add_subplot(figcode)
+                    sw.plot_traces(rec_per_shank,  mode="auto",ax=ax)
+                plt.show()
+                #shankid=0
+                #sw.plot_traces({f"shank{shankid+1}": recordings_dict[shankid]},  mode="auto",time_range=[10, 10.1], backend="ipywidgets")
+                #sw.plot_traces(recordings_dict[shankid],  mode="auto",time_range=[10, 10.1])
+
             # apply common median reference to remove common noise
             recording_cmr = spre.common_reference(
                 recordings_dict, reference="global", operator="median"
@@ -278,6 +292,13 @@ def raw2si(thisDir, json_file):
             group=0
             recording_corrected,_=AP_band_drift_estimation(group,recording_saved,oe_folder,analysis_methods,win_um,job_kwargs)
             recording_corrected_dict[group]=recording_corrected
+        if plot_traces:
+            fig1=plt.figure()
+            for group, rec_per_shank in recordings_dict.items():
+                figcode=int(f"22{group+1}")
+                ax=fig1.add_subplot(figcode)
+                sw.plot_traces(rec_per_shank,  mode="auto",ax=ax)
+            plt.show()
             
 
         if motion_corrector =='testing':
