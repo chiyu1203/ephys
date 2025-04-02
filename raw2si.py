@@ -100,17 +100,6 @@ def raw2si(thisDir, json_file):
             fs = recording_saved.get_sampling_frequency()
         else:
             print("Load meta information from openEphys")
-            # session = Session(oe_folder)
-            # recording = session.recordnodes[0].recordings[0]
-            # camera_trigger_on_oe = recording.events.timestamp[
-            #     (recording.events.line == 2) & (recording.events.state == 1)
-            # ]
-            # pd_on_oe = recording.events.timestamp[
-            #     (recording.events.line == 1) & (recording.events.state == 1)
-            # ]
-            # pd_off_oe = recording.events.timestamp[
-            #     (recording.events.line == 1) & (recording.events.state == 0)
-            # ]
             raw_rec = se.read_openephys(oe_folder, load_sync_timestamps=True)
             # To show the start of recording time
             # raw_rec.get_times()[0]
@@ -279,15 +268,62 @@ def raw2si(thisDir, json_file):
         
         # use manual splitting for motion for now because correct_motion function does not take dict as input yet
         #the first two parameters to test in motion correction: "win_step_um" and "win_scale_um"
+        
         win_um=100        
         recording_corrected_dict = {}
+        unit_groups = []
         if type(recording_saved) == dict:#create a temporary boolean here to account for cases when split shank based on group is not needed
+            recording_aggregated=si.aggregate_channels(recording_saved)
+            print(f"run spike sorting with {this_sorter}")
+            sorter_params = ss.get_default_sorter_params(this_sorter)
+            print(f"the default parameters are: {sorter_params}")
+            if this_sorter.startswith("kilosort"):
+            #update parameters based on motion correction method
+                if motion_corrector =='kilosort':
+                    pass
+                else:
+                    sorter_params.update({"skip_kilosort_preprocessing": True})
+            #update parameters based on probe type    
+            if probe_type=='H10_stacked':
+                sorter_params.update({"dminx": 18.5,"nblocks": 0,"batch_size": 180000})
+
             for group, sub_recording in recording_saved.items():
                 print(f"this probe has number of channels to analyse: {len(sub_recording.ids_to_indices())}")
                 if len(sub_recording.ids_to_indices())<27:
                     continue
                 recording_corrected,_=AP_band_drift_estimation(group,sub_recording,oe_folder,analysis_methods,win_um,job_kwargs)
-                recording_corrected_dict[group]=recording_corrected
+                #recording_corrected_dict[group]=recording_corrected
+                rec_for_sorting = spre.whiten(
+                    recording=recording_corrected,
+                    mode="local",
+                    radius_um=25 * 2,
+                    dtype=float,
+                )
+                sorting_spikes = ss.run_sorter(
+                    sorter_name=this_sorter,
+                    recording=rec_for_sorting,
+                    remove_existing_folder=True,
+                    output_folder=oe_folder / f"result_folder_name{group}",
+                    verbose=True,
+                    **sorter_params,
+                )
+                recording_corrected_dict[group]=sorting_spikes
+                num_units =sorting_spikes.get_unit_ids().size
+                unit_groups.extend([group] * num_units)
+
+            unit_groups=np.array(unit_groups)
+            sorting_spikes = si.aggregate_units(list(recording_corrected_dict.values()))
+            sorting_spikes.set_property(key='group', values=unit_groups)
+            sorting_spikes.register_recording(recording_aggregated)# maybe I should 
+            #sorting_spikes=si.aggregate_units(recording_corrected_dict)
+            if (
+            analysis_methods.get("save_sorting_file") == True
+            and analysis_methods.get("overwrite_curated_dataset") == True
+        ):
+                sorting_spikes.save(folder=oe_folder / sorting_folder_name, overwrite=True)
+
+            return print("Spiking sorting done. The rest of the tasks can be done in other PCs")
+
         else:
             group=0
             recording_corrected,_=AP_band_drift_estimation(group,recording_saved,oe_folder,analysis_methods,win_um,job_kwargs)
@@ -311,7 +347,7 @@ def raw2si(thisDir, json_file):
             print("use the default motion correction and whitening method in the kilosort")
             pass
         else:
-            step_chan = 35
+            step_chan = 25
             # create a temporary option here to account for manual splitting during motion correction
             if len(recording_corrected_dict)>1:
                 recording_corrected=recording_corrected_dict
@@ -344,17 +380,18 @@ def raw2si(thisDir, json_file):
                 sorter_params.update({"do_correction": False})
             else:
                 print("use kilosort4")
-                # sorter_params={'dminx': 250,'nearest_templates':10}
 
             if len(recording_corrected_dict)>1:
-                sorting_spikes = ss.run_sorter_by_property(
-                sorter_name=this_sorter,
-                recording=rec_for_sorting,
-                grouping_property='group',
-                working_folder=oe_folder / result_folder_name,
-                verbose=True,
-                **sorter_params
-                )
+                rec_for_sorting=si.aggregate_channels(rec_for_sorting)
+                # this part is still quite buggy. Wait for the next release
+                # sorting_spikes = ss.run_sorter_by_property(
+                # sorter_name=this_sorter,
+                # recording=rec_for_sorting,
+                # grouping_property='group',
+                # folder=os.getcwd(),
+                # verbose=True,
+                # **sorter_params
+                # )
             else:
                 sorting_spikes = ss.run_sorter(
                     sorter_name=this_sorter,
@@ -402,12 +439,12 @@ if __name__ == "__main__":
     # thisDir = r"Z:\DATA\experiment_trackball_Optomotor\Zball\GN23016\240201\coherence\session1\2024-02-01_18-55-51"
     # thisDir = r"Z:\DATA\experiment_trackball_Optomotor\Zball\GN24001\240529\coherence\session1\2024-05-29_15-33-31"
     # thisDir = r"D:\Open Ephys\2025-03-10_20-25-05"
-    #thisDir = r"D:\Open Ephys\2025-03-19_18-02-13"
+    thisDir = r"D:\Open Ephys\2025-03-19_18-02-13"
     #thisDir = r"Z:\DATA\experiment_openEphys\H-series-128channels\2025-03-23_20-47-26"
     #thisDir = r"Z:\DATA\experiment_openEphys\H-series-128channels\2025-03-23_21-33-38"
     #thisDir = r"Z:\DATA\experiment_openEphys\H-series-128channels\2025-03-23_20-47-26"
-    thisDir = r"C:\Users\neuroLaptop\Documents\2025-03-23_20-47-26"
-    # thisDir = r"D:\Open Ephys\2025-02-23_20-39-04"
+    #thisDir = r"C:\Users\neuroLaptop\Documents\2025-03-23_20-47-26"
+    #thisDir = r"D:\Open Ephys\2025-02-23_20-39-04"
     # thisDir = r"Z:\DATA\experiment_trackball_Optomotor\Zball\GN23019\240507\coherence\session1\2024-05-07_23-08-55"
     # thisDir = r"Z:\DATA\experiment_trackball_Optomotor\Zball\GN23018\240422\coherence\session2\2024-04-22_01-09-50"
     json_file = "./analysis_methods_dictionary.json"
