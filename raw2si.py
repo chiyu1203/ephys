@@ -271,59 +271,11 @@ def raw2si(thisDir, json_file):
         
         win_um=100        
         recording_corrected_dict = {}
-        unit_groups = []
-        if type(recording_saved) == dict:#create a temporary boolean here to account for cases when split shank based on group is not needed
-            recording_aggregated=si.aggregate_channels(recording_saved)
-            print(f"run spike sorting with {this_sorter}")
-            sorter_params = ss.get_default_sorter_params(this_sorter)
-            print(f"the default parameters are: {sorter_params}")
-            if this_sorter.startswith("kilosort"):
-            #update parameters based on motion correction method
-                if motion_corrector =='kilosort':
-                    pass
-                else:
-                    sorter_params.update({"skip_kilosort_preprocessing": True})
-            #update parameters based on probe type    
-            if probe_type=='H10_stacked':
-                sorter_params.update({"dminx": 18.5,"nblocks": 0,"batch_size": 180000})
-
+        if type(recording_saved) == dict:#create a temporary boolean here to account for correct motion not ready to accept dict. For single-shank recording, it will create a fake group 0
             for group, sub_recording in recording_saved.items():
                 print(f"this probe has number of channels to analyse: {len(sub_recording.ids_to_indices())}")
-                if len(sub_recording.ids_to_indices())<27:
-                    continue
                 recording_corrected,_=AP_band_drift_estimation(group,sub_recording,oe_folder,analysis_methods,win_um,job_kwargs)
-                #recording_corrected_dict[group]=recording_corrected
-                rec_for_sorting = spre.whiten(
-                    recording=recording_corrected,
-                    mode="local",
-                    radius_um=25 * 2,
-                    dtype=float,
-                )
-                sorting_spikes = ss.run_sorter(
-                    sorter_name=this_sorter,
-                    recording=rec_for_sorting,
-                    remove_existing_folder=True,
-                    output_folder=oe_folder / f"result_folder_name{group}",
-                    verbose=True,
-                    **sorter_params,
-                )
-                recording_corrected_dict[group]=sorting_spikes
-                num_units =sorting_spikes.get_unit_ids().size
-                unit_groups.extend([group] * num_units)
-
-            unit_groups=np.array(unit_groups)
-            sorting_spikes = si.aggregate_units(list(recording_corrected_dict.values()))
-            sorting_spikes.set_property(key='group', values=unit_groups)
-            sorting_spikes.register_recording(recording_aggregated)# maybe I should 
-            #sorting_spikes=si.aggregate_units(recording_corrected_dict)
-            if (
-            analysis_methods.get("save_sorting_file") == True
-            and analysis_methods.get("overwrite_curated_dataset") == True
-        ):
-                sorting_spikes.save(folder=oe_folder / sorting_folder_name, overwrite=True)
-
-            return print("Spiking sorting done. The rest of the tasks can be done in other PCs")
-
+                recording_corrected_dict[group]=recording_corrected
         else:
             group=0
             recording_corrected,_=AP_band_drift_estimation(group,recording_saved,oe_folder,analysis_methods,win_um,job_kwargs)
@@ -383,15 +335,15 @@ def raw2si(thisDir, json_file):
 
             if len(recording_corrected_dict)>1:
                 rec_for_sorting=si.aggregate_channels(rec_for_sorting)
-                # this part is still quite buggy. Wait for the next release
-                # sorting_spikes = ss.run_sorter_by_property(
-                # sorter_name=this_sorter,
-                # recording=rec_for_sorting,
-                # grouping_property='group',
-                # folder=os.getcwd(),
-                # verbose=True,
-                # **sorter_params
-                # )
+                sorting_spikes = ss.run_sorter_by_property(
+                sorter_name=this_sorter,
+                recording=rec_for_sorting,
+                grouping_property='group',
+                folder=oe_folder / result_folder_name,
+                verbose=True,
+                **sorter_params
+                )
+                #engine="joblib",engine_kwargs={"n_jobs": 4}) using this may speed up the analysis
             else:
                 sorting_spikes = ss.run_sorter(
                     sorter_name=this_sorter,
@@ -416,9 +368,6 @@ def raw2si(thisDir, json_file):
             )
         ##this will return a sorting object
     ############################# spike sorting preview and saving ##########################
-        if len(recording_corrected_dict)>1:#create a temporary option here to account for that save.() function can not take dict as input
-            sorting_spikes=si.aggregate_channels(sorting_spikes)
-
         w_rs = sw.plot_rasters(sorting_spikes, time_range=(0, 30), backend="matplotlib")
         if (
             analysis_methods.get("save_sorting_file") == True
