@@ -126,7 +126,7 @@ def raw2si(thisDir, json_file):
                     :, ["contact_ids", "shank_ids", "device_channel_indices"]
                 ]
             elif probe_type == "H10_stacked":
-                stacked_probes = pi.read_probeinterface("H10_stacked_probes.json")
+                stacked_probes = pi.read_probeinterface("H10_stacked_probes_2D.json")
                 probe = stacked_probes.probes[0]
             else:
                 print("the name of probe not identified. stop the programme")
@@ -381,21 +381,12 @@ def raw2si(thisDir, json_file):
 
 
 if __name__ == "__main__":
-    # thisDir = r"C:\Users\neuroLaptop\Documents\Open Ephys\P-series-32channels\GN00003\2023-12-28_14-39-40"
-    # thisDir = r"Z:\DATA\experiment_openEphys\P-series-32channels\2024-02-01_15-25-25"
-    # thisDir = r"C:\Users\neuroPC\Documents\Open Ephys\2024-05-01_17-39-51"
-    # thisDir = r"Z:\DATA\experiment_trackball_Optomotor\Zball\GN23015\240201\coherence\session1\2024-02-01_15-25-25"
-    # thisDir = r"Z:\DATA\experiment_trackball_Optomotor\Zball\GN23016\240201\coherence\session1\2024-02-01_18-55-51"
-    # thisDir = r"Z:\DATA\experiment_trackball_Optomotor\Zball\GN24001\240529\coherence\session1\2024-05-29_15-33-31"
     # thisDir = r"D:\Open Ephys\2025-03-10_20-25-05"
     #thisDir = r"D:\Open Ephys\2025-03-19_18-02-13"
     #thisDir = r"Z:\DATA\experiment_openEphys\H-series-128channels\2025-03-23_20-47-26"
-    thisDir = r"Z:\DATA\experiment_openEphys\H-series-128channels\2025-03-23_21-33-38"
-    #thisDir = r"Z:\DATA\experiment_openEphys\H-series-128channels\2025-03-23_20-47-26"
-    #thisDir = r"C:\Users\neuroLaptop\Documents\2025-03-23_20-47-26"
+    #thisDir = r"Z:\DATA\experiment_openEphys\H-series-128channels\2025-03-23_21-33-38"
+    thisDir = r"D:\Open Ephys\2025-04-03_19-13-57"
     #thisDir = r"D:\Open Ephys\2025-02-23_20-39-04"
-    # thisDir = r"Z:\DATA\experiment_trackball_Optomotor\Zball\GN23019\240507\coherence\session1\2024-05-07_23-08-55"
-    # thisDir = r"Z:\DATA\experiment_trackball_Optomotor\Zball\GN23018\240422\coherence\session2\2024-04-22_01-09-50"
     json_file = "./analysis_methods_dictionary.json"
     ##Time the function
     tic = time.perf_counter()

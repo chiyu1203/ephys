@@ -165,7 +165,7 @@ def get_preprocessed_recording(oe_folder):
         print(f"no pre-processed folder found. Unable to extract waveform")
         print("create temporary option to re-run the pre-processing script to generate the recording object")
         raw_rec = se.read_openephys(oe_folder, load_sync_timestamps=True)
-        stacked_probes = pi.read_probeinterface("H10_stacked_probes.json")
+        stacked_probes = pi.read_probeinterface("H10_stacked_probes_2D.json")
         probe = stacked_probes.probes[0]
         raw_rec = raw_rec.set_probe(probe,group_mode='by_shank')
         recording_f = spre.bandpass_filter(raw_rec, freq_min=600, freq_max=6000,dtype="float32")
