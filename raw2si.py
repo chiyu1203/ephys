@@ -223,7 +223,7 @@ def raw2si(thisDir, json_file):
                         cname="zstd", clevel=9, shuffle=numcodecs.Blosc.BITSHUFFLE
                     )
                     if type(rec_of_interest) == dict:#create a temporary boolean here to account for that save.() function can not take dict as input
-                        rec_of_interest=rec_of_interest[0]
+                        rec_of_interest=si.aggregate_channels(rec_of_interest)
                     recording_saved = rec_of_interest.save(
                         format="zarr",
                         folder=oe_folder / "preprocessed_compressed.zarr",
@@ -242,7 +242,7 @@ def raw2si(thisDir, json_file):
                     cname=compressor_name, clevel=9, shuffle=numcodecs.Blosc.BITSHUFFLE
                 )
                 if type(rec_of_interest) == dict:#create a temporary boolean here to account for that save.() function can not take dict as input
-                    rec_of_interest=rec_of_interest[0]
+                    rec_of_interest=si.aggregate_channels(rec_of_interest)
                 recording_saved = rec_of_interest.save(
                     format="zarr",
                     folder=oe_folder / "preprocessed_compressed.zarr",
@@ -439,9 +439,9 @@ if __name__ == "__main__":
     # thisDir = r"Z:\DATA\experiment_trackball_Optomotor\Zball\GN23016\240201\coherence\session1\2024-02-01_18-55-51"
     # thisDir = r"Z:\DATA\experiment_trackball_Optomotor\Zball\GN24001\240529\coherence\session1\2024-05-29_15-33-31"
     # thisDir = r"D:\Open Ephys\2025-03-10_20-25-05"
-    thisDir = r"D:\Open Ephys\2025-03-19_18-02-13"
+    #thisDir = r"D:\Open Ephys\2025-03-19_18-02-13"
     #thisDir = r"Z:\DATA\experiment_openEphys\H-series-128channels\2025-03-23_20-47-26"
-    #thisDir = r"Z:\DATA\experiment_openEphys\H-series-128channels\2025-03-23_21-33-38"
+    thisDir = r"Z:\DATA\experiment_openEphys\H-series-128channels\2025-03-23_21-33-38"
     #thisDir = r"Z:\DATA\experiment_openEphys\H-series-128channels\2025-03-23_20-47-26"
     #thisDir = r"C:\Users\neuroLaptop\Documents\2025-03-23_20-47-26"
     #thisDir = r"D:\Open Ephys\2025-02-23_20-39-04"
