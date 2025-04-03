@@ -1,5 +1,7 @@
 import time, os, json, warnings
 import spikeinterface.core as si
+import probeinterface as pi
+import spikeinterface.preprocessing as spre
 from pathlib import Path
 from raw2si import generate_sorter_suffix
 import spikeinterface.curation as scur
@@ -161,7 +163,18 @@ def get_preprocessed_recording(oe_folder):
         recording_saved = si.load_extractor(oe_folder / "preprocessed")
     else:
         print(f"no pre-processed folder found. Unable to extract waveform")
-        return None
+        print("create temporary option to re-run the pre-processing script to generate the recording object")
+        raw_rec = se.read_openephys(oe_folder, load_sync_timestamps=True)
+        stacked_probes = pi.read_probeinterface("H10_stacked_probes.json")
+        probe = stacked_probes.probes[0]
+        raw_rec = raw_rec.set_probe(probe,group_mode='by_shank')
+        recording_f = spre.bandpass_filter(raw_rec, freq_min=600, freq_max=6000,dtype="float32")
+        recordings_dict = recording_f.split_by(property='group', outputs='dict')
+        recording_cmr = spre.common_reference(
+                recordings_dict, reference="global", operator="median"
+            )
+        recording_saved=si.aggregate_channels(recording_cmr)
+        #return None
     recording_saved.annotate(
         is_filtered=True
     )  # note down this recording is bandpass filtered and cmr
@@ -333,7 +346,8 @@ if __name__ == "__main__":
     # thisDir = r"Z:\DATA\experiment_trackball_Optomotor\Zball\GN23019\240507\coherence\session1\2024-05-07_23-08-55"
     # thisDir = r"Z:\DATA\experiment_trackball_Optomotor\Zball\GN23018\240422\coherence\session2\2024-04-22_01-09-50"
     # thisDir = r"Z:\DATA\experiment_trackball_Optomotor\Zball\GN23015\240201\coherence\session1\2024-02-01_15-25-25"
-    thisDir = r"Z:\DATA\experiment_openEphys\P-series-32channels\2025-02-26_17-00-43"
+    #thisDir = r"Z:\DATA\experiment_openEphys\P-series-32channels\2025-02-26_17-00-43"
+    thisDir = r"Z:\DATA\experiment_openEphys\H-series-128channels\2025-03-23_21-33-38"
     # thisDir = r"C:\Users\neuroPC\Documents\Open Ephys\2024-02-01_15-25-25"
     #thisDir = r"D:\Open Ephys\2025-02-23_20-39-04"
     json_file = "./analysis_methods_dictionary.json"
