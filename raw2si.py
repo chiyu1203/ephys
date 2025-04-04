@@ -271,7 +271,16 @@ def raw2si(thisDir, json_file):
         
         win_um=100        
         recording_corrected_dict = {}
-        if type(recording_saved) == dict:#create a temporary boolean here to account for correct motion not ready to accept dict. For single-shank recording, it will create a fake group 0
+        #create a temporary boolean here to account for correct motion not ready to accept dict. If the recording is an Object, it wwill first split it based groups. If an recording Object has no the group attribute,
+        #that means it does not go through this line raw_rec = raw_rec.set_probe(probe,group_mode='by_shank') to create the attribute. In this case, a fake Group0 is created just because the function needs that
+        #After correcting motion, a dictionary will be created, which can be used in the following analysis
+        if type(recording_saved) == dict:
+            for group, sub_recording in recording_saved.items():
+                print(f"this probe has number of channels to analyse: {len(sub_recording.ids_to_indices())}")
+                recording_corrected,_=AP_band_drift_estimation(group,sub_recording,oe_folder,analysis_methods,win_um,job_kwargs)
+                recording_corrected_dict[group]=recording_corrected
+        elif len(np.unique(recording_saved.get_property('group')))>1:
+            recording_saved = recording_saved.split_by(property='group', outputs='dict')
             for group, sub_recording in recording_saved.items():
                 print(f"this probe has number of channels to analyse: {len(sub_recording.ids_to_indices())}")
                 recording_corrected,_=AP_band_drift_estimation(group,sub_recording,oe_folder,analysis_methods,win_um,job_kwargs)
