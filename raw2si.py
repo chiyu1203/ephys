@@ -100,15 +100,18 @@ def raw2si(thisDir, json_file):
             fs = recording_saved.get_sampling_frequency()
         else:
             print("Load meta information from openEphys")
-            raw_rec = se.read_openephys(oe_folder, load_sync_timestamps=True)
+            if oe_folder.stem =='2025-03-05_13-45-15':
+                raw_rec = se.read_openephys(oe_folder, load_sync_timestamps=True,block_index=0,stream_id='0')
+            else:
+                raw_rec = se.read_openephys(oe_folder, load_sync_timestamps=True)
             # To show the start of recording time
             # raw_rec.get_times()[0]
-            event = se.read_openephys_event(oe_folder)
+                event = se.read_openephys_event(oe_folder)
             # event_channel_ids=channel_ids
             # events = event.get_events(channel_id=channel_ids[1], segment_index=0)# a complete record of events including [('time', '<f8'), ('duration', '<f8'), ('label', '<U100')]
-            events_times = event.get_event_times(
-                channel_id=event.channel_ids[1], segment_index=0
-            )  # this record ON phase of sync pulse
+                events_times = event.get_event_times(
+                    channel_id=event.channel_ids[1], segment_index=0
+                )  # this record ON phase of sync pulse
             fs = raw_rec.get_sampling_frequency()
             if analysis_methods.get("load_raw_traces") == True:
                 trace_snippet = raw_rec.get_traces(
@@ -116,21 +119,26 @@ def raw2si(thisDir, json_file):
                 )
 
             ################load probe information################
-            if probe_type == "P2":
-                manufacturer = "cambridgeneurotech"
-                probe_name = "ASSY-37-P-2"
-                probe = pi.get_probe(manufacturer, probe_name)
-                print(probe)
-                probe.wiring_to_device("ASSY-116>RHD2132")
-                probe.to_dataframe(complete=True).loc[
-                    :, ["contact_ids", "shank_ids", "device_channel_indices"]
-                ]
-            elif probe_type == "H10_stacked":
+            if probe_type == "H10_stacked":
                 stacked_probes = pi.read_probeinterface("H10_stacked_probes_2D.json")
                 probe = stacked_probes.probes[0]
             else:
-                print("the name of probe not identified. stop the programme")
-                return
+                manufacturer = "cambridgeneurotech"
+                if probe_type == "P2":
+                    probe_name = "ASSY-37-P-2"
+                    connector_type="ASSY-116>RHD2132"
+                elif probe_type == "H5":
+                    probe_name = "ASSY-77-H5"
+                    connector_type="ASSY-77>Adpt.A64-Om32_2x-sm-NN>RHD2164"
+                else:
+                    print("the name of probe not identified. stop the programme")
+                    return
+                probe = pi.get_probe(manufacturer, probe_name)
+                probe.to_dataframe(complete=True).loc[
+                    :, ["contact_ids", "shank_ids", "device_channel_indices"]
+                ]
+                probe.wiring_to_device(connector_type)
+            print(probe)
             # drop AUX channels here
             #raw_rec = raw_rec.set_probe(probe,group_mode='by_shank')
             raw_rec = raw_rec.set_probe(probe,group_mode='by_shank')
@@ -207,11 +215,17 @@ def raw2si(thisDir, json_file):
             )  # needed to add this somehow because when loading a preprocessed data saved in the past, that data would not be labeled as filtered data
         # Slice the recording if needed
         if analysis_methods.get("analyse_entire_recording") == False:
-            start_sec = 1
-            end_sec = 899
-            rec_of_interest = rec_of_interest.frame_slice(
-                start_frame=start_sec * fs, end_frame=end_sec * fs
-            )
+            start_sec = 0
+            end_sec = 1800
+            if type(rec_of_interest)==dict:
+                tmp = {}
+                for group, sub_recording in rec_of_interest.items():
+                    tmp[group] = sub_recording.frame_slice(start_frame=start_sec * fs, end_frame=end_sec * fs)
+                rec_of_interest=tmp
+            else:
+                rec_of_interest = rec_of_interest.frame_slice(start_frame=start_sec * fs, end_frame=end_sec * fs)
+
+
         # at the moment, leaving raw data intact while saving preprocessed files in compressed format but in the future,
         # we might want to remove the raw data to save space
         # more information about this idea can be found here https://github.com/SpikeInterface/spikeinterface/issues/2996#issuecomment-2486394230
@@ -295,52 +309,59 @@ def raw2si(thisDir, json_file):
                 figcode=int(f"22{group+1}")
                 ax=fig1.add_subplot(figcode)
                 sw.plot_traces(rec_per_shank,  mode="auto",ax=ax)
-            plt.show()
-            
+            plt.show()   
 
         if motion_corrector =='testing':
             return print("drift/correction testing is finished")
         ############################# whitening ##########################
-        elif motion_corrector =='kilosort':
+        elif motion_corrector =='kilosort_default':
         #use_kilosort_motion_correction = True
             rec_for_sorting = recording_saved
         #if use_kilosort_motion_correction:
             print("use the default motion correction and whitening method in the kilosort")
             pass
         else:
-            step_chan = 25
             # create a temporary option here to account for manual splitting during motion correction
             if len(recording_corrected_dict)>1:
                 recording_corrected=recording_corrected_dict
             rec_for_sorting = spre.whiten(
                 recording=recording_corrected,
                 mode="local",
-                radius_um=step_chan * 2,
+                #radius_um=50,
+                #int_scale=200,#this can be added to replicate kilosort behaviour
                 dtype=float,
             )
         ############################# spike sorting ##########################
         #print(f'theses sorters are installed in this PC {ss.installed_sorters()}')
         print(f"run spike sorting with {this_sorter}")
         sorter_params = ss.get_default_sorter_params(this_sorter)
+        #print(ss.get_sorter_params_description(this_sorter))
         print(f"the default parameters are: {sorter_params}")
         if this_sorter.startswith("kilosort"):
             #update parameters based on motion correction method
-            if motion_corrector =='kilosort':
+            if motion_corrector =='kilosort_default':
+                if probe_type=='H5':
+                    sorter_params.update({"nblocks": 1})
+                else:
+                    sorter_params.update({"nblocks": 0})
                 pass
             else:
-                sorter_params.update({"skip_kilosort_preprocessing": True})
-            #update parameters based on probe type    
-            if probe_type=='H10_stacked':
-                sorter_params.update({"dminx": 18.5,"nblocks": 0,"batch_size": 180000})
-            elif probe_type=='P2':
-                sorter_params.update({"dminx": 22.5,"nearest_templates": 16, "max_channel_distance": 32,"nblocks": 0,"batch_size": 180000})
-            #update parameters based on the version of kilosort
+                if this_sorter == "kilosort3":
+                    sorter_params.update({"skip_kilosort_preprocessing": True,"car": False,"do_correction":False})
+                else:
+                    sorter_params.update({"skip_kilosort_preprocessing": True,"do_CAR": False,"do_correction":False})
+            #update parameters based on the version of kilosort and probe types
             if this_sorter == "kilosort3":
                 kilosort_3_path = r"C:\Users\neuroPC\Documents\GitHub\Kilosort-3.0.2"
                 ss.Kilosort3Sorter.set_kilosort3_path(kilosort_3_path)
-                sorter_params.update({"do_correction": False})
             else:
-                print("use kilosort4")
+                print("use kilosort4")  
+                if probe_type=='H10_stacked':
+                    sorter_params.update({"dminx": 18.5,"batch_size": 180000})
+                elif probe_type=='P2':
+                    sorter_params.update({"dminx": 22.5,"nearest_templates": 16, "max_channel_distance": 32,"batch_size": 180000})
+                elif probe_type=='H5':
+                    sorter_params.update({"dminx": 22.5,"batch_size": 180000})
 
             if len(recording_corrected_dict)>1:
                 rec_for_sorting=si.aggregate_channels(rec_for_sorting)
@@ -362,7 +383,6 @@ def raw2si(thisDir, json_file):
                     verbose=True,
                     **sorter_params,
                 )
-            # sorter_params.update({"projection_threshold": [9, 9]})##this is a parameters from Christopher Michael Jernigan's experiences with Wasps
         else:
             ### add some lines here to update the parameters based on the sorter type
             #e.g. sorter_params.update({"projection_threshold": [9, 9]})
@@ -394,7 +414,9 @@ if __name__ == "__main__":
     #thisDir = r"D:\Open Ephys\2025-03-19_18-02-13"
     #thisDir = r"Z:\DATA\experiment_openEphys\H-series-128channels\2025-03-23_20-47-26"
     #thisDir = r"Z:\DATA\experiment_openEphys\H-series-128channels\2025-03-23_21-33-38"
-    thisDir = r"D:\Open Ephys\2025-04-03_19-13-57"
+    #thisDir = r"D:\Open Ephys\2025-04-03_19-13-57"
+    #thisDir = r"D:\Open Ephys\2025-04-03_20-36-55"
+    thisDir = r"D:\Open Ephys\2025-03-05_13-45-15"
     #thisDir = r"D:\Open Ephys\2025-02-23_20-39-04"
     json_file = "./analysis_methods_dictionary.json"
     ##Time the function
