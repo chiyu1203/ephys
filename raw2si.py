@@ -56,6 +56,7 @@ def raw2si(thisDir, json_file):
     probe_type = analysis_methods.get("probe_type")
     motion_corrector = analysis_methods.get("motion_corrector")
     plot_traces = analysis_methods.get("plot_traces")
+    tmin_tmax = analysis_methods.get("tmin_tmax")
     sorter_suffix = generate_sorter_suffix(this_sorter)
     result_folder_name = "results" + sorter_suffix
     sorting_folder_name = "sorting" + sorter_suffix
@@ -214,9 +215,9 @@ def raw2si(thisDir, json_file):
                 is_filtered=True
             )  # needed to add this somehow because when loading a preprocessed data saved in the past, that data would not be labeled as filtered data
         # Slice the recording if needed
-        if analysis_methods.get("analyse_entire_recording") == False:
-            start_sec = 0
-            end_sec = 1800
+        if tmin_tmax[1]>0 and tmin_tmax[1]>tmin_tmax[0]:
+            start_sec = tmin_tmax[0]
+            end_sec = tmin_tmax[1]
             if type(rec_of_interest)==dict:
                 tmp = {}
                 for group, sub_recording in rec_of_interest.items():
@@ -224,6 +225,10 @@ def raw2si(thisDir, json_file):
                 rec_of_interest=tmp
             else:
                 rec_of_interest = rec_of_interest.frame_slice(start_frame=start_sec * fs, end_frame=end_sec * fs)
+        elif tmin_tmax[1]<0:
+            print("tmax <0 means to analyse the entire recording")
+        else:
+            ValueError("tmax needs to be bigger than tmin to select certain section of the recording")
 
 
         # at the moment, leaving raw data intact while saving preprocessed files in compressed format but in the future,
