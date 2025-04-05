@@ -41,9 +41,11 @@ def AP_band_drift_estimation(group,recording_saved,oe_folder,analysis_methods,wi
     motion_corrector = analysis_methods.get("motion_corrector")
     motion_folder = oe_folder / f"motion{group}"
     motion_info_list=[]
-    if motion_corrector == ("dredge") or motion_corrector == ("rigid_fast"):
+    motion_corrector_tuple=("dredge","rigid_fast","kilosort_like")
+    #if motion_corrector == ("dredge") or motion_corrector == ("rigid_fast"):
+    if motion_corrector in motion_corrector_tuple:
         # dredge_preset_params = spre.get_motion_parameters_preset("dredge")
-        if motion_folder.exists() and load_existing_motion_info:
+        if motion_folder.is_dir() and load_existing_motion_info:
             motion_info = spre.load_motion_info(motion_folder)
             recording_corrected = interpolate_motion(
                 recording=recording_saved,
@@ -51,7 +53,7 @@ def AP_band_drift_estimation(group,recording_saved,oe_folder,analysis_methods,wi
                 #temporal_bins=motion_info["temporal_bins"],
                 #spatial_bins=motion_info["spatial_bins"],
             )
-        elif analysis_methods.get("overwrite_curated_dataset"):
+        elif analysis_methods.get("overwrite_curated_dataset") or motion_folder.is_dir()==False:
             recording_corrected, _, motion_info = spre.correct_motion(
                 recording=recording_saved,
                 preset=motion_corrector,
@@ -67,24 +69,26 @@ def AP_band_drift_estimation(group,recording_saved,oe_folder,analysis_methods,wi
             )
         else:
             motion_info=[]
-            recording_corrected = recording_saved
-            print('no motion correction is done')
+            recording_corrected, _, motion_info = spre.correct_motion(
+                recording=recording_saved,
+                preset=motion_corrector,
+                folder=motion_folder,
+                overwrite=False,
+                output_motion=False,
+                output_motion_info=False,
+                estimate_motion_kwargs={
+                    "win_step_um": win_um,
+                    "win_scale_um": win_um,
+                },
+                **job_kwargs)
+            print('recording is corrected but output_motion and info are not generated')
         motion_info_list.append(motion_info)  # the default mode will remove channels at the border, trying using force_extrapolate
     elif motion_corrector == ("testing"):
         # This is a section to test which algorithm is better for motion correction. 
         # This is based on this page https://spikeinterface.readthedocs.io/en/latest/how_to/handle_drift.html
 
-        some_presets = (
-            "rigid_fast",
-            "kilosort_like",
-            "nonrigid_accurate",
-            "nonrigid_fast_and_accurate",
-            "dredge",
-            "dredge_fast",
-        )
-
         run_times = []
-        for preset in some_presets:
+        for preset in motion_corrector_tuple:
             print("Computing with", preset)
             test_folder = oe_folder / f"motion_folder{group}_dataset{win_um}" / preset
             if load_existing_motion_info and test_folder.exists():
@@ -159,7 +163,7 @@ def AP_band_drift_estimation(group,recording_saved,oe_folder,analysis_methods,wi
         for k in keys:
             rtimes = np.array([rt[k] for rt in run_times])
             if np.any(rtimes > 0.0):
-                ax.bar(some_presets, rtimes, bottom=bottom, label=k)
+                ax.bar(motion_corrector_tuple, rtimes, bottom=bottom, label=k)
             bottom += rtimes
         ax.legend()
         fig3.savefig(oe_folder / f"motion_folder{group}_dataset{win_um}" / "run_time_accuracy_comparsion.png")
