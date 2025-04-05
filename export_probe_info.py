@@ -12,21 +12,26 @@ def generate_prb(json_file):
             analysis_methods = json.loads(f.read())
     probe_type = analysis_methods.get("probe_type")
 
+    manufacturer = "cambridgeneurotech"
+    if probe_type == "H10_stacked":
+        probe_name="H10_stacked_probes"
+        pg = pi.read_probeinterface(f"{probe_name}.json")
+    else:
+        if probe_type == "P2":
+            probe_name = "ASSY-37-P-2"
+            connector_id="ASSY-116>RHD2132"
 
-    if probe_type == "P2":
-        manufacturer = "cambridgeneurotech"
-        probe_name = "ASSY-37-P-2"
+        elif probe_type == "H5":
+            probe_name = 'ASSY-77-H5'
+            connector_id='ASSY-77>Adpt.A64-Om32_2x-sm-NN>RHD2164'
         probe = pi.get_probe(manufacturer, probe_name)
-        print(probe)
-        probe.wiring_to_device("ASSY-116>RHD2132")
+        probe.wiring_to_device(connector_id)
         probe.to_dataframe(complete=True).loc[
             :, ["contact_ids", "shank_ids", "device_channel_indices"]
         ]
+        print(probe)
         pg = ProbeGroup()
         pg.add_probe(probe)
-    elif probe_type == "H10_stacked":
-        probe_name="H10_stacked_probes"
-        pg = pi.read_probeinterface(f"{probe_name}.json")
         #probe = stacked_probes.probes[0]
 
     # Multiple probes can be added to a ProbeGroup. We only have one, but a
