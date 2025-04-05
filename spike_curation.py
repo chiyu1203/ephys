@@ -11,6 +11,7 @@ import spikeinterface.extractors as se
 import numpy as np
 import matplotlib.pyplot as plt
 from spikeinterface.widgets import plot_sorting_summary
+from estimate_drift_motion import AP_band_drift_estimation, LFP_band_drift_estimation
 from brainbox.plot import peri_event_time_histogram, driftmap_color, driftmap
 import pandas as pd
 import spikeinterface.widgets as sw
@@ -20,6 +21,7 @@ from matplotlib import cm
 warnings.simplefilter("ignore")
 n_cpus = os.cpu_count()
 n_jobs = n_cpus - 4
+
 global_job_kwargs = dict(n_jobs=n_jobs, chunk_duration="1s", progress_bar=True)
 # global_job_kwargs = dict(n_jobs=16, chunk_duration="5s", progress_bar=False)
 si.set_global_job_kwargs(**global_job_kwargs)
@@ -48,7 +50,7 @@ def spike_overview(
     this_sorter,
     sorting_spikes,
     sorting_analyzer,
-    recording_saved,
+    recording_for_analysis,
     unit_labels,
     merge_similiar_unit_for_overview=False,
 ):
@@ -121,7 +123,7 @@ def spike_overview(
         plt.figure()
         ax = plt.gca()
         ax.scatter(x=spike_times, y=spike_loc_df["distance"].values, c=COL.get_rgb(i))
-        ax.set_xlim([0, recording_saved.get_total_duration()])
+        ax.set_xlim([0, recording_for_analysis.get_total_duration()])
         ax.set_ylim([250, 350])
         fig_name = f"spike_location_unit{this_unit}.svg"
         fig_dir = oe_folder / fig_name
@@ -137,7 +139,7 @@ def spike_overview(
             axesoff=False,
             return_lims=True,
         )
-        # ax_drift.set_xlim([0, recording_saved.get_total_duration()])
+        # ax_drift.set_xlim([0, recording_for_analysis.get_total_duration()])
         # ax_drift.set_ylim([250, 350])
         ax_drift.set_xlim(x_lim)
         ax_drift.set_ylim(y_lim)
@@ -153,7 +155,31 @@ def spike_overview(
         np.concatenate(spike_amp_list),
         np.concatenate(spike_loc_list),
     )
-
+def recording_with_motion_corrected_for_postprocessing(recording_saved,oe_folder,analysis_methods):
+    win_um=100
+    analysis_methods.update({"load_existing_motion_info": True})        
+    recording_corrected_dict = {}
+    if type(recording_saved) == dict:
+        for group, sub_recording in recording_saved.items():
+            print(f"this probe has number of channels to analyse: {len(sub_recording.ids_to_indices())}")
+            recording_corrected,_=AP_band_drift_estimation(group,sub_recording,oe_folder,analysis_methods,win_um,global_job_kwargs)
+            recording_corrected_dict[group]=recording_corrected
+    elif len(np.unique(recording_saved.get_property('group')))>1:
+        recording_saved = recording_saved.split_by(property='group', outputs='dict')
+        for group, sub_recording in recording_saved.items():
+            print(f"this probe has number of channels to analyse: {len(sub_recording.ids_to_indices())}")
+            recording_corrected,_=AP_band_drift_estimation(group,sub_recording,oe_folder,analysis_methods,win_um,global_job_kwargs)
+            recording_corrected_dict[group]=recording_corrected
+    else:
+        group=0
+        recording_corrected,_=AP_band_drift_estimation(group,recording_saved,oe_folder,analysis_methods,win_um,global_job_kwargs)
+        recording_corrected_dict[group]=recording_corrected
+    
+    if len(recording_corrected_dict)>1:
+        recording_for_analysis=si.aggregate_channels(recording_corrected_dict)
+    else:
+        recording_for_analysis=recording_corrected
+    return recording_for_analysis
 
 def get_preprocessed_recording(oe_folder):
     if (oe_folder / "preprocessed_compressed.zarr").is_dir():
@@ -260,13 +286,14 @@ def si2phy(thisDir, json_file):
         sorting_spikes = se.read_phy(
             oe_folder / phy_folder_name, exclude_cluster_groups=cluster_group_interest
         )
-        sorting_duduplicated = scur.remove_duplicated_spikes(sorting_spikes)
-        sorting_spikes = sorting_duduplicated
+        # sorting_duduplicated = scur.remove_duplicated_spikes(sorting_spikes)
+        # sorting_spikes = sorting_duduplicated
         unit_labels = sorting_spikes.get_property("quality")
         recording_saved = get_preprocessed_recording(oe_folder)
+        recording_for_analysis=recording_with_motion_corrected_for_postprocessing(recording_saved,oe_folder,analysis_methods)
         sorting_analyzer = si.create_sorting_analyzer(
             sorting=sorting_spikes,
-            recording=recording_saved,
+            recording=recording_for_analysis,
             sparse=True,  # default
             format="binary_folder",
             folder=oe_folder / analyser_folder_name,
@@ -278,7 +305,7 @@ def si2phy(thisDir, json_file):
             this_sorter,
             sorting_spikes,
             sorting_analyzer,
-            recording_saved,
+            recording_for_analysis,
             unit_labels,
         )
 
@@ -292,14 +319,15 @@ def si2phy(thisDir, json_file):
             oe_folder / sorting_folder_name
         )  # this acts quite similar than above one line.
         recording_saved = get_preprocessed_recording(oe_folder)
+        recording_for_analysis=recording_with_motion_corrected_for_postprocessing(recording_saved,oe_folder,analysis_methods)
         if remove_excess_spikes:
             sorting_wout_excess_spikes = scur.remove_excess_spikes(
-                sorting_spikes, recording_saved
+                sorting_spikes, recording_for_analysis
             )
             sorting_spikes = sorting_wout_excess_spikes
         sorting_analyzer = si.create_sorting_analyzer(
             sorting=sorting_spikes,
-            recording=recording_saved,
+            recording=recording_for_analysis,
             sparse=True,  # default
             format="memory",  # default
         )
@@ -347,7 +375,8 @@ if __name__ == "__main__":
     # thisDir = r"Z:\DATA\experiment_trackball_Optomotor\Zball\GN23018\240422\coherence\session2\2024-04-22_01-09-50"
     # thisDir = r"Z:\DATA\experiment_trackball_Optomotor\Zball\GN23015\240201\coherence\session1\2024-02-01_15-25-25"
     #thisDir = r"Z:\DATA\experiment_openEphys\P-series-32channels\2025-02-26_17-00-43"
-    thisDir = r"Z:\DATA\experiment_openEphys\H-series-128channels\2025-03-23_21-33-38"
+    #thisDir = r"Z:\DATA\experiment_openEphys\H-series-128channels\2025-03-23_21-33-38"
+    thisDir = r"D:\Open Ephys\2025-03-05_13-45-15"
     # thisDir = r"C:\Users\neuroPC\Documents\Open Ephys\2024-02-01_15-25-25"
     #thisDir = r"D:\Open Ephys\2025-02-23_20-39-04"
     json_file = "./analysis_methods_dictionary.json"
