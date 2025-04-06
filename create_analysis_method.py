@@ -10,6 +10,7 @@ analysis_methods = {
     "load_raw_traces": False,
     "plot_traces":True,
     "tmin_tmax": [0.0,1800.0],
+    "skip_motion_correction":True,
     "load_existing_motion_info":False,
     "save_prepocessed_file": False,
     "load_prepocessed_file": False,

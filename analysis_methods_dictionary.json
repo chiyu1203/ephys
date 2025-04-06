@@ -1,15 +1,19 @@
 {
  "experimenter": "andrew",
  "probe_type": "H5",
- "motion_corrector": "kilosort_default",
+ "motion_corrector": "dredge",
  "sorter_name": "kilosort4",
  "analyse_good_channels_only": true,
  "load_raw_traces": false,
  "plot_traces": false,
- "tmin_tmax": [0.0,1800.0],
+ "tmin_tmax": [
+  0.0,
+  1800.0
+ ],
+ "skip_motion_correction": true,
  "load_existing_motion_info": true,
  "save_prepocessed_file": false,
- "load_prepocessed_file": false,
+ "load_prepocessed_file": true,
  "save_sorting_file": true,
  "load_sorting_file": false,
  "save_analyser_to_disc": true,
