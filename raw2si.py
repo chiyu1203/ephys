@@ -22,7 +22,6 @@ import matplotlib.pyplot as plt
 import numpy as np
 from pathlib import Path
 import numcodecs
-
 ##from brainbox.population.decode import get_spike_counts_in_bins
 ##from brainbox.task.trials import get_event_aligned_raster, get_psth
 ##from brainbox.ephys_plots import scatter_raster_plot
@@ -185,7 +184,8 @@ def raw2si(thisDir, json_file):
 
                 recording_f = recording_f.remove_channels(
                     bad_channel_ids
-                )  # need to check if I can do this online
+                )  #try this functino interpolate_bad_channels when I can put 3 shanks in the brain plus when there is some noisy channels
+                #https://spikeinterface.readthedocs.io/en/stable/api.html#spikeinterface.preprocessing.interpolate_bad_channels
 
             ##start to split the recording into groups here because remove bad channels function is not ready to receive dict as input
             recordings_dict = recording_f.split_by(property='group', outputs='dict')
@@ -206,7 +206,11 @@ def raw2si(thisDir, json_file):
             )
             # recording_cmr = spre.common_reference(
             #     recording_f, reference="global", operator="median"
-            # )
+            #)
+            # another filter to consider: https://github.com/SpikeInterface/SpikeInterface-Training-Edinburgh-May24/blob/main/hands_on/preprocessing/preprocessing.ipynb
+            # recording_cmr = spre.highpass_spatial_filter(
+            #     recording_f
+            #)
         if "recording_cmr" in locals():
             rec_of_interest = recording_cmr
         else:
@@ -329,13 +333,33 @@ def raw2si(thisDir, json_file):
             # create a temporary option here to account for manual splitting during motion correction
             if len(recording_corrected_dict)>1:
                 recording_corrected=recording_corrected_dict
-            rec_for_sorting = spre.whiten(
-                recording=recording_corrected,
-                mode="local",
-                #radius_um=50,
-                #int_scale=200,#this can be added to replicate kilosort behaviour
-                dtype=float,
-            )
+            fig0=plt.figure()
+            r_range=[50,100,200,300,400]
+            #recording_saved.channel_ids[:10]np.linspace(1,10,10,dtype=int)
+            i=0
+            for this_r in r_range:
+                rec_w = spre.whiten(recording=recording_saved,mode="local",radius_um=this_r,int_scale=200,dtype=float)
+                figcode=int(f"23{i+1}")
+                ax=fig0.add_subplot(figcode)
+                if i==4:
+                    figcode=int(f"23{i+2}")
+                    ax1=fig0.add_subplot(figcode)
+                    sw.plot_traces(recording_saved,channel_ids=recording_saved.channel_ids[:10],time_range=[10, 10.1],mode="auto",ax=ax1)
+                    ax1.title.set_text(f'before whitening')
+                sw.plot_traces(rec_w,channel_ids=recording_saved.channel_ids[:10],time_range=[10, 10.1],mode="auto",ax=ax)
+                ax.title.set_text(f'radius: {this_r}')
+                i=i+1
+            plt.show()
+
+            
+            # rec_for_sorting = spre.whiten(
+            #     recording=recording_corrected,
+            #     mode="local",
+            #     #radius_um=50,
+            #     #int_scale=200,#this can be added to replicate kilosort behaviour
+            #     dtype=float,
+            # )
+            #sw.plot_traces({f"r100":rec_r100_s200},  mode="auto",time_range=[10, 10.1], backend="ipywidgets")
         ############################# spike sorting ##########################
         #print(f'theses sorters are installed in this PC {ss.installed_sorters()}')
         print(f"run spike sorting with {this_sorter}")
