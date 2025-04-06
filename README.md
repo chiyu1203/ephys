@@ -33,9 +33,9 @@ needs scipy 1.13 so I hopes there is no conflict between them
 pip install git+https://github.com/chiyu1203/ibllib.git
 ````
 
-Then installing other dependencies. (open ephys python tool is for loading timestamp; zarr and numcodesc for compressing data )
+Then installing other dependencies. (open ephys python tool is for loading timestamp; zarr and numcodesc for compressing data; ipympl is for interactive plots on Jupyter notebook )
 ````
-pip install open-ephys-python-tools zarr docker cuda-python numcodecs hdbscan
+pip install open-ephys-python-tools zarr docker cuda-python numcodecs hdbscan ipympl
 ````
 
 If you have a good GPU and wants to install kilosort. Here is the instruction.
@@ -48,7 +48,7 @@ Note: kilosort updates frequently so that spikeinterface can not always catch up
 
 Probably dont need the packages below anymore
 ````
-conda install --yes -c conda-forge -v ipython jupyter pytest ipympl 
+conda install --yes -c conda-forge -v ipython jupyter pytest
 ````
 
 If you want to use [phy](https://github.com/cortex-lab/phy) for manual curation of spike sorting, create a seperate virtual environment and install it via this command
