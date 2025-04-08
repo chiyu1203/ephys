@@ -166,8 +166,8 @@ def raw2si(thisDir, json_file):
             ################ preprocessing ################
             # apply band pass filter
             ### need to double check whether there is a need to convert data type to float32. It seems that this will increase the size of the data
-            recording_f = spre.bandpass_filter(raw_rec, freq_min=600, freq_max=6000,dtype="float32")
-            #recording_f = spre.bandpass_filter(raw_rec, freq_min=600, freq_max=6000,dtype="float32")# it sounds that people recommend to run two separate bandpass filter for motion estimation and for spike sorting.
+            recording_f = spre.bandpass_filter(raw_rec, freq_min=600, freq_max=6000,dtype="float32")# it sounds that people recommend to run two separate bandpass filter for motion estimation and for spike sorting.
+            # recording_f = spre.highpass_filter(raw_rec, freq_min=300,dtype="float32")
             
 
             if analysis_methods.get("analyse_good_channels_only") == True:
@@ -201,12 +201,12 @@ def raw2si(thisDir, json_file):
                 #sw.plot_traces(recordings_dict[shankid],  mode="auto",time_range=[10, 10.1])
 
             # apply common median reference to remove common noise
-            recording_cmr = spre.common_reference(
-                recordings_dict, reference="global", operator="median"
-            )
             # recording_cmr = spre.common_reference(
-            #     recording_f, reference="global", operator="median"
-            #)
+            #     recordings_dict, reference="global", operator="average"
+            # )
+            recording_cmr = spre.common_reference(
+                recording_f, reference="global", operator="median"
+            )
             # another filter to consider: https://github.com/SpikeInterface/SpikeInterface-Training-Edinburgh-May24/blob/main/hands_on/preprocessing/preprocessing.ipynb
             # recording_cmr = spre.highpass_spatial_filter(
             #     recording_f
@@ -324,8 +324,11 @@ def raw2si(thisDir, json_file):
             return print("drift/correction testing is finished")
         ############################# whitening ##########################
         elif motion_corrector =='kilosort_default':
+            if type(recording_saved)==dict:
+                rec_for_sorting=si.aggregate_channels(recording_saved)
+            else:
         #use_kilosort_motion_correction = True
-            rec_for_sorting = recording_saved
+                rec_for_sorting = recording_saved
         #if use_kilosort_motion_correction:
             print("use the default motion correction and whitening method in the kilosort")
             pass
@@ -333,32 +336,32 @@ def raw2si(thisDir, json_file):
             # create a temporary option here to account for manual splitting during motion correction
             if len(recording_corrected_dict)>1:
                 recording_corrected=recording_corrected_dict
-            fig0=plt.figure()
-            r_range=[50,100,200,300,400]
-            #recording_saved.channel_ids[:10]np.linspace(1,10,10,dtype=int)
-            i=0
-            for this_r in r_range:
-                rec_w = spre.whiten(recording=recording_saved,mode="local",radius_um=this_r,int_scale=200,dtype=float)
-                figcode=int(f"23{i+1}")
-                ax=fig0.add_subplot(figcode)
-                if i==4:
-                    figcode=int(f"23{i+2}")
-                    ax1=fig0.add_subplot(figcode)
-                    sw.plot_traces(recording_saved,channel_ids=recording_saved.channel_ids[:10],time_range=[10, 10.1],mode="auto",ax=ax1)
-                    ax1.title.set_text(f'before whitening')
-                sw.plot_traces(rec_w,channel_ids=recording_saved.channel_ids[:10],time_range=[10, 10.1],mode="auto",ax=ax)
-                ax.title.set_text(f'radius: {this_r}')
-                i=i+1
-            plt.show()
-
+            # fig0=plt.figure()
+            # r_range=[50,100,200,400]
+            # #recording_saved.channel_ids[:10]np.linspace(1,10,10,dtype=int)
+            # i=0
+            # for this_r in r_range:
+            #     rec_w = spre.whiten(recording=recording_saved,mode="local",radius_um=this_r,int_scale=200,dtype=float)
+            #     figcode=int(f"15{i+1}")
+            #     ax=fig0.add_subplot(figcode)
+            #     if i==3:
+            #         figcode=int(f"15{i+2}")
+            #         ax1=fig0.add_subplot(figcode)
+            #         sw.plot_traces(recording_saved,channel_ids=recording_saved.channel_ids[:32],time_range=[10, 10.07],mode="auto",ax=ax1,add_legend=False)
+            #         ax1.title.set_text(f'before whitening')
+            #     sw.plot_traces(rec_w,channel_ids=recording_saved.channel_ids[:32],time_range=[10, 10.07],mode="auto",ax=ax,add_legend=False)
+            #     ax.title.set_text(f'radius: {this_r}')
+            #     i=i+1
+            # plt.show()
+            # rec_for_sorting = recording_corrected
             
-            # rec_for_sorting = spre.whiten(
-            #     recording=recording_corrected,
-            #     mode="local",
-            #     #radius_um=50,
-            #     #int_scale=200,#this can be added to replicate kilosort behaviour
-            #     dtype=float,
-            # )
+            rec_for_sorting = spre.whiten(
+                recording=recording_corrected,
+                mode="local",
+                radius_um=150,
+                #int_scale=200,#this can be added to replicate kilosort behaviour
+                dtype=float,
+            )
             #sw.plot_traces({f"r100":rec_r100_s200},  mode="auto",time_range=[10, 10.1], backend="ipywidgets")
         ############################# spike sorting ##########################
         #print(f'theses sorters are installed in this PC {ss.installed_sorters()}')
@@ -378,7 +381,8 @@ def raw2si(thisDir, json_file):
                 if this_sorter == "kilosort3":
                     sorter_params.update({"skip_kilosort_preprocessing": True,"car": False,"do_correction":False})
                 else:
-                    sorter_params.update({"skip_kilosort_preprocessing": True,"do_CAR": False,"do_correction":False})
+                    #sorter_params.update({"skip_kilosort_preprocessing": True,"nblocks": 0})
+                    sorter_params.update({"skip_kilosort_preprocessing": True,"do_CAR": False,"do_correction":False,"nblocks": 0})
             #update parameters based on the version of kilosort and probe types
             if this_sorter == "kilosort3":
                 kilosort_3_path = r"C:\Users\neuroPC\Documents\GitHub\Kilosort-3.0.2"
