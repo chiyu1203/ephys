@@ -47,7 +47,7 @@ def generate_sorter_suffix(this_sorter):
         sorter_suffix = "_KS4"
     return sorter_suffix
 def motion_correction_shankbyshank(recording_saved,oe_folder,analysis_methods):
-    win_um=100        
+    (win_step_um,win_scale_um)=(100,100)        
     recording_corrected_dict = {}
     #create a temporary boolean here to account for correct motion not ready to accept dict. If the recording is an Object, it wwill first split it based groups. If an recording Object has no the group attribute,
     #that means it does not go through this line raw_rec = raw_rec.set_probe(probe,group_mode='by_shank') to create the attribute. In this case, a fake Group0 is created just because the function needs that
@@ -55,17 +55,17 @@ def motion_correction_shankbyshank(recording_saved,oe_folder,analysis_methods):
     if type(recording_saved) == dict:
         for group, sub_recording in recording_saved.items():
             print(f"this probe has number of channels to analyse: {len(sub_recording.ids_to_indices())}")
-            recording_corrected,_=AP_band_drift_estimation(group,sub_recording,oe_folder,analysis_methods,win_um,global_job_kwargs)
+            recording_corrected,_=AP_band_drift_estimation(group,sub_recording,oe_folder,analysis_methods,win_step_um,win_scale_um)
             recording_corrected_dict[group]=recording_corrected
     elif len(np.unique(recording_saved.get_property('group')))>1:
         recording_saved = recording_saved.split_by(property='group', outputs='dict')
         for group, sub_recording in recording_saved.items():
             print(f"this probe has number of channels to analyse: {len(sub_recording.ids_to_indices())}")
-            recording_corrected,_=AP_band_drift_estimation(group,sub_recording,oe_folder,analysis_methods,win_um,global_job_kwargs)
+            recording_corrected,_=AP_band_drift_estimation(group,sub_recording,oe_folder,analysis_methods,win_step_um,win_scale_um)
             recording_corrected_dict[group]=recording_corrected
     else:
         group=0
-        recording_corrected,_=AP_band_drift_estimation(group,recording_saved,oe_folder,analysis_methods,win_um,global_job_kwargs)
+        recording_corrected,_=AP_band_drift_estimation(group,recording_saved,oe_folder,analysis_methods,win_step_um,win_scale_um)
         recording_corrected_dict[group]=recording_corrected
     return recording_corrected_dict
 
@@ -454,6 +454,9 @@ def raw2si(thisDir, json_file):
             and analysis_methods.get("overwrite_curated_dataset") == True
         ):
             sorting_spikes.save(folder=oe_folder / sorting_folder_name, overwrite=True)
+            json_string = json.dumps(analysis_methods, indent=1)
+            with open(oe_folder / sorting_folder_name / "analysis_methods_dictionary_backup.json", "w") as f:
+                f.write(json_string)
 
     return print("Spiking sorting done. The rest of the tasks can be done in other PCs")
     # for unit in sorting_spikes.get_unit_ids():
@@ -465,9 +468,9 @@ if __name__ == "__main__":
     #thisDir = r"D:\Open Ephys\2025-03-19_18-02-13"
     #thisDir = r"Z:\DATA\experiment_openEphys\H-series-128channels\2025-03-23_20-47-26"
     #thisDir = r"Z:\DATA\experiment_openEphys\H-series-128channels\2025-03-23_21-33-38"
-    #thisDir = r"D:\Open Ephys\2025-04-03_19-13-57"
+    thisDir = r"D:\Open Ephys\2025-04-03_19-13-57"
     #thisDir = r"D:\Open Ephys\2025-04-03_20-36-55"
-    thisDir = r"D:\Open Ephys\2025-03-05_13-45-15"
+    #thisDir = r"D:\Open Ephys\2025-03-05_13-45-15"
     #thisDir = r"D:\Open Ephys\2025-02-23_20-39-04"
     json_file = "./analysis_methods_dictionary.json"
     ##Time the function
