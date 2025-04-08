@@ -36,11 +36,11 @@ def LFP_band_drift_estimation(group,raw_rec,oe_folder):
     return motion_lfp
 
 
-def AP_band_drift_estimation(group,recording_saved,oe_folder,analysis_methods,win_um,job_kwargs):
+def AP_band_drift_estimation(group,recording_saved,oe_folder,analysis_methods,win_step_um,win_scale_um):
     load_existing_motion_info=analysis_methods.get("load_existing_motion_info")
     motion_corrector = analysis_methods.get("motion_corrector")
     skip_motion_correction=analysis_methods.get("skip_motion_correction")
-    motion_folder = oe_folder / f"motion{group}"
+    motion_folder = oe_folder / f"motion_shank{group}"
     motion_info_list=[]
     motion_corrector_tuple=("dredge","rigid_fast","kilosort_like")
     if skip_motion_correction:
@@ -50,16 +50,17 @@ def AP_band_drift_estimation(group,recording_saved,oe_folder,analysis_methods,wi
         recording_corrected = recording_saved
     else:
         if motion_corrector in motion_corrector_tuple:
+            test_folder = motion_folder / motion_corrector
             # dredge_preset_params = spre.get_motion_parameters_preset("dredge")
-            if motion_folder.is_dir() and load_existing_motion_info:
-                motion_info = spre.load_motion_info(motion_folder)
+            if test_folder.is_dir() and load_existing_motion_info:
+                motion_info = spre.load_motion_info(test_folder)
                 recording_corrected = interpolate_motion(
                     recording=recording_saved,
                     motion=motion_info["motion"],
                     #temporal_bins=motion_info["temporal_bins"],
                     #spatial_bins=motion_info["spatial_bins"],
                 )
-            elif analysis_methods.get("overwrite_curated_dataset") or motion_folder.is_dir()==False:
+            elif analysis_methods.get("overwrite_curated_dataset") or test_folder.is_dir()==False:
                 recording_corrected, _, motion_info = spre.correct_motion(
                     recording=recording_saved,
                     preset=motion_corrector,
@@ -68,10 +69,9 @@ def AP_band_drift_estimation(group,recording_saved,oe_folder,analysis_methods,wi
                     output_motion=True,
                     output_motion_info=True,
                     estimate_motion_kwargs={
-                        "win_step_um": win_um,
-                        "win_scale_um": win_um,
-                    },
-                    **job_kwargs,
+                        "win_step_um": win_step_um,
+                        "win_scale_um": win_step_um,
+                    }
                 )
             else:
                 motion_info=[]
@@ -83,10 +83,9 @@ def AP_band_drift_estimation(group,recording_saved,oe_folder,analysis_methods,wi
                     output_motion=False,
                     output_motion_info=False,
                     estimate_motion_kwargs={
-                        "win_step_um": win_um,
-                        "win_scale_um": win_um,
-                    },
-                    **job_kwargs)#interpolate_motion_kwargs={'border_mode' : 'force_extrapolate'},
+                        "win_step_um": win_step_um,
+                        "win_scale_um": win_step_um,
+                    })#interpolate_motion_kwargs={'border_mode' : 'force_extrapolate'},
                 print('recording is corrected but output_motion and info are not generated')
             motion_info_list.append(motion_info)  # the default mode will remove channels at the border, trying using force_extrapolate
         elif motion_corrector == ("testing"):
@@ -96,7 +95,7 @@ def AP_band_drift_estimation(group,recording_saved,oe_folder,analysis_methods,wi
             run_times = []
             for preset in motion_corrector_tuple:
                 print("Computing with", preset)
-                test_folder = oe_folder / f"motion_folder{group}_dataset{win_um}" / preset
+                test_folder = oe_folder / f"motion_folder{group}_dataset{win_step_um}_{win_scale_um}" / preset
                 if load_existing_motion_info and test_folder.exists():
                     motion_info = spre.load_motion_info(test_folder)
                 else:
@@ -108,11 +107,9 @@ def AP_band_drift_estimation(group,recording_saved,oe_folder,analysis_methods,wi
                         output_motion=True,
                         output_motion_info=True,
                         estimate_motion_kwargs={
-                            "win_step_um": win_um,
-                            "win_scale_um": win_um,
-                        },
-                        **job_kwargs,
-                    )  # the default mode will remove channels at the border, trying using force_extrapolate
+                            "win_step_um": win_step_um,
+                            "win_scale_um": win_scale_um,
+                        })  # the default mode will remove channels at the border, trying using force_extrapolate
                     fig = plt.figure(figsize=(14, 8))
                     sw.plot_motion_info(
                         motion_info,
@@ -172,7 +169,7 @@ def AP_band_drift_estimation(group,recording_saved,oe_folder,analysis_methods,wi
                     ax.bar(motion_corrector_tuple, rtimes, bottom=bottom, label=k)
                 bottom += rtimes
             ax.legend()
-            fig3.savefig(oe_folder / f"motion_folder{group}_dataset{win_um}" / "run_time_accuracy_comparsion.png")
+            fig3.savefig(oe_folder / f"motion_folder{group}_dataset{win_step_um}_{win_scale_um}" / "run_time_accuracy_comparsion.png")
             recording_corrected = recording_saved
             plt.close('all')
         else:
@@ -269,11 +266,12 @@ def run_estimation(thisDir, json_file):
 
         
     recordings_dict = recording_saved.split_by(property='group', outputs='dict')
-    win_um=100    
+    win_step_um=[50,100,150]
+    win_scale_um=[-150,-50,50,150]
     recording_corrected_dict = {}
     motion_ap_dict={}
     for group, sub_recording in recordings_dict.items():
-        recording_corrected,motion_ap_list=AP_band_drift_estimation(group,sub_recording,oe_folder,analysis_methods,win_um,job_kwargs)
+        recording_corrected,motion_ap_list=AP_band_drift_estimation(group,sub_recording,oe_folder,analysis_methods,win_step_um,win_scale_um)
         recording_corrected_dict[group]=recording_corrected
         motion_ap_dict[group]=motion_ap_list
         
