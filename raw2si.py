@@ -27,6 +27,12 @@ import numcodecs
 ##from brainbox.ephys_plots import scatter_raster_plot
 warnings.simplefilter("ignore")
 import spikeinterface.curation as scur
+n_cpus = os.cpu_count()
+n_jobs = n_cpus - 4
+
+global_job_kwargs = dict(n_jobs=n_jobs, chunk_duration="1s", progress_bar=True)
+# global_job_kwargs = dict(n_jobs=16, chunk_duration="5s", progress_bar=False)
+si.set_global_job_kwargs(**global_job_kwargs)
 
 """
 This pipeline uses spikeinterface as a backbone. This file includes preprocessing and sorting, converting raw data from openEphys to putative spikes by various sorters
@@ -40,8 +46,31 @@ def generate_sorter_suffix(this_sorter):
     elif this_sorter.lower() == "kilosort4":
         sorter_suffix = "_KS4"
     return sorter_suffix
+def motion_correction_shankbyshank(recording_saved,oe_folder,analysis_methods):
+    win_um=100        
+    recording_corrected_dict = {}
+    #create a temporary boolean here to account for correct motion not ready to accept dict. If the recording is an Object, it wwill first split it based groups. If an recording Object has no the group attribute,
+    #that means it does not go through this line raw_rec = raw_rec.set_probe(probe,group_mode='by_shank') to create the attribute. In this case, a fake Group0 is created just because the function needs that
+    #After correcting motion, a dictionary will be created, which can be used in the following analysis
+    if type(recording_saved) == dict:
+        for group, sub_recording in recording_saved.items():
+            print(f"this probe has number of channels to analyse: {len(sub_recording.ids_to_indices())}")
+            recording_corrected,_=AP_band_drift_estimation(group,sub_recording,oe_folder,analysis_methods,win_um,global_job_kwargs)
+            recording_corrected_dict[group]=recording_corrected
+    elif len(np.unique(recording_saved.get_property('group')))>1:
+        recording_saved = recording_saved.split_by(property='group', outputs='dict')
+        for group, sub_recording in recording_saved.items():
+            print(f"this probe has number of channels to analyse: {len(sub_recording.ids_to_indices())}")
+            recording_corrected,_=AP_band_drift_estimation(group,sub_recording,oe_folder,analysis_methods,win_um,global_job_kwargs)
+            recording_corrected_dict[group]=recording_corrected
+    else:
+        group=0
+        recording_corrected,_=AP_band_drift_estimation(group,recording_saved,oe_folder,analysis_methods,win_um,global_job_kwargs)
+        recording_corrected_dict[group]=recording_corrected
+    return recording_corrected_dict
 
 def get_preprocessed_recording(oe_folder,analysis_methods):
+    tmin_tmax = analysis_methods.get("tmin_tmax")
     if (
         analysis_methods.get("load_prepocessed_file") == True
         and (oe_folder / "preprocessed_compressed.zarr").is_dir()
@@ -62,7 +91,7 @@ def get_preprocessed_recording(oe_folder,analysis_methods):
         print("Load meta information from openEphys")
         this_experimenter = analysis_methods.get("experimenter")
         probe_type = analysis_methods.get("probe_type")
-        tmin_tmax = analysis_methods.get("tmin_tmax")
+
         plot_traces = analysis_methods.get("plot_traces")
         if oe_folder.stem =='2025-03-05_13-45-15':
             raw_rec = se.read_openephys(oe_folder, load_sync_timestamps=True,block_index=0,stream_id='0')
@@ -295,27 +324,8 @@ def raw2si(thisDir, json_file):
         
         # use manual splitting for motion for now because correct_motion function does not take dict as input yet
         #the first two parameters to test in motion correction: "win_step_um" and "win_scale_um"
-        
-        win_um=100        
-        recording_corrected_dict = {}
-        #create a temporary boolean here to account for correct motion not ready to accept dict. If the recording is an Object, it wwill first split it based groups. If an recording Object has no the group attribute,
-        #that means it does not go through this line raw_rec = raw_rec.set_probe(probe,group_mode='by_shank') to create the attribute. In this case, a fake Group0 is created just because the function needs that
-        #After correcting motion, a dictionary will be created, which can be used in the following analysis
-        if type(recording_saved) == dict:
-            for group, sub_recording in recording_saved.items():
-                print(f"this probe has number of channels to analyse: {len(sub_recording.ids_to_indices())}")
-                recording_corrected,_=AP_band_drift_estimation(group,sub_recording,oe_folder,analysis_methods,win_um,job_kwargs)
-                recording_corrected_dict[group]=recording_corrected
-        elif len(np.unique(recording_saved.get_property('group')))>1:
-            recording_saved = recording_saved.split_by(property='group', outputs='dict')
-            for group, sub_recording in recording_saved.items():
-                print(f"this probe has number of channels to analyse: {len(sub_recording.ids_to_indices())}")
-                recording_corrected,_=AP_band_drift_estimation(group,sub_recording,oe_folder,analysis_methods,win_um,job_kwargs)
-                recording_corrected_dict[group]=recording_corrected
-        else:
-            group=0
-            recording_corrected,_=AP_band_drift_estimation(group,recording_saved,oe_folder,analysis_methods,win_um,job_kwargs)
-            recording_corrected_dict[group]=recording_corrected
+        recording_corrected_dict=motion_correction_shankbyshank(recording_saved,oe_folder,analysis_methods)
+
         if plot_traces:
             fig1=plt.figure()
             for group, rec_per_shank in recording_corrected_dict.items():
@@ -328,6 +338,7 @@ def raw2si(thisDir, json_file):
             return print("drift/correction testing is finished")
         ############################# whitening ##########################
         elif motion_corrector =='kilosort_default':
+            #setting motion_corrector to 'kilosort_default' will skip motion_correction_shankbyshank
             if type(recording_saved)==dict:
                 rec_for_sorting=si.aggregate_channels(recording_saved)
             else:
@@ -340,6 +351,8 @@ def raw2si(thisDir, json_file):
             # create a temporary option here to account for manual splitting during motion correction
             if len(recording_corrected_dict)>1:
                 recording_corrected=recording_corrected_dict
+            else:
+                recording_corrected=recording_corrected_dict[0]
             # fig0=plt.figure()
             # r_range=[50,100,200,400]
             # #recording_saved.channel_ids[:10]np.linspace(1,10,10,dtype=int)
@@ -389,6 +402,7 @@ def raw2si(thisDir, json_file):
                     sorter_params.update({"skip_kilosort_preprocessing": True,"do_CAR": False,"do_correction":False,"nblocks": 0})
             #update parameters based on the version of kilosort and probe types
             if this_sorter == "kilosort3":
+                ## this will limit the analysis to one PC, try to use kilosort3 with Container in the future.
                 kilosort_3_path = r"C:\Users\neuroPC\Documents\GitHub\Kilosort-3.0.2"
                 ss.Kilosort3Sorter.set_kilosort3_path(kilosort_3_path)
             else:

@@ -3,7 +3,7 @@ import spikeinterface.core as si
 import probeinterface as pi
 import spikeinterface.preprocessing as spre
 from pathlib import Path
-from raw2si import generate_sorter_suffix,get_preprocessed_recording
+from raw2si import generate_sorter_suffix,get_preprocessed_recording,motion_correction_shankbyshank
 import spikeinterface.curation as scur
 import spikeinterface.exporters as sep
 import spikeinterface.qualitymetrics as sqm
@@ -155,32 +155,6 @@ def spike_overview(
         np.concatenate(spike_amp_list),
         np.concatenate(spike_loc_list),
     )
-def recording_with_motion_corrected_for_postprocessing(recording_saved,oe_folder,analysis_methods):
-    win_um=100
-    analysis_methods.update({"load_existing_motion_info": True})        
-    recording_corrected_dict = {}
-    if type(recording_saved) == dict:
-        for group, sub_recording in recording_saved.items():
-            print(f"this probe has number of channels to analyse: {len(sub_recording.ids_to_indices())}")
-            recording_corrected,_=AP_band_drift_estimation(group,sub_recording,oe_folder,analysis_methods,win_um,global_job_kwargs)
-            recording_corrected_dict[group]=recording_corrected
-    elif len(np.unique(recording_saved.get_property('group')))>1:
-        recording_saved = recording_saved.split_by(property='group', outputs='dict')
-        for group, sub_recording in recording_saved.items():
-            print(f"this probe has number of channels to analyse: {len(sub_recording.ids_to_indices())}")
-            recording_corrected,_=AP_band_drift_estimation(group,sub_recording,oe_folder,analysis_methods,win_um,global_job_kwargs)
-            recording_corrected_dict[group]=recording_corrected
-    else:
-        group=0
-        recording_corrected,_=AP_band_drift_estimation(group,recording_saved,oe_folder,analysis_methods,win_um,global_job_kwargs)
-        recording_corrected_dict[group]=recording_corrected
-    
-    if len(recording_corrected_dict)>1:
-        recording_for_analysis=si.aggregate_channels(recording_corrected_dict)
-    else:
-        recording_for_analysis=recording_corrected
-    return recording_for_analysis
-
 def calculate_analyzer_extension(sorting_analyzer):
     sorting_analyzer.compute(
         ["random_spikes", "isi_histograms", "correlograms", "noise_levels"]
@@ -264,7 +238,12 @@ def si2phy(thisDir, json_file):
         # sorting_spikes = sorting_duduplicated
         unit_labels = sorting_spikes.get_property("quality")
         recording_saved = get_preprocessed_recording(oe_folder,analysis_methods)
-        recording_for_analysis=recording_with_motion_corrected_for_postprocessing(recording_saved,oe_folder,analysis_methods)
+        analysis_methods.update({"load_existing_motion_info": True})  
+        recording_corrected_dict=motion_correction_shankbyshank(recording_saved,oe_folder,analysis_methods)
+        if len(recording_corrected_dict)>1:
+            recording_for_analysis=si.aggregate_channels(recording_corrected_dict)
+        else:
+            recording_for_analysis=recording_corrected_dict[0]
         sorting_analyzer = si.create_sorting_analyzer(
             sorting=sorting_spikes,
             recording=recording_for_analysis,
@@ -293,7 +272,12 @@ def si2phy(thisDir, json_file):
             oe_folder / sorting_folder_name
         )  # this acts quite similar than above one line.
         recording_saved = get_preprocessed_recording(oe_folder,analysis_methods)
-        recording_for_analysis=recording_with_motion_corrected_for_postprocessing(recording_saved,oe_folder,analysis_methods)
+        analysis_methods.update({"load_existing_motion_info": True})  
+        recording_corrected_dict=motion_correction_shankbyshank(recording_saved,oe_folder,analysis_methods)
+        if len(recording_corrected_dict)>1:
+            recording_for_analysis=si.aggregate_channels(recording_corrected_dict)
+        else:
+            recording_for_analysis=recording_corrected_dict[0]
         if remove_excess_spikes:
             sorting_wout_excess_spikes = scur.remove_excess_spikes(
                 sorting_spikes, recording_for_analysis
