@@ -3,7 +3,7 @@ import spikeinterface.core as si
 import probeinterface as pi
 import spikeinterface.preprocessing as spre
 from pathlib import Path
-from raw2si import generate_sorter_suffix
+from raw2si import generate_sorter_suffix,get_preprocessed_recording
 import spikeinterface.curation as scur
 import spikeinterface.exporters as sep
 import spikeinterface.qualitymetrics as sqm
@@ -181,32 +181,6 @@ def recording_with_motion_corrected_for_postprocessing(recording_saved,oe_folder
         recording_for_analysis=recording_corrected
     return recording_for_analysis
 
-def get_preprocessed_recording(oe_folder):
-    if (oe_folder / "preprocessed_compressed.zarr").is_dir():
-        recording_saved = si.read_zarr(oe_folder / "preprocessed_compressed.zarr")
-        print(recording_saved.get_property_keys())
-    elif (oe_folder / "preprocessed").is_dir():
-        recording_saved = si.load_extractor(oe_folder / "preprocessed")
-    else:
-        print(f"no pre-processed folder found. Unable to extract waveform")
-        print("create temporary option to re-run the pre-processing script to generate the recording object")
-        raw_rec = se.read_openephys(oe_folder, load_sync_timestamps=True)
-        stacked_probes = pi.read_probeinterface("H10_stacked_probes_2D.json")
-        probe = stacked_probes.probes[0]
-        raw_rec = raw_rec.set_probe(probe,group_mode='by_shank')
-        recording_f = spre.bandpass_filter(raw_rec, freq_min=600, freq_max=6000,dtype="float32")
-        recordings_dict = recording_f.split_by(property='group', outputs='dict')
-        recording_cmr = spre.common_reference(
-                recordings_dict, reference="global", operator="median"
-            )
-        recording_saved=si.aggregate_channels(recording_cmr)
-        #return None
-    recording_saved.annotate(
-        is_filtered=True
-    )  # note down this recording is bandpass filtered and cmr
-    return recording_saved
-
-
 def calculate_analyzer_extension(sorting_analyzer):
     sorting_analyzer.compute(
         ["random_spikes", "isi_histograms", "correlograms", "noise_levels"]
@@ -289,7 +263,7 @@ def si2phy(thisDir, json_file):
         # sorting_duduplicated = scur.remove_duplicated_spikes(sorting_spikes)
         # sorting_spikes = sorting_duduplicated
         unit_labels = sorting_spikes.get_property("quality")
-        recording_saved = get_preprocessed_recording(oe_folder)
+        recording_saved = get_preprocessed_recording(oe_folder,analysis_methods)
         recording_for_analysis=recording_with_motion_corrected_for_postprocessing(recording_saved,oe_folder,analysis_methods)
         sorting_analyzer = si.create_sorting_analyzer(
             sorting=sorting_spikes,
@@ -318,7 +292,7 @@ def si2phy(thisDir, json_file):
         sorting_spikes = si.load_extractor(
             oe_folder / sorting_folder_name
         )  # this acts quite similar than above one line.
-        recording_saved = get_preprocessed_recording(oe_folder)
+        recording_saved = get_preprocessed_recording(oe_folder,analysis_methods)
         recording_for_analysis=recording_with_motion_corrected_for_postprocessing(recording_saved,oe_folder,analysis_methods)
         if remove_excess_spikes:
             sorting_wout_excess_spikes = scur.remove_excess_spikes(

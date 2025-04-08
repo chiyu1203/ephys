@@ -32,7 +32,6 @@ import spikeinterface.curation as scur
 This pipeline uses spikeinterface as a backbone. This file includes preprocessing and sorting, converting raw data from openEphys to putative spikes by various sorters
 """
 
-
 def generate_sorter_suffix(this_sorter):
     if this_sorter.lower() == "spykingcircus2":
         sorter_suffix = "_SC2"
@@ -41,6 +40,165 @@ def generate_sorter_suffix(this_sorter):
     elif this_sorter.lower() == "kilosort4":
         sorter_suffix = "_KS4"
     return sorter_suffix
+
+def get_preprocessed_recording(oe_folder,analysis_methods):
+    if (
+        analysis_methods.get("load_prepocessed_file") == True
+        and (oe_folder / "preprocessed_compressed.zarr").is_dir()
+    ):
+        recording_saved = si.read_zarr(oe_folder / "preprocessed_compressed.zarr")
+        print(recording_saved.get_property_keys())
+        fs = recording_saved.get_sampling_frequency()
+    elif (
+        analysis_methods.get("load_prepocessed_file") == True
+        and (oe_folder / "preprocessed").is_dir()
+    ):
+        print(
+            "Looks like you do not have compressed files. Read the original instead"
+        )
+        recording_saved = si.load_extractor(oe_folder / "preprocessed")
+        fs = recording_saved.get_sampling_frequency()
+    else:
+        print("Load meta information from openEphys")
+        this_experimenter = analysis_methods.get("experimenter")
+        probe_type = analysis_methods.get("probe_type")
+        tmin_tmax = analysis_methods.get("tmin_tmax")
+        plot_traces = analysis_methods.get("plot_traces")
+        if oe_folder.stem =='2025-03-05_13-45-15':
+            raw_rec = se.read_openephys(oe_folder, load_sync_timestamps=True,block_index=0,stream_id='0')
+        else:
+            raw_rec = se.read_openephys(oe_folder, load_sync_timestamps=True)
+        # To show the start of recording time
+        # raw_rec.get_times()[0]
+            event = se.read_openephys_event(oe_folder)
+        # event_channel_ids=channel_ids
+        # events = event.get_events(channel_id=channel_ids[1], segment_index=0)# a complete record of events including [('time', '<f8'), ('duration', '<f8'), ('label', '<U100')]
+            events_times = event.get_event_times(
+                channel_id=event.channel_ids[1], segment_index=0
+            )  # this record ON phase of sync pulse
+        fs = raw_rec.get_sampling_frequency()
+        if analysis_methods.get("load_raw_traces") == True:
+            trace_snippet = raw_rec.get_traces(
+                start_frame=int(fs * 0), end_frame=int(fs * 2)
+            )
+
+        ################load probe information################
+        if probe_type == "H10_stacked":
+            stacked_probes = pi.read_probeinterface("H10_stacked_probes_2D.json")
+            probe = stacked_probes.probes[0]
+        else:
+            manufacturer = "cambridgeneurotech"
+            if probe_type == "P2":
+                probe_name = "ASSY-37-P-2"
+                connector_type="ASSY-116>RHD2132"
+            elif probe_type == "H5":
+                probe_name = "ASSY-77-H5"
+                connector_type="ASSY-77>Adpt.A64-Om32_2x-sm-NN>RHD2164"
+            else:
+                print("the name of probe not identified. stop the programme")
+                return
+            probe = pi.get_probe(manufacturer, probe_name)
+            probe.to_dataframe(complete=True).loc[
+                :, ["contact_ids", "shank_ids", "device_channel_indices"]
+            ]
+            probe.wiring_to_device(connector_type)
+        print(probe)
+        # drop AUX channels here
+        #raw_rec = raw_rec.set_probe(probe,group_mode='by_shank')
+        raw_rec = raw_rec.set_probe(probe,group_mode='by_shank')
+        probe_rec = raw_rec.get_probe()
+        probe_rec.to_dataframe(complete=True).loc[
+            :, ["contact_ids", "device_channel_indices"]
+        ]
+
+        raw_rec.annotate(
+            description=f"Dataset of {this_experimenter}"
+        )  # should change here for something related in the future
+        ################ estimate motion with LFP band ################
+
+        #As we do not analyse LFP data, there was no need to correct motion based on LFP band. However, this estimation can be good to validate the result from spike-band based motion estimation
+        # https://spikeinterface.readthedocs.io/en/latest/how_to/drift_with_lfp.html
+        lfp_drift_estimation=False
+        if lfp_drift_estimation:
+            raw_rec_dict = raw_rec.split_by(property='group', outputs='dict')
+            for group, rec_per_shank in raw_rec_dict.items():
+                LFP_band_drift_estimation(group,rec_per_shank,oe_folder)
+        
+
+
+
+        ################ preprocessing ################
+        # apply band pass filter
+        ### need to double check whether there is a need to convert data type to float32. It seems that this will increase the size of the data
+        recording_f = spre.bandpass_filter(raw_rec, freq_min=600, freq_max=6000,dtype="float32")# it sounds that people recommend to run two separate bandpass filter for motion estimation and for spike sorting.
+        # recording_f = spre.highpass_filter(raw_rec, freq_min=300,dtype="float32")
+        
+
+        if analysis_methods.get("analyse_good_channels_only") == True:
+            """
+            This step should be done before saving preprocessed files because ideally the preprocessed file we want to create is something ready for spiking
+            detection, which means neural traces gone through bandpass filter and common reference.
+            However, applying common reference takes signals from channels of interest which requires us to decide what we want to do with other bad or noisy channels first.
+            """
+            bad_channel_ids, channel_labels = spre.detect_bad_channels(
+                recording_f, method="coherence+psd"
+            )
+            print("bad_channel_ids", bad_channel_ids)
+            print("channel_labels", channel_labels)
+
+            recording_f = recording_f.remove_channels(
+                bad_channel_ids
+            )  #try this functino interpolate_bad_channels when I can put 3 shanks in the brain plus when there is some noisy channels
+            #https://spikeinterface.readthedocs.io/en/stable/api.html#spikeinterface.preprocessing.interpolate_bad_channels
+
+        ##start to split the recording into groups here because remove bad channels function is not ready to receive dict as input
+        recordings_dict = recording_f.split_by(property='group', outputs='dict')
+        if plot_traces:
+            fig0=plt.figure()
+            for group, rec_per_shank in recordings_dict.items():
+                figcode=int(f"22{group+1}")
+                ax=fig0.add_subplot(figcode)
+                sw.plot_traces(rec_per_shank,  mode="auto",ax=ax)
+            plt.show()
+            #shankid=0
+            #sw.plot_traces({f"shank{shankid+1}": recordings_dict[shankid]},  mode="auto",time_range=[10, 10.1], backend="ipywidgets")
+            #sw.plot_traces(recordings_dict[shankid],  mode="auto",time_range=[10, 10.1])
+
+        # apply common median reference to remove common noise
+        # recording_cmr = spre.common_reference(
+        #     recordings_dict, reference="global", operator="average"
+        # )
+        recording_cmr = spre.common_reference(
+            recording_f, reference="global", operator="median"
+        )
+        # another filter to consider: https://github.com/SpikeInterface/SpikeInterface-Training-Edinburgh-May24/blob/main/hands_on/preprocessing/preprocessing.ipynb
+        # recording_cmr = spre.highpass_spatial_filter(
+        #     recording_f
+        #)
+    if "recording_cmr" in locals():
+        rec_of_interest = recording_cmr
+    else:
+        rec_of_interest = recording_saved
+        rec_of_interest.annotate(
+            is_filtered=True
+        )  # needed to add this somehow because when loading a preprocessed data saved in the past, that data would not be labeled as filtered data
+    # Slice the recording if needed
+    if tmin_tmax[1]>0 and tmin_tmax[1]>tmin_tmax[0]:
+        start_sec = tmin_tmax[0]
+        end_sec = tmin_tmax[1]
+        if type(rec_of_interest)==dict:
+            tmp = {}
+            for group, sub_recording in rec_of_interest.items():
+                tmp[group] = sub_recording.frame_slice(start_frame=start_sec * fs, end_frame=end_sec * fs)
+            rec_of_interest=tmp
+        else:
+            rec_of_interest = rec_of_interest.frame_slice(start_frame=start_sec * fs, end_frame=end_sec * fs)
+    elif tmin_tmax[1]<0:
+        print("tmax <0 means to analyse the entire recording")
+    else:
+        ValueError("tmax needs to be bigger than tmin to select certain section of the recording")
+    return rec_of_interest
+
 
 def raw2si(thisDir, json_file):
     oe_folder = Path(thisDir)
@@ -51,11 +209,9 @@ def raw2si(thisDir, json_file):
             print(f"load analysis methods from file {json_file}")
             analysis_methods = json.loads(f.read())
     this_sorter = analysis_methods.get("sorter_name")
-    this_experimenter = analysis_methods.get("experimenter")
-    probe_type = analysis_methods.get("probe_type")
     motion_corrector = analysis_methods.get("motion_corrector")
     plot_traces = analysis_methods.get("plot_traces")
-    tmin_tmax = analysis_methods.get("tmin_tmax")
+    probe_type = analysis_methods.get("probe_type")
     sorter_suffix = generate_sorter_suffix(this_sorter)
     result_folder_name = "results" + sorter_suffix
     sorting_folder_name = "sorting" + sorter_suffix
@@ -82,159 +238,7 @@ def raw2si(thisDir, json_file):
             return sorting_spikes
         recording_saved.annotate(is_filtered=True)
     else:
-        if (
-            analysis_methods.get("load_prepocessed_file") == True
-            and (oe_folder / "preprocessed_compressed.zarr").is_dir()
-        ):
-            recording_saved = si.read_zarr(oe_folder / "preprocessed_compressed.zarr")
-            print(recording_saved.get_property_keys())
-            fs = recording_saved.get_sampling_frequency()
-        elif (
-            analysis_methods.get("load_prepocessed_file") == True
-            and (oe_folder / "preprocessed").is_dir()
-        ):
-            print(
-                "Looks like you do not have compressed files. Read the original instead"
-            )
-            recording_saved = si.load_extractor(oe_folder / "preprocessed")
-            fs = recording_saved.get_sampling_frequency()
-        else:
-            print("Load meta information from openEphys")
-            if oe_folder.stem =='2025-03-05_13-45-15':
-                raw_rec = se.read_openephys(oe_folder, load_sync_timestamps=True,block_index=0,stream_id='0')
-            else:
-                raw_rec = se.read_openephys(oe_folder, load_sync_timestamps=True)
-            # To show the start of recording time
-            # raw_rec.get_times()[0]
-                event = se.read_openephys_event(oe_folder)
-            # event_channel_ids=channel_ids
-            # events = event.get_events(channel_id=channel_ids[1], segment_index=0)# a complete record of events including [('time', '<f8'), ('duration', '<f8'), ('label', '<U100')]
-                events_times = event.get_event_times(
-                    channel_id=event.channel_ids[1], segment_index=0
-                )  # this record ON phase of sync pulse
-            fs = raw_rec.get_sampling_frequency()
-            if analysis_methods.get("load_raw_traces") == True:
-                trace_snippet = raw_rec.get_traces(
-                    start_frame=int(fs * 0), end_frame=int(fs * 2)
-                )
-
-            ################load probe information################
-            if probe_type == "H10_stacked":
-                stacked_probes = pi.read_probeinterface("H10_stacked_probes_2D.json")
-                probe = stacked_probes.probes[0]
-            else:
-                manufacturer = "cambridgeneurotech"
-                if probe_type == "P2":
-                    probe_name = "ASSY-37-P-2"
-                    connector_type="ASSY-116>RHD2132"
-                elif probe_type == "H5":
-                    probe_name = "ASSY-77-H5"
-                    connector_type="ASSY-77>Adpt.A64-Om32_2x-sm-NN>RHD2164"
-                else:
-                    print("the name of probe not identified. stop the programme")
-                    return
-                probe = pi.get_probe(manufacturer, probe_name)
-                probe.to_dataframe(complete=True).loc[
-                    :, ["contact_ids", "shank_ids", "device_channel_indices"]
-                ]
-                probe.wiring_to_device(connector_type)
-            print(probe)
-            # drop AUX channels here
-            #raw_rec = raw_rec.set_probe(probe,group_mode='by_shank')
-            raw_rec = raw_rec.set_probe(probe,group_mode='by_shank')
-            probe_rec = raw_rec.get_probe()
-            probe_rec.to_dataframe(complete=True).loc[
-                :, ["contact_ids", "device_channel_indices"]
-            ]
-
-            raw_rec.annotate(
-                description=f"Dataset of {this_experimenter}"
-            )  # should change here for something related in the future
-            ################ estimate motion with LFP band ################
-
-            #As we do not analyse LFP data, there was no need to correct motion based on LFP band. However, this estimation can be good to validate the result from spike-band based motion estimation
-            # https://spikeinterface.readthedocs.io/en/latest/how_to/drift_with_lfp.html
-            lfp_drift_estimation=False
-            if lfp_drift_estimation:
-                raw_rec_dict = raw_rec.split_by(property='group', outputs='dict')
-                for group, rec_per_shank in raw_rec_dict.items():
-                    LFP_band_drift_estimation(group,rec_per_shank,oe_folder)
-            
-
-
-
-            ################ preprocessing ################
-            # apply band pass filter
-            ### need to double check whether there is a need to convert data type to float32. It seems that this will increase the size of the data
-            recording_f = spre.bandpass_filter(raw_rec, freq_min=600, freq_max=6000,dtype="float32")# it sounds that people recommend to run two separate bandpass filter for motion estimation and for spike sorting.
-            # recording_f = spre.highpass_filter(raw_rec, freq_min=300,dtype="float32")
-            
-
-            if analysis_methods.get("analyse_good_channels_only") == True:
-                """
-                This step should be done before saving preprocessed files because ideally the preprocessed file we want to create is something ready for spiking
-                detection, which means neural traces gone through bandpass filter and common reference.
-                However, applying common reference takes signals from channels of interest which requires us to decide what we want to do with other bad or noisy channels first.
-                """
-                bad_channel_ids, channel_labels = spre.detect_bad_channels(
-                    recording_f, method="coherence+psd"
-                )
-                print("bad_channel_ids", bad_channel_ids)
-                print("channel_labels", channel_labels)
-
-                recording_f = recording_f.remove_channels(
-                    bad_channel_ids
-                )  #try this functino interpolate_bad_channels when I can put 3 shanks in the brain plus when there is some noisy channels
-                #https://spikeinterface.readthedocs.io/en/stable/api.html#spikeinterface.preprocessing.interpolate_bad_channels
-
-            ##start to split the recording into groups here because remove bad channels function is not ready to receive dict as input
-            recordings_dict = recording_f.split_by(property='group', outputs='dict')
-            if plot_traces:
-                fig0=plt.figure()
-                for group, rec_per_shank in recordings_dict.items():
-                    figcode=int(f"22{group+1}")
-                    ax=fig0.add_subplot(figcode)
-                    sw.plot_traces(rec_per_shank,  mode="auto",ax=ax)
-                plt.show()
-                #shankid=0
-                #sw.plot_traces({f"shank{shankid+1}": recordings_dict[shankid]},  mode="auto",time_range=[10, 10.1], backend="ipywidgets")
-                #sw.plot_traces(recordings_dict[shankid],  mode="auto",time_range=[10, 10.1])
-
-            # apply common median reference to remove common noise
-            # recording_cmr = spre.common_reference(
-            #     recordings_dict, reference="global", operator="average"
-            # )
-            recording_cmr = spre.common_reference(
-                recording_f, reference="global", operator="median"
-            )
-            # another filter to consider: https://github.com/SpikeInterface/SpikeInterface-Training-Edinburgh-May24/blob/main/hands_on/preprocessing/preprocessing.ipynb
-            # recording_cmr = spre.highpass_spatial_filter(
-            #     recording_f
-            #)
-        if "recording_cmr" in locals():
-            rec_of_interest = recording_cmr
-        else:
-            rec_of_interest = recording_saved
-            rec_of_interest.annotate(
-                is_filtered=True
-            )  # needed to add this somehow because when loading a preprocessed data saved in the past, that data would not be labeled as filtered data
-        # Slice the recording if needed
-        if tmin_tmax[1]>0 and tmin_tmax[1]>tmin_tmax[0]:
-            start_sec = tmin_tmax[0]
-            end_sec = tmin_tmax[1]
-            if type(rec_of_interest)==dict:
-                tmp = {}
-                for group, sub_recording in rec_of_interest.items():
-                    tmp[group] = sub_recording.frame_slice(start_frame=start_sec * fs, end_frame=end_sec * fs)
-                rec_of_interest=tmp
-            else:
-                rec_of_interest = rec_of_interest.frame_slice(start_frame=start_sec * fs, end_frame=end_sec * fs)
-        elif tmin_tmax[1]<0:
-            print("tmax <0 means to analyse the entire recording")
-        else:
-            ValueError("tmax needs to be bigger than tmin to select certain section of the recording")
-
-
+        rec_of_interest=get_preprocessed_recording(oe_folder,analysis_methods)
         # at the moment, leaving raw data intact while saving preprocessed files in compressed format but in the future,
         # we might want to remove the raw data to save space
         # more information about this idea can be found here https://github.com/SpikeInterface/spikeinterface/issues/2996#issuecomment-2486394230
@@ -314,7 +318,7 @@ def raw2si(thisDir, json_file):
             recording_corrected_dict[group]=recording_corrected
         if plot_traces:
             fig1=plt.figure()
-            for group, rec_per_shank in recordings_dict.items():
+            for group, rec_per_shank in recording_corrected_dict.items():
                 figcode=int(f"22{group+1}")
                 ax=fig1.add_subplot(figcode)
                 sw.plot_traces(rec_per_shank,  mode="auto",ax=ax)
