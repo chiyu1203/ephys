@@ -30,7 +30,7 @@ import spikeinterface.curation as scur
 n_cpus = os.cpu_count()
 n_jobs = n_cpus - 4
 
-global_job_kwargs = dict(n_jobs=n_jobs, chunk_duration="1s", progress_bar=True)
+global_job_kwargs = dict(n_jobs=n_jobs, chunk_duration="2s", progress_bar=True)
 # global_job_kwargs = dict(n_jobs=16, chunk_duration="5s", progress_bar=False)
 si.set_global_job_kwargs(**global_job_kwargs)
 
@@ -245,10 +245,7 @@ def raw2si(thisDir, json_file):
     sorter_suffix = generate_sorter_suffix(this_sorter)
     result_folder_name = "results" + sorter_suffix
     sorting_folder_name = "sorting" + sorter_suffix
-    n_cpus = os.cpu_count()
-    n_jobs = n_cpus - 4
-    job_kwargs = dict(n_jobs=n_jobs, chunk_duration="1s", progress_bar=True)
-
+    
     if analysis_methods.get("load_sorting_file") == True:
         if (oe_folder / result_folder_name).is_dir():
             # sorting_spikes = ss.read_sorter_folder(oe_folder/result_folder_name)
@@ -286,7 +283,6 @@ def raw2si(thisDir, json_file):
                         folder=oe_folder / "preprocessed_compressed.zarr",
                         compressor=compressor,
                         overwrite=True,
-                        **job_kwargs,
                     )
                     print(f"Overwrite existing file with compressor: {compressor_name}")
                 else:
@@ -304,7 +300,6 @@ def raw2si(thisDir, json_file):
                     format="zarr",
                     folder=oe_folder / "preprocessed_compressed.zarr",
                     compressor=compressor,
-                    **job_kwargs,
                 )
                 print(
                     f"First time to save this file. Testing compressor: {compressor_name}"
@@ -325,7 +320,7 @@ def raw2si(thisDir, json_file):
         
         # use manual splitting for motion for now because correct_motion function does not take dict as input yet
         #the first two parameters to test in motion correction: "win_step_um" and "win_scale_um"
-        recording_saved=si.astype(recording_saved,np.float32)
+        recording_saved=spre.astype(recording_saved,np.float32)
         recording_corrected_dict=motion_correction_shankbyshank(recording_saved,oe_folder,analysis_methods)
 
         if plot_traces:
@@ -444,7 +439,6 @@ def raw2si(thisDir, json_file):
                 remove_existing_folder=True,
                 output_folder=oe_folder / result_folder_name,
                 verbose=True,
-                job_kwargs=job_kwargs,
                 sorter_params=sorter_params,
             )
         ##this will return a sorting object
@@ -471,7 +465,8 @@ if __name__ == "__main__":
     #thisDir = r"Z:\DATA\experiment_openEphys\H-series-128channels\2025-03-23_21-33-38"
     #thisDir = r"D:\Open Ephys\2025-04-03_19-13-57"
     #thisDir= r"Z:\DATA\experiment_openEphys\H-series-128channels\2025-04-09_22-46-23"
-    thisDir = r"D:\Open Ephys\2025-04-09_21-22-00"
+    thisDir=r"Z:\DATA\experiment_openEphys\H-series-128channels\2025-03-23_21-33-38"
+    #thisDir = r"D:\Open Ephys\2025-04-09_21-22-00"
     #thisDir = r"D:\Open Ephys\2025-04-03_20-36-55"
     #thisDir = r"D:\Open Ephys\2025-03-05_13-45-15"
     #thisDir = r"D:\Open Ephys\2025-02-23_20-39-04"

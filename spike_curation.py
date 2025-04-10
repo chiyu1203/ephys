@@ -22,7 +22,7 @@ warnings.simplefilter("ignore")
 n_cpus = os.cpu_count()
 n_jobs = n_cpus - 4
 
-global_job_kwargs = dict(n_jobs=n_jobs, chunk_duration="1s", progress_bar=True)
+global_job_kwargs = dict(n_jobs=n_jobs, chunk_duration="2s", progress_bar=True)
 # global_job_kwargs = dict(n_jobs=16, chunk_duration="5s", progress_bar=False)
 si.set_global_job_kwargs(**global_job_kwargs)
 """
@@ -334,7 +334,8 @@ if __name__ == "__main__":
     # thisDir = r"Z:\DATA\experiment_trackball_Optomotor\Zball\GN23015\240201\coherence\session1\2024-02-01_15-25-25"
     #thisDir = r"Z:\DATA\experiment_openEphys\P-series-32channels\2025-02-26_17-00-43"
     #thisDir = r"Z:\DATA\experiment_openEphys\H-series-128channels\2025-03-23_21-33-38"
-    thisDir = r"D:\Open Ephys\2025-03-05_13-45-15"
+    #thisDir = r"D:\Open Ephys\2025-03-05_13-45-15"
+    thisDir = r"D:\Open Ephys\2025-04-03_19-13-57"
     # thisDir = r"C:\Users\neuroPC\Documents\Open Ephys\2024-02-01_15-25-25"
     #thisDir = r"D:\Open Ephys\2025-02-23_20-39-04"
     json_file = "./analysis_methods_dictionary.json"
