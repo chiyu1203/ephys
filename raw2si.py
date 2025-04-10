@@ -159,7 +159,8 @@ def get_preprocessed_recording(oe_folder,analysis_methods):
         ################ preprocessing ################
         # apply band pass filter
         ### need to double check whether there is a need to convert data type to float32. It seems that this will increase the size of the data
-        recording_f = spre.bandpass_filter(raw_rec, freq_min=600, freq_max=6000,dtype="float32")# it sounds that people recommend to run two separate bandpass filter for motion estimation and for spike sorting.
+        recording_f = spre.bandpass_filter(raw_rec, freq_min=600, freq_max=6000)
+        #recording_f = spre.bandpass_filter(raw_rec, freq_min=600, freq_max=6000,dtype="float32")# it sounds that people recommend to run two separate bandpass filter for motion estimation and for spike sorting.
         # recording_f = spre.highpass_filter(raw_rec, freq_min=300,dtype="float32")
         
 
@@ -324,6 +325,7 @@ def raw2si(thisDir, json_file):
         
         # use manual splitting for motion for now because correct_motion function does not take dict as input yet
         #the first two parameters to test in motion correction: "win_step_um" and "win_scale_um"
+        recording_saved=si.astype(recording_saved,np.float32)
         recording_corrected_dict=motion_correction_shankbyshank(recording_saved,oe_folder,analysis_methods)
 
         if plot_traces:
@@ -377,7 +379,6 @@ def raw2si(thisDir, json_file):
                 mode="local",
                 radius_um=150,
                 #int_scale=200,#this can be added to replicate kilosort behaviour
-                dtype=float,
             )
             #sw.plot_traces({f"r100":rec_r100_s200},  mode="auto",time_range=[10, 10.1], backend="ipywidgets")
         ############################# spike sorting ##########################
@@ -468,7 +469,9 @@ if __name__ == "__main__":
     #thisDir = r"D:\Open Ephys\2025-03-19_18-02-13"
     #thisDir = r"Z:\DATA\experiment_openEphys\H-series-128channels\2025-03-23_20-47-26"
     #thisDir = r"Z:\DATA\experiment_openEphys\H-series-128channels\2025-03-23_21-33-38"
-    thisDir = r"D:\Open Ephys\2025-04-03_19-13-57"
+    #thisDir = r"D:\Open Ephys\2025-04-03_19-13-57"
+    #thisDir= r"Z:\DATA\experiment_openEphys\H-series-128channels\2025-04-09_22-46-23"
+    thisDir = r"D:\Open Ephys\2025-04-09_21-22-00"
     #thisDir = r"D:\Open Ephys\2025-04-03_20-36-55"
     #thisDir = r"D:\Open Ephys\2025-03-05_13-45-15"
     #thisDir = r"D:\Open Ephys\2025-02-23_20-39-04"
