@@ -30,7 +30,7 @@ import spikeinterface.curation as scur
 n_cpus = os.cpu_count()
 n_jobs = n_cpus - 4
 
-global_job_kwargs = dict(n_jobs=n_jobs, chunk_duration="1s", progress_bar=True)
+global_job_kwargs = dict(n_jobs=n_jobs, chunk_duration="2s", progress_bar=True)
 # global_job_kwargs = dict(n_jobs=16, chunk_duration="5s", progress_bar=False)
 si.set_global_job_kwargs(**global_job_kwargs)
 
@@ -47,7 +47,7 @@ def generate_sorter_suffix(this_sorter):
         sorter_suffix = "_KS4"
     return sorter_suffix
 def motion_correction_shankbyshank(recording_saved,oe_folder,analysis_methods):
-    win_um=100        
+    (win_step_um,win_scale_um)=(100,100)        
     recording_corrected_dict = {}
     #create a temporary boolean here to account for correct motion not ready to accept dict. If the recording is an Object, it wwill first split it based groups. If an recording Object has no the group attribute,
     #that means it does not go through this line raw_rec = raw_rec.set_probe(probe,group_mode='by_shank') to create the attribute. In this case, a fake Group0 is created just because the function needs that
@@ -55,17 +55,17 @@ def motion_correction_shankbyshank(recording_saved,oe_folder,analysis_methods):
     if type(recording_saved) == dict:
         for group, sub_recording in recording_saved.items():
             print(f"this probe has number of channels to analyse: {len(sub_recording.ids_to_indices())}")
-            recording_corrected,_=AP_band_drift_estimation(group,sub_recording,oe_folder,analysis_methods,win_um,global_job_kwargs)
+            recording_corrected,_=AP_band_drift_estimation(group,sub_recording,oe_folder,analysis_methods,win_step_um,win_scale_um)
             recording_corrected_dict[group]=recording_corrected
     elif len(np.unique(recording_saved.get_property('group')))>1:
         recording_saved = recording_saved.split_by(property='group', outputs='dict')
         for group, sub_recording in recording_saved.items():
             print(f"this probe has number of channels to analyse: {len(sub_recording.ids_to_indices())}")
-            recording_corrected,_=AP_band_drift_estimation(group,sub_recording,oe_folder,analysis_methods,win_um,global_job_kwargs)
+            recording_corrected,_=AP_band_drift_estimation(group,sub_recording,oe_folder,analysis_methods,win_step_um,win_scale_um)
             recording_corrected_dict[group]=recording_corrected
     else:
         group=0
-        recording_corrected,_=AP_band_drift_estimation(group,recording_saved,oe_folder,analysis_methods,win_um,global_job_kwargs)
+        recording_corrected,_=AP_band_drift_estimation(group,recording_saved,oe_folder,analysis_methods,win_step_um,win_scale_um)
         recording_corrected_dict[group]=recording_corrected
     return recording_corrected_dict
 
@@ -159,7 +159,8 @@ def get_preprocessed_recording(oe_folder,analysis_methods):
         ################ preprocessing ################
         # apply band pass filter
         ### need to double check whether there is a need to convert data type to float32. It seems that this will increase the size of the data
-        recording_f = spre.bandpass_filter(raw_rec, freq_min=600, freq_max=6000,dtype="float32")# it sounds that people recommend to run two separate bandpass filter for motion estimation and for spike sorting.
+        recording_f = spre.bandpass_filter(raw_rec, freq_min=600, freq_max=6000)
+        #recording_f = spre.bandpass_filter(raw_rec, freq_min=600, freq_max=6000,dtype="float32")# it sounds that people recommend to run two separate bandpass filter for motion estimation and for spike sorting.
         # recording_f = spre.highpass_filter(raw_rec, freq_min=300,dtype="float32")
         
 
@@ -244,10 +245,7 @@ def raw2si(thisDir, json_file):
     sorter_suffix = generate_sorter_suffix(this_sorter)
     result_folder_name = "results" + sorter_suffix
     sorting_folder_name = "sorting" + sorter_suffix
-    n_cpus = os.cpu_count()
-    n_jobs = n_cpus - 4
-    job_kwargs = dict(n_jobs=n_jobs, chunk_duration="1s", progress_bar=True)
-
+    
     if analysis_methods.get("load_sorting_file") == True:
         if (oe_folder / result_folder_name).is_dir():
             # sorting_spikes = ss.read_sorter_folder(oe_folder/result_folder_name)
@@ -285,7 +283,6 @@ def raw2si(thisDir, json_file):
                         folder=oe_folder / "preprocessed_compressed.zarr",
                         compressor=compressor,
                         overwrite=True,
-                        **job_kwargs,
                     )
                     print(f"Overwrite existing file with compressor: {compressor_name}")
                 else:
@@ -303,7 +300,6 @@ def raw2si(thisDir, json_file):
                     format="zarr",
                     folder=oe_folder / "preprocessed_compressed.zarr",
                     compressor=compressor,
-                    **job_kwargs,
                 )
                 print(
                     f"First time to save this file. Testing compressor: {compressor_name}"
@@ -324,6 +320,7 @@ def raw2si(thisDir, json_file):
         
         # use manual splitting for motion for now because correct_motion function does not take dict as input yet
         #the first two parameters to test in motion correction: "win_step_um" and "win_scale_um"
+        recording_saved=spre.astype(recording_saved,np.float32)
         recording_corrected_dict=motion_correction_shankbyshank(recording_saved,oe_folder,analysis_methods)
 
         if plot_traces:
@@ -377,7 +374,6 @@ def raw2si(thisDir, json_file):
                 mode="local",
                 radius_um=150,
                 #int_scale=200,#this can be added to replicate kilosort behaviour
-                dtype=float,
             )
             #sw.plot_traces({f"r100":rec_r100_s200},  mode="auto",time_range=[10, 10.1], backend="ipywidgets")
         ############################# spike sorting ##########################
@@ -443,7 +439,6 @@ def raw2si(thisDir, json_file):
                 remove_existing_folder=True,
                 output_folder=oe_folder / result_folder_name,
                 verbose=True,
-                job_kwargs=job_kwargs,
                 sorter_params=sorter_params,
             )
         ##this will return a sorting object
@@ -454,6 +449,9 @@ def raw2si(thisDir, json_file):
             and analysis_methods.get("overwrite_curated_dataset") == True
         ):
             sorting_spikes.save(folder=oe_folder / sorting_folder_name, overwrite=True)
+            json_string = json.dumps(analysis_methods, indent=1)
+            with open(oe_folder / sorting_folder_name / "analysis_methods_dictionary_backup.json", "w") as f:
+                f.write(json_string)
 
     return print("Spiking sorting done. The rest of the tasks can be done in other PCs")
     # for unit in sorting_spikes.get_unit_ids():
@@ -466,8 +464,11 @@ if __name__ == "__main__":
     #thisDir = r"Z:\DATA\experiment_openEphys\H-series-128channels\2025-03-23_20-47-26"
     #thisDir = r"Z:\DATA\experiment_openEphys\H-series-128channels\2025-03-23_21-33-38"
     #thisDir = r"D:\Open Ephys\2025-04-03_19-13-57"
+    #thisDir= r"Z:\DATA\experiment_openEphys\H-series-128channels\2025-04-09_22-46-23"
+    thisDir=r"Z:\DATA\experiment_openEphys\H-series-128channels\2025-03-23_21-33-38"
+    #thisDir = r"D:\Open Ephys\2025-04-09_21-22-00"
     #thisDir = r"D:\Open Ephys\2025-04-03_20-36-55"
-    thisDir = r"D:\Open Ephys\2025-03-05_13-45-15"
+    #thisDir = r"D:\Open Ephys\2025-03-05_13-45-15"
     #thisDir = r"D:\Open Ephys\2025-02-23_20-39-04"
     json_file = "./analysis_methods_dictionary.json"
     ##Time the function

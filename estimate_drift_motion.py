@@ -73,7 +73,7 @@ def AP_band_drift_estimation(group,recording_saved,oe_folder,analysis_methods,wi
                 recording_corrected, _, motion_info = spre.correct_motion(
                     recording=recording_saved,
                     preset=motion_corrector,
-                    folder=motion_folder,
+                    folder=test_folder,
                     overwrite=True,
                     output_motion=True,
                     output_motion_info=True,
@@ -84,7 +84,7 @@ def AP_band_drift_estimation(group,recording_saved,oe_folder,analysis_methods,wi
                 recording_corrected, _, motion_info = spre.correct_motion(
                     recording=recording_saved,
                     preset=motion_corrector,
-                    folder=motion_folder,
+                    folder=test_folder,
                     overwrite=False,
                     output_motion=False,
                     output_motion_info=False,
