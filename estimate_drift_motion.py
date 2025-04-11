@@ -13,7 +13,10 @@ from spikeinterface.sortingcomponents.motion import (
     interpolate_motion,
     estimate_motion,
 )
-
+n_cpus = os.cpu_count()
+n_jobs = n_cpus - 4
+global_job_kwargs = dict(n_jobs=n_jobs, chunk_duration="2s")
+si.set_global_job_kwargs(**global_job_kwargs)
 def LFP_band_drift_estimation(group,raw_rec,oe_folder):
     lfprec = spre.bandpass_filter(raw_rec,freq_min=0.5,freq_max=250,margin_ms=1500.,filter_order=3,dtype="float32",add_reflect_padding=True)
     lfprec = spre.common_reference(lfprec,reference="global", operator="median")
@@ -43,6 +46,7 @@ def AP_band_drift_estimation(group,recording_saved,oe_folder,analysis_methods,wi
     motion_folder = oe_folder / f"motion_shank{group}"
     motion_info_list=[]
     motion_corrector_tuple=("dredge","rigid_fast","kilosort_like")
+    #motion_corrector_tuple=("dredge","kilosort_like")
     if skip_motion_correction:
         print(
             "skipp correct motion/drift"
@@ -51,6 +55,8 @@ def AP_band_drift_estimation(group,recording_saved,oe_folder,analysis_methods,wi
     else:
         if motion_corrector in motion_corrector_tuple:
             test_folder = motion_folder / motion_corrector
+            motion_corrector_params = spre.get_motion_parameters_preset(motion_corrector)
+            motion_corrector_params['estimate_motion_kwargs'].update({"win_step_um":75.0,"win_scale_um":250.0,"win_margin_um":150})
             # dredge_preset_params = spre.get_motion_parameters_preset("dredge")
             if test_folder.is_dir() and load_existing_motion_info:
                 motion_info = spre.load_motion_info(test_folder)
@@ -61,6 +67,9 @@ def AP_band_drift_estimation(group,recording_saved,oe_folder,analysis_methods,wi
                     #spatial_bins=motion_info["spatial_bins"],
                 )
             elif analysis_methods.get("overwrite_curated_dataset") or test_folder.is_dir()==False:
+                # if motion_corrector == "kilosort_like":
+                #     estimate_motion_kwargs = {
+                # elif motion_corrector == "dredge":
                 recording_corrected, _, motion_info = spre.correct_motion(
                     recording=recording_saved,
                     preset=motion_corrector,
@@ -68,10 +77,7 @@ def AP_band_drift_estimation(group,recording_saved,oe_folder,analysis_methods,wi
                     overwrite=True,
                     output_motion=True,
                     output_motion_info=True,
-                    estimate_motion_kwargs={
-                        "win_step_um": win_step_um,
-                        "win_scale_um": win_step_um,
-                    }
+                    estimate_motion_kwargs=motion_corrector_params['estimate_motion_kwargs']
                 )
             else:
                 motion_info=[]
@@ -82,10 +88,7 @@ def AP_band_drift_estimation(group,recording_saved,oe_folder,analysis_methods,wi
                     overwrite=False,
                     output_motion=False,
                     output_motion_info=False,
-                    estimate_motion_kwargs={
-                        "win_step_um": win_step_um,
-                        "win_scale_um": win_step_um,
-                    })#interpolate_motion_kwargs={'border_mode' : 'force_extrapolate'},
+                    estimate_motion_kwargs=motion_corrector_params['estimate_motion_kwargs'])#interpolate_motion_kwargs={'border_mode' : 'force_extrapolate'},
                 print('recording is corrected but output_motion and info are not generated')
             motion_info_list.append(motion_info)  # the default mode will remove channels at the border, trying using force_extrapolate
         elif motion_corrector == ("testing"):
@@ -95,7 +98,10 @@ def AP_band_drift_estimation(group,recording_saved,oe_folder,analysis_methods,wi
             run_times = []
             for preset in motion_corrector_tuple:
                 print("Computing with", preset)
-                test_folder = oe_folder / f"motion_folder{group}_dataset{win_step_um}_{win_scale_um}" / preset
+                if preset == "rigid_fast":
+                    test_folder = oe_folder / f"motion_shank{group}_dataset" / preset
+                else:
+                    test_folder = oe_folder / f"motion_shank{group}_dataset{win_step_um}_{win_scale_um}" / preset
                 if load_existing_motion_info and test_folder.exists():
                     motion_info = spre.load_motion_info(test_folder)
                 else:
@@ -109,6 +115,7 @@ def AP_band_drift_estimation(group,recording_saved,oe_folder,analysis_methods,wi
                         estimate_motion_kwargs={
                             "win_step_um": win_step_um,
                             "win_scale_um": win_scale_um,
+                            #"win_margin_um": win_margin_um,
                         })  # the default mode will remove channels at the border, trying using force_extrapolate
                     fig = plt.figure(figsize=(14, 8))
                     sw.plot_motion_info(
@@ -169,7 +176,7 @@ def AP_band_drift_estimation(group,recording_saved,oe_folder,analysis_methods,wi
                     ax.bar(motion_corrector_tuple, rtimes, bottom=bottom, label=k)
                 bottom += rtimes
             ax.legend()
-            fig3.savefig(oe_folder / f"motion_folder{group}_dataset{win_step_um}_{win_scale_um}" / "run_time_accuracy_comparsion.png")
+            fig3.savefig(oe_folder / f"motion_shank{group}_dataset{win_step_um}_{win_scale_um}" / "run_time_accuracy_comparsion.png")
             recording_corrected = recording_saved
             plt.close('all')
         else:
@@ -191,10 +198,6 @@ def run_estimation(thisDir, json_file):
     probe_type = analysis_methods.get("probe_type")
     motion_corrector = analysis_methods.get("motion_corrector")
     lfp_drift_estimation=False
-    n_cpus = os.cpu_count()
-    n_jobs = n_cpus - 4
-    job_kwargs = dict(n_jobs=n_jobs, chunk_duration="1s", progress_bar=True)
-
     if (
         analysis_methods.get("load_prepocessed_file") == True
         and (oe_folder / "preprocessed_compressed.zarr").is_dir()
@@ -266,16 +269,29 @@ def run_estimation(thisDir, json_file):
 
         
     recordings_dict = recording_saved.split_by(property='group', outputs='dict')
-    win_step_um=[50,100,150]
-    win_scale_um=[-150,-50,50,150]
+    win_step_set=[75,50,25]
+    #win_scale_set=[150,200,250]
+    win_scale_set=[250,200,150]
+    #win_margin_set=[-150,0,150]
+    #win_margin_set=[150,0]
+    # win_step_um":75.0,"
+    # win_scale_um":250.0
+    #win_step_set=[50,100,150]
+    #win_scale_set=[50,100,150,200,250]
     recording_corrected_dict = {}
     motion_ap_dict={}
     for group, sub_recording in recordings_dict.items():
-        recording_corrected,motion_ap_list=AP_band_drift_estimation(group,sub_recording,oe_folder,analysis_methods,win_step_um,win_scale_um)
-        recording_corrected_dict[group]=recording_corrected
-        motion_ap_dict[group]=motion_ap_list
+        if group==1:#if group%2==1:
+            continue
+        for win_scale_um in win_scale_set:
+            for win_step_um in win_step_set:
+                #for win_margin_um in win_margin_set:
+                print(f"win_step_um={win_step_um}, win_scale_um={win_scale_um}")#,win_margin_um={win_margin_um}
+                _,_=AP_band_drift_estimation(group,sub_recording,oe_folder,analysis_methods,win_step_um,win_scale_um)
+        # recording_corrected_dict[group]=recording_corrected
+        # motion_ap_dict[group]=motion_ap_list
         
-    return motion_ap_dict,motion_lfp_dict
+    return print("done testing motion correction")
 
 
 
@@ -283,8 +299,10 @@ if __name__ == "__main__":
     #thisDir = r"D:\Open Ephys\2025-03-10_20-25-05"
     #thisDir = r"D:\Open Ephys\2025-03-19_18-02-13"
     #thisDir = r"Z:\DATA\experiment_openEphys\H-series-128channels\2025-03-23_20-47-26"
+    #thisDir = r"Z:\DATA\experiment_openEphys\H-series-128channels\2025-04-09_22-46-23"
+    thisDir = r"Z:\DATA\experiment_openEphys\H-series-128channels\2025-04-09_21-22-00"
     #thisDir = r"Z:\DATA\experiment_openEphys\H-series-128channels\2025-03-23_21-33-38"
-    thisDir = r"Z:\DATA\experiment_openEphys\H-series-128channels\2025-03-23_20-47-26"
+    #thisDir = r"Z:\DATA\experiment_openEphys\H-series-128channels\2025-03-23_20-47-26"
     json_file = "./analysis_methods_dictionary.json"
     ##Time the function
     tic = time.perf_counter()
