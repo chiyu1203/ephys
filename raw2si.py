@@ -110,6 +110,15 @@ def get_preprocessed_recording(oe_folder,analysis_methods):
             trace_snippet = raw_rec.get_traces(
                 start_frame=int(fs * 0), end_frame=int(fs * 2)
             )
+        # Slice the recording if needed
+        if tmin_tmax[1]>0 and tmin_tmax[1]>tmin_tmax[0]:
+            start_sec = tmin_tmax[0]
+            end_sec = tmin_tmax[1]
+            rec_of_interest = raw_rec.frame_slice(start_frame=start_sec * fs, end_frame=end_sec * fs)
+        elif tmin_tmax[1]<0:
+            print("tmax <0 means to analyse the entire recording")
+        else:
+            ValueError("tmax needs to be bigger than tmin to select certain section of the recording")
 
         ################load probe information################
         if probe_type == "H10_stacked":
@@ -212,21 +221,6 @@ def get_preprocessed_recording(oe_folder,analysis_methods):
         rec_of_interest.annotate(
             is_filtered=True
         )  # needed to add this somehow because when loading a preprocessed data saved in the past, that data would not be labeled as filtered data
-    # Slice the recording if needed
-    if tmin_tmax[1]>0 and tmin_tmax[1]>tmin_tmax[0]:
-        start_sec = tmin_tmax[0]
-        end_sec = tmin_tmax[1]
-        if type(rec_of_interest)==dict:
-            tmp = {}
-            for group, sub_recording in rec_of_interest.items():
-                tmp[group] = sub_recording.frame_slice(start_frame=start_sec * fs, end_frame=end_sec * fs)
-            rec_of_interest=tmp
-        else:
-            rec_of_interest = rec_of_interest.frame_slice(start_frame=start_sec * fs, end_frame=end_sec * fs)
-    elif tmin_tmax[1]<0:
-        print("tmax <0 means to analyse the entire recording")
-    else:
-        ValueError("tmax needs to be bigger than tmin to select certain section of the recording")
     return rec_of_interest
 
 
@@ -465,7 +459,10 @@ if __name__ == "__main__":
     #thisDir = r"Z:\DATA\experiment_openEphys\H-series-128channels\2025-03-23_21-33-38"
     #thisDir = r"D:\Open Ephys\2025-04-03_19-13-57"
     #thisDir= r"Z:\DATA\experiment_openEphys\H-series-128channels\2025-04-09_22-46-23"
-    thisDir=r"Z:\DATA\experiment_openEphys\H-series-128channels\2025-03-23_21-33-38"
+    #thisDir= r"D:\Open Ephys\2025-04-09_19-33-08"
+    thisDir= r"Z:\DATA\experiment_openEphys\H-series-128channels\2025-04-11_22-42-40"
+    #thisDir= r"D:\Open Ephys\2025-04-09_21-22-00"
+    #thisDir=r"Z:\DATA\experiment_openEphys\H-series-128channels\2025-03-23_21-33-38"
     #thisDir = r"D:\Open Ephys\2025-04-09_21-22-00"
     #thisDir = r"D:\Open Ephys\2025-04-03_20-36-55"
     #thisDir = r"D:\Open Ephys\2025-03-05_13-45-15"
