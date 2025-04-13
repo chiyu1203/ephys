@@ -70,7 +70,7 @@ def motion_correction_shankbyshank(recording_saved,oe_folder,analysis_methods):
     return recording_corrected_dict
 
 def get_preprocessed_recording(oe_folder,analysis_methods):
-    tmin_tmax = analysis_methods.get("tmin_tmax")
+
     if (
         analysis_methods.get("load_prepocessed_file") == True
         and (oe_folder / "preprocessed_compressed.zarr").is_dir()
@@ -89,27 +89,34 @@ def get_preprocessed_recording(oe_folder,analysis_methods):
         fs = recording_saved.get_sampling_frequency()
     else:
         print("Load meta information from openEphys")
+        tmin_tmax = analysis_methods.get("tmin_tmax")
         this_experimenter = analysis_methods.get("experimenter")
         probe_type = analysis_methods.get("probe_type")
 
         plot_traces = analysis_methods.get("plot_traces")
-        if oe_folder.stem =='2025-03-05_13-45-15':
-            raw_rec = se.read_openephys(oe_folder, load_sync_timestamps=True,block_index=0,stream_id='0')
-        else:
-            raw_rec = se.read_openephys(oe_folder, load_sync_timestamps=True)
-        # To show the start of recording time
-        # raw_rec.get_times()[0]
-            event = se.read_openephys_event(oe_folder)
-        # event_channel_ids=channel_ids
-        # events = event.get_events(channel_id=channel_ids[1], segment_index=0)# a complete record of events including [('time', '<f8'), ('duration', '<f8'), ('label', '<U100')]
-            events_times = event.get_event_times(
-                channel_id=event.channel_ids[1], segment_index=0
-            )  # this record ON phase of sync pulse
+        raw_rec = se.read_openephys(oe_folder, load_sync_timestamps=True)
+    # To show the start of recording time
+    # raw_rec.get_times()[0]
+        event = se.read_openephys_event(oe_folder)
+    # event_channel_ids=channel_ids
+    # events = event.get_events(channel_id=channel_ids[1], segment_index=0)# a complete record of events including [('time', '<f8'), ('duration', '<f8'), ('label', '<U100')]
+        events_times = event.get_event_times(
+            channel_id=event.channel_ids[1], segment_index=0
+        )  # this record ON phase of sync pulse
         fs = raw_rec.get_sampling_frequency()
         if analysis_methods.get("load_raw_traces") == True:
             trace_snippet = raw_rec.get_traces(
                 start_frame=int(fs * 0), end_frame=int(fs * 2)
             )
+        # Slice the recording if needed
+        if tmin_tmax[1]>0 and tmin_tmax[1]>tmin_tmax[0]:
+            start_sec = tmin_tmax[0]
+            end_sec = tmin_tmax[1]
+            rec_of_interest = raw_rec.frame_slice(start_frame=start_sec * fs, end_frame=end_sec * fs)
+        elif tmin_tmax[1]<0:
+            print("tmax <0 means to analyse the entire recording")
+        else:
+            ValueError("tmax needs to be bigger than tmin to select certain section of the recording")
 
         ################load probe information################
         if probe_type == "H10_stacked":
@@ -164,23 +171,33 @@ def get_preprocessed_recording(oe_folder,analysis_methods):
         # recording_f = spre.highpass_filter(raw_rec, freq_min=300,dtype="float32")
         
 
-        if analysis_methods.get("analyse_good_channels_only") == True:
+        if analysis_methods.get("remove_dead_channels")==True:
             """
             This step should be done before saving preprocessed files because ideally the preprocessed file we want to create is something ready for spiking
             detection, which means neural traces gone through bandpass filter and common reference.
             However, applying common reference takes signals from channels of interest which requires us to decide what we want to do with other bad or noisy channels first.
             """
-            bad_channel_ids, channel_labels = spre.detect_bad_channels(
+            bad_channel_ids,channel_labels = spre.detect_bad_channels(
                 recording_f, method="coherence+psd"
             )
+            # (noise_inds,) = np.where(channel_labels=='noise')
+            # noise_channel_ids = recording_f.channel_ids[noise_inds]
+            (dead_inds,) = np.where(channel_labels=='dead')
+            dead_channel_ids = recording_f.channel_ids[dead_inds]
+
             print("bad_channel_ids", bad_channel_ids)
             print("channel_labels", channel_labels)
-
-            recording_f = recording_f.remove_channels(
-                bad_channel_ids
-            )  #try this functino interpolate_bad_channels when I can put 3 shanks in the brain plus when there is some noisy channels
-            #https://spikeinterface.readthedocs.io/en/stable/api.html#spikeinterface.preprocessing.interpolate_bad_channels
-
+            if analysis_methods.get("analyse_good_channels_only") == True:
+                recording_f = recording_f.remove_channels(
+                    bad_channel_ids
+                )  #try this functino interpolate_bad_channels when I can put 3 shanks in the brain plus when there is some noisy channels
+                #https://spikeinterface.readthedocs.io/en/stable/api.html#spikeinterface.preprocessing.interpolate_bad_channels
+            elif analysis_methods.get("interpolate_noisy_channels")==True:
+                ##this function is still buggy so just treat this option as keeping noisy channels while removing dead channels
+                recording_f = recording_f.remove_channels(dead_channel_ids)
+                #recording_f=spre.interpolate_bad_channels(dead_channel_ids)
+            else: 
+                pass
         ##start to split the recording into groups here because remove bad channels function is not ready to receive dict as input
         recordings_dict = recording_f.split_by(property='group', outputs='dict')
         if plot_traces:
@@ -212,21 +229,6 @@ def get_preprocessed_recording(oe_folder,analysis_methods):
         rec_of_interest.annotate(
             is_filtered=True
         )  # needed to add this somehow because when loading a preprocessed data saved in the past, that data would not be labeled as filtered data
-    # Slice the recording if needed
-    if tmin_tmax[1]>0 and tmin_tmax[1]>tmin_tmax[0]:
-        start_sec = tmin_tmax[0]
-        end_sec = tmin_tmax[1]
-        if type(rec_of_interest)==dict:
-            tmp = {}
-            for group, sub_recording in rec_of_interest.items():
-                tmp[group] = sub_recording.frame_slice(start_frame=start_sec * fs, end_frame=end_sec * fs)
-            rec_of_interest=tmp
-        else:
-            rec_of_interest = rec_of_interest.frame_slice(start_frame=start_sec * fs, end_frame=end_sec * fs)
-    elif tmin_tmax[1]<0:
-        print("tmax <0 means to analyse the entire recording")
-    else:
-        ValueError("tmax needs to be bigger than tmin to select certain section of the recording")
     return rec_of_interest
 
 
@@ -465,7 +467,10 @@ if __name__ == "__main__":
     #thisDir = r"Z:\DATA\experiment_openEphys\H-series-128channels\2025-03-23_21-33-38"
     #thisDir = r"D:\Open Ephys\2025-04-03_19-13-57"
     #thisDir= r"Z:\DATA\experiment_openEphys\H-series-128channels\2025-04-09_22-46-23"
-    thisDir=r"Z:\DATA\experiment_openEphys\H-series-128channels\2025-03-23_21-33-38"
+    #thisDir= r"D:\Open Ephys\2025-04-09_19-33-08"
+    thisDir= r"D:\Open Ephys\2025-04-11_22-42-40"
+    #thisDir= r"D:\Open Ephys\2025-04-09_21-22-00"
+    #thisDir=r"Z:\DATA\experiment_openEphys\H-series-128channels\2025-03-23_21-33-38"
     #thisDir = r"D:\Open Ephys\2025-04-09_21-22-00"
     #thisDir = r"D:\Open Ephys\2025-04-03_20-36-55"
     #thisDir = r"D:\Open Ephys\2025-03-05_13-45-15"
