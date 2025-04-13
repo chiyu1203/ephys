@@ -242,26 +242,35 @@ def align_async_signals(thisDir, json_file):
     analyser_folder_name = "analyser" + sorter_suffix
     phy_folder_name = phy_folder_name = "phy" + sorter_suffix
     report_folder_name = "report" + sorter_suffix
+    pd_on_ext='pd_on_oe.npy'
+    pd_off_ext='pd_off_oe.npy'
+    
+    pd_on_file = find_file(oe_folder, pd_on_ext)
+    pd_off_file = find_file(oe_folder, pd_off_ext)
+    if pd_on_file is not None:
+        pd_on_oe=np.load(pd_on_file)
+        pd_off_oe=np.load(pd_off_file)
+    else:
 
     ##load adc events from openEphys
-    session = Session(oe_folder)
-    recording = session.recordnodes[0].recordings[0]
-    camera_trigger_on_oe = recording.events.timestamp[
-        (recording.events.line == 2) & (recording.events.state == 1)
-    ]
-    pd_on_oe = recording.events.timestamp[
-        (recording.events.line == 1) & (recording.events.state == 1)
-    ]
-    pd_off_oe = recording.events.timestamp[
-        (recording.events.line == 1) & (recording.events.state == 0)
-    ]
-    np.save("pd_on_oe.npy",pd_on_oe)
-    np.save("pd_off_oe.npy",pd_off_oe)
+        session = Session(oe_folder)
+        recording = session.recordnodes[0].recordings[0]
+        camera_trigger_on_oe = recording.events.timestamp[
+            (recording.events.line == 2) & (recording.events.state == 1)
+        ]
+        pd_on_oe = recording.events.timestamp[
+            (recording.events.line == 1) & (recording.events.state == 1)
+        ]
+        pd_off_oe = recording.events.timestamp[
+            (recording.events.line == 1) & (recording.events.state == 0)
+        ]
+        np.save("pd_on_oe.npy",oe_folder/pd_on_oe)
+        np.save("pd_off_oe.npy",oe_folder/pd_off_oe)
     #print(f"Onset of ISI and preStim: {pd_off_oe.values-pd_on_oe[:-1].values}")
     #print(f"Onset of Stim: {pd_on_oe[2:].values-pd_off_oe[1:].values}")
-    if len(camera_trigger_on_oe)>0:
-        np.where(camera_trigger_on_oe.values > pd_off_oe.values[1])
-        np.where(camera_trigger_on_oe.values > pd_on_oe.values[2])
+        if len(camera_trigger_on_oe)>0:
+            np.where(camera_trigger_on_oe.values > pd_off_oe.values[1])
+            np.where(camera_trigger_on_oe.values > pd_on_oe.values[2])
         # print(f"trial id during the first stim: {np.where((camera_trigger_on_oe.values>pd_off_oe.values[1]) & (camera_trigger_on_oe.values<pd_on_oe.values[2]))}")
     stim_directory = oe_folder.resolve().parents[0]
     database_ext = "database*.pickle"
@@ -274,6 +283,7 @@ def align_async_signals(thisDir, json_file):
     velocity_file = find_file(stim_directory, velocity_ext)
     rotation_ext = "z_vector.npy"
     rotation_file = find_file(stim_directory, rotation_ext)
+
     camera_fps = analysis_methods.get("camera_fps")
     walk_speed_threshold = 20
     walk_consecutive_length = int(camera_fps * 0.5)
@@ -298,8 +308,8 @@ def align_async_signals(thisDir, json_file):
             print("load raw stimulus information")
             trial_ext = "trial*.csv"
             this_csv = find_file(stim_directory, trial_ext)
-            stim_directory = pd.read_csv(this_csv)
-            meta_info, _ = sorting_trial_info(stim_directory)
+            stim_pd = pd.read_csv(this_csv)
+            meta_info, _ = sorting_trial_info(stim_pd)
             stimulus_meta_info = meta_info[1::2]
             num_stim = stimulus_meta_info.shape[0]
         else:
@@ -337,8 +347,8 @@ def align_async_signals(thisDir, json_file):
                 )
                 csv_ext = "trial*.csv"
                 this_csv = find_file(stim_directory, csv_ext)
-                stim_directory = pd.read_csv(this_csv)
-                num_stim = int(stim_directory.shape[0] / 2)
+                stim_pd = pd.read_csv(this_csv)
+                num_stim = int(stim_pd.shape[0] / 2)
                 walking_trials_threshold = 50
                 turning_trials_threshold = 0.33
                 classify_walk(
@@ -430,11 +440,14 @@ def align_async_signals(thisDir, json_file):
     ## if use kilosort standaliner, then load kilosort folder. Otherwise, load spikeinterface's preprocessed data and its toolkit.
     if analysis_methods.get("motion_corrector")=="kilosort_default":
         #sorting_KS = se.read_kilosort(r"C:\Users\neuroPC\Documents\Open Ephys\GN25011\kilosort4_shank023_0block_32ntern")
-        curated_folder=os.list(oe_folder)
         #phy_sorting = se.read_phy(r"C:\Users\neuroPC\Documents\Open Ephys\GN25011\kilosort4_shank023_0block_32ntern",exclude_cluster_groups=['noise'])
-        spike_clusters=np.load(r"C:\Users\neuroPC\Documents\Open Ephys\GN25011\kilosort4_shank023_0block_32ntern\spike_clusters.npy")
-        spike_times=np.load(r"C:\Users\neuroPC\Documents\Open Ephys\GN25011\kilosort4_shank023_0block_32ntern\spike_times.npy")/30000.0#this is the default sampling frequency in openEphys
-        cluster_group=pd.read_csv(r'C:\Users\neuroPC\Documents\Open Ephys\GN25011\kilosort4_shank023_0block_32ntern\cluster_group.tsv', sep='\t',header=0)
+        for this_folder in os.listdir(stim_directory):
+            if this_folder.startswith("kilosort"):
+                curated_folder = this_folder
+                break
+        spike_clusters=np.load(stim_directory/curated_folder/"spike_clusters.npy")
+        spike_times=np.load(stim_directory/curated_folder/"spike_times.npy")/30000.0#this is the default sampling frequency in openEphys
+        cluster_group=pd.read_csv(stim_directory/curated_folder/"cluster_group.tsv", sep='\t',header=0)
         #cluster_info=pd.read_csv(r'C:\Users\neuroPC\Documents\Open Ephys\GN25011\kilosort4_shank023_0block_32ntern\cluster_info.tsv', sep='\t',header=0)
         
         #cluster_group.loc[cluster_group['group']=='good']['cluster_id'].values
@@ -557,9 +570,9 @@ if __name__ == "__main__":
     # thisDir = r"Z:\DATA\experiment_trackball_Optomotor\Zball\GN23019\240507\coherence\session1\2024-05-07_23-08-55"
     #thisDir = r"Z:\DATA\experiment_trackball_Optomotor\Zball\GN23018\240422\coherence\session2\2024-04-22_01-09-50"
     #thisDir = r"Z:\DATA\experiment_openEphys\P-series-32channels\2025-02-26_17-00-43"
-    #thisDir = r"C:\Users\neuroPC\Documents\Open Ephys\GN25011\2025-04-09_19-33-08"
-    thisDir = r"C:\Users\neuroPC\Documents\Open Ephys\GN25012"
-    thisDir = r"D:\2025-04-09_19-33-08"
+    thisDir = r"C:\Users\neuroPC\Documents\Open Ephys\GN25011\2025-04-09_19-33-08"
+    #thisDir = r"C:\Users\neuroPC\Documents\Open Ephys\GN25011"
+    #thisDir = r"D:\2025-04-09_19-33-08"
     #thisDir = r"Z:\DATA\experiment_trackball_Optomotor\Zball\GN23015\240201\coherence\session1\2024-02-01_15-25-25"
     # thisDir = r"C:\Users\neuroPC\Documents\Open Ephys\2024-02-01_15-25-25"
     json_file = "./analysis_methods_dictionary.json"
