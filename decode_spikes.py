@@ -2,6 +2,8 @@ import time, os, json, warnings, sys
 from open_ephys.analysis import Session
 import spikeinterface.core as si
 import spikeinterface.extractors as se
+# For kilosort/phy output files we can use the read_phy
+# most formats will have a read_xx that can used.
 import matplotlib.pyplot as plt
 from spikeinterface.widgets import plot_sorting_summary
 import math
@@ -253,6 +255,8 @@ def align_async_signals(thisDir, json_file):
     pd_off_oe = recording.events.timestamp[
         (recording.events.line == 1) & (recording.events.state == 0)
     ]
+    np.save("pd_on_oe.npy",pd_on_oe)
+    np.save("pd_off_oe.npy",pd_off_oe)
     #print(f"Onset of ISI and preStim: {pd_off_oe.values-pd_on_oe[:-1].values}")
     #print(f"Onset of Stim: {pd_on_oe[2:].values-pd_off_oe[1:].values}")
     if len(camera_trigger_on_oe)>0:
@@ -280,8 +284,8 @@ def align_async_signals(thisDir, json_file):
         ISI_duration = analysis_methods.get("interval_duration")
         walking_trials_threshold = 50
         turning_trials_threshold = 0.33
-        time_window = np.array([-0.1, 0.0])
-        time_window_behaviours = np.array([-1, 2])
+        time_window = analysis_methods.get("analysis_window")
+        time_window_behaviours = np.array([-5, 5])
         ##load stimulus meta info
         pd_ext = "behavioural_summary.pickle"
         stimulus_meta_file = find_file(stim_directory, pd_ext)
@@ -301,19 +305,16 @@ def align_async_signals(thisDir, json_file):
         else:
             stimulus_meta_info = pd.read_pickle(stimulus_meta_file)
             num_stim = stimulus_meta_info.shape[0]
-
-        isi_on_oe = recording.events.timestamp[
-            (recording.events.line == 1) & (recording.events.state == 1)
-        ]
-        stim_on_oe = recording.events.timestamp[
-            (recording.events.line == 1) & (recording.events.state == 0)
-        ]
+        ### changed ISI and Stim signals to 1 and 0 from 2025 April 1st
+        stim_on_oe = pd_on_oe
+        isi_on_oe = pd_off_oe
 
         if analysis_methods.get("analyse_stim_evoked_activity") == True:
             if len(stim_on_oe) > num_stim:
-                stim_events_times = stim_on_oe[
-                    -num_stim:
-                ].values  ##this happens when the S button is pressed after openEphys are recorded.
+                stim_events_times=stim_on_oe[:num_stim]
+                # stim_events_times = stim_on_oe[
+                #     -num_stim:
+                # ].values  ##this happens when the S button is pressed after openEphys are recorded.
             else:
                 stim_events_times = stim_on_oe[:].values
         elif event_of_interest.lower() == "preStim_ISI":
@@ -390,7 +391,7 @@ def align_async_signals(thisDir, json_file):
                 if analysis_methods.get("save_output") == True:
                     fig1.savefig(Path(stim_directory) / plot_name)
                 plt.show()
-                if len(barcode_on_oe) == 0 and len(camera_trigger_on_oe) == 0:
+                if len(camera_trigger_on_oe) == 0:
                     walk_events_start_oe = estimating_ephys_timepoints(
                         walk_events_start,
                         stim_events_times,
@@ -426,72 +427,100 @@ def align_async_signals(thisDir, json_file):
         return
 
     ###start loading info from sorted spikes
-    recording_saved = get_preprocessed_recording(oe_folder)
-    if (
-        analysis_methods.get("load_analyser_from_disc") == True
-        and (oe_folder / analyser_folder_name).is_dir()
-    ):
-        sorting_analyzer = si.load_sorting_analyzer(
-            folder=oe_folder / analyser_folder_name
-        )
-        print(f"{sorting_analyzer}")
-        recording_saved = sorting_analyzer.recording
-        sorting_spikes = sorting_analyzer.sorting
-        unit_labels = sorting_spikes.get_property("quality")
+    ## if use kilosort standaliner, then load kilosort folder. Otherwise, load spikeinterface's preprocessed data and its toolkit.
+    if analysis_methods.get("motion_corrector")=="kilosort_default":
+        #sorting_KS = se.read_kilosort(r"C:\Users\neuroPC\Documents\Open Ephys\GN25011\kilosort4_shank023_0block_32ntern")
+        curated_folder=os.list(oe_folder)
+        #phy_sorting = se.read_phy(r"C:\Users\neuroPC\Documents\Open Ephys\GN25011\kilosort4_shank023_0block_32ntern",exclude_cluster_groups=['noise'])
+        spike_clusters=np.load(r"C:\Users\neuroPC\Documents\Open Ephys\GN25011\kilosort4_shank023_0block_32ntern\spike_clusters.npy")
+        spike_times=np.load(r"C:\Users\neuroPC\Documents\Open Ephys\GN25011\kilosort4_shank023_0block_32ntern\spike_times.npy")/30000.0#this is the default sampling frequency in openEphys
+        cluster_group=pd.read_csv(r'C:\Users\neuroPC\Documents\Open Ephys\GN25011\kilosort4_shank023_0block_32ntern\cluster_group.tsv', sep='\t',header=0)
+        #cluster_info=pd.read_csv(r'C:\Users\neuroPC\Documents\Open Ephys\GN25011\kilosort4_shank023_0block_32ntern\cluster_info.tsv', sep='\t',header=0)
+        
+        #cluster_group.loc[cluster_group['group']=='good']['cluster_id'].values
+        mask= np.isin(spike_clusters,cluster_group.loc[cluster_group['group']=='good']['cluster_id'].values)
+        #mask= np.isin(spike_clusters,cluster_group.loc[(cluster_group['group'].reset_index(drop=True)=='mua') | (cluster_group['group'].reset_index(drop=True)=='good')].values)
+        cluster_id_interest=spike_clusters[mask]
+        spike_time_interest=spike_times[mask]
+
+
+
+        #events_OE = se.read_openephys_event(folder_path=oe_folder)
+        # recording_saved = get_preprocessed_recording(oe_folder,analysis_methods)
+        # sorting_analyzer = si.create_sorting_analyzer(
+        #         sorting=sorting_spikes,
+        #         recording=recording_saved,
+        #         sparse=True,  # default
+        #         format="memory",  # default
+        #     )
+
     else:
-        if analysis_methods.get("include_MUA") == True:
-            cluster_group_interest = ["noise"]
+        recording_saved = get_preprocessed_recording(oe_folder,analysis_methods)
+        if (
+            analysis_methods.get("load_analyser_from_disc") == True
+            and (oe_folder / analyser_folder_name).is_dir()
+        ):
+            sorting_analyzer = si.load_sorting_analyzer(
+                folder=oe_folder / analyser_folder_name
+            )
+            print(f"{sorting_analyzer}")
+            recording_saved = sorting_analyzer.recording
+            sorting_spikes = sorting_analyzer.sorting
+            unit_labels = sorting_spikes.get_property("quality")
         else:
-            cluster_group_interest = ["noise", "mua"]
-        sorting_spikes = se.read_phy(
-            oe_folder / phy_folder_name, exclude_cluster_groups=cluster_group_interest
-        )
-        unit_labels = sorting_spikes.get_property("quality")
-        recording_saved = get_preprocessed_recording(oe_folder)
-        sorting_analyzer = si.create_sorting_analyzer(
-            sorting=sorting_spikes,
-            recording=recording_saved,
-            sparse=True,  # default
-            format="memory",  # default
-        )
-        calculate_analyzer_extension(sorting_analyzer)
+            if analysis_methods.get("include_MUA") == True:
+                cluster_group_interest = ["noise"]
+            else:
+                cluster_group_interest = ["noise", "mua"]
+            sorting_spikes = se.read_phy(
+                oe_folder / phy_folder_name, exclude_cluster_groups=cluster_group_interest
+            )
+            unit_labels = sorting_spikes.get_property("quality")
+            recording_saved = get_preprocessed_recording(oe_folder,analysis_methods)
+            sorting_analyzer = si.create_sorting_analyzer(
+                sorting=sorting_spikes,
+                recording=recording_saved,
+                sparse=True,  # default
+                format="memory",  # default
+            )
+            calculate_analyzer_extension(sorting_analyzer)
 
     ## go through the peri_event_time_histogram of every cluster
-    spike_time_all, cluster_id_all, spike_amp_all, spike_loc_all = spike_overview(
-        oe_folder,
-        this_sorter,
-        sorting_spikes,
-        sorting_analyzer,
-        recording_saved,
-        unit_labels,
-    )
-    print(f"printing an overview of spikes detected by {this_sorter} from {oe_folder}")
+        spike_time_interest, cluster_id_interest, spike_amp_all, spike_loc_all = spike_overview(
+            oe_folder,
+            this_sorter,
+            sorting_spikes,
+            sorting_analyzer,
+            recording_saved,
+            unit_labels,
+        )
+        print(f"printing an overview of spikes detected by {this_sorter} from {oe_folder}")
 
     # sort spike time for the function get_spike_counts_in_bins
-    spike_time_all_sorted, cluster_id_all_sorted = sort_arrays(
-        spike_time_all, cluster_id_all
+    spike_time_interest_sorted, cluster_id_interest_sorted = sort_arrays(
+        spike_time_interest, cluster_id_interest
     )
     spike_count, cluster_id = get_spike_counts_in_bins(
-        spike_time_all_sorted, cluster_id_all_sorted, stim_events_tw
+        spike_time_interest_sorted, cluster_id_interest_sorted, stim_events_tw
     )
     # work in progress: testing how to use this function
     # scatter_amp_depth_fr_plot(
     #     spike_amps=spike_amp_all,
-    #     spike_clusters=cluster_id_all,
+    #     spike_clusters=cluster_id_interest,
     #     spike_depths=spike_loc_all,
-    #     spike_times=spike_time_all,display=True
+    #     spike_times=spike_time_interest,display=True
     # )
 
     ## go through the peri_event_time_histogram of every cluster
-    for this_cluster_id in np.unique(cluster_id_all):
+    for this_cluster_id in np.unique(cluster_id_interest):
         if analysis_methods.get("analysis_by_stimulus_type") == True:
             stim_type = analysis_methods.get("stim_type")
             for this_stim in stim_type:
 
                 # troubleshoot this part. Dont know why it exceeds the max size
                 ax = peri_event_time_histogram(
-                    spike_time_all,
-                    cluster_id_all,
+                    spike_time_interest,
+                    cluster_id_interest,
                     event_of_interest[
                         stimulus_meta_info.loc[:, "stim_type"] == this_stim
                     ],
@@ -503,13 +532,14 @@ def align_async_signals(thisDir, json_file):
                     include_raster=True,
                     raster_kwargs={"color": "black", "lw": 1},
                 )
-                fig_name = f"peth_stim{this_stim}_unit{this_cluster_id}.svg"
+                #fig_name = f"peth_stim{this_stim}_unit{this_cluster_id}.svg"
+                fig_name = f"peth_stim{this_stim}_unit{this_cluster_id}.jpg"
                 fig_dir = oe_folder / fig_name
                 ax.figure.savefig(fig_dir)
         else:
             ax = peri_event_time_histogram(
-                spike_time_all,
-                cluster_id_all,
+                spike_time_interest,
+                cluster_id_interest,
                 event_of_interest,
                 this_cluster_id,
                 t_before=abs(time_window_behaviours[0]),
@@ -525,9 +555,11 @@ def align_async_signals(thisDir, json_file):
 if __name__ == "__main__":
     # thisDir = r"C:\Users\neuroLaptop\Documents\Open Ephys\P-series-32channels\GN00003\2023-12-28_14-39-40"
     # thisDir = r"Z:\DATA\experiment_trackball_Optomotor\Zball\GN23019\240507\coherence\session1\2024-05-07_23-08-55"
-    # thisDir = r"Z:\DATA\experiment_trackball_Optomotor\Zball\GN23018\240422\coherence\session2\2024-04-22_01-09-50"
+    #thisDir = r"Z:\DATA\experiment_trackball_Optomotor\Zball\GN23018\240422\coherence\session2\2024-04-22_01-09-50"
     #thisDir = r"Z:\DATA\experiment_openEphys\P-series-32channels\2025-02-26_17-00-43"
-    thisDir = r"C:\Users\neuroPC\Documents\Open Ephys\2025-04-09_19-33-08"
+    #thisDir = r"C:\Users\neuroPC\Documents\Open Ephys\GN25011\2025-04-09_19-33-08"
+    thisDir = r"C:\Users\neuroPC\Documents\Open Ephys\GN25012"
+    thisDir = r"D:\2025-04-09_19-33-08"
     #thisDir = r"Z:\DATA\experiment_trackball_Optomotor\Zball\GN23015\240201\coherence\session1\2024-02-01_15-25-25"
     # thisDir = r"C:\Users\neuroPC\Documents\Open Ephys\2024-02-01_15-25-25"
     json_file = "./analysis_methods_dictionary.json"
