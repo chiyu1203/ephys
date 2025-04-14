@@ -242,16 +242,12 @@ def align_async_signals(thisDir, json_file):
     analyser_folder_name = "analyser" + sorter_suffix
     phy_folder_name = phy_folder_name = "phy" + sorter_suffix
     report_folder_name = "report" + sorter_suffix
-    pd_on_ext='pd_on_oe.npy'
-    pd_off_ext='pd_off_oe.npy'
-    
-    pd_on_file = find_file(oe_folder, pd_on_ext)
-    pd_off_file = find_file(oe_folder, pd_off_ext)
-    if pd_on_file is not None:
-        pd_on_oe=np.load(pd_on_file)
-        pd_off_oe=np.load(pd_off_file)
+    pd_ext='pd_*.npy'
+    pd_files = find_file(oe_folder, pd_ext)
+    if pd_files is not None:
+        pd_on_oe=np.load(pd_files[1])
+        pd_off_oe=np.load(pd_files[0])
     else:
-
     ##load adc events from openEphys
         session = Session(oe_folder)
         recording = session.recordnodes[0].recordings[0]
@@ -264,8 +260,8 @@ def align_async_signals(thisDir, json_file):
         pd_off_oe = recording.events.timestamp[
             (recording.events.line == 1) & (recording.events.state == 0)
         ]
-        np.save("pd_on_oe.npy",oe_folder/pd_on_oe)
-        np.save("pd_off_oe.npy",oe_folder/pd_off_oe)
+        np.save(oe_folder/"pd_on.npy",pd_on_oe)
+        np.save(oe_folder/"pd_off.npy",pd_off_oe)
     #print(f"Onset of ISI and preStim: {pd_off_oe.values-pd_on_oe[:-1].values}")
     #print(f"Onset of Stim: {pd_on_oe[2:].values-pd_off_oe[1:].values}")
         if len(camera_trigger_on_oe)>0:
@@ -570,7 +566,8 @@ if __name__ == "__main__":
     # thisDir = r"Z:\DATA\experiment_trackball_Optomotor\Zball\GN23019\240507\coherence\session1\2024-05-07_23-08-55"
     #thisDir = r"Z:\DATA\experiment_trackball_Optomotor\Zball\GN23018\240422\coherence\session2\2024-04-22_01-09-50"
     #thisDir = r"Z:\DATA\experiment_openEphys\P-series-32channels\2025-02-26_17-00-43"
-    thisDir = r"C:\Users\neuroPC\Documents\Open Ephys\GN25011\2025-04-09_19-33-08"
+    #thisDir = r"C:\Users\neuroPC\Documents\Open Ephys\GN25011\2025-04-09_19-33-08"
+    thisDir= r"D:\Open Ephys\2025-04-11_22-42-40"
     #thisDir = r"C:\Users\neuroPC\Documents\Open Ephys\GN25011"
     #thisDir = r"D:\2025-04-09_19-33-08"
     #thisDir = r"Z:\DATA\experiment_trackball_Optomotor\Zball\GN23015\240201\coherence\session1\2024-02-01_15-25-25"

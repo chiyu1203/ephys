@@ -92,12 +92,24 @@ def get_preprocessed_recording(oe_folder,analysis_methods):
         tmin_tmax = analysis_methods.get("tmin_tmax")
         this_experimenter = analysis_methods.get("experimenter")
         probe_type = analysis_methods.get("probe_type")
-
         plot_traces = analysis_methods.get("plot_traces")
         raw_rec = se.read_openephys(oe_folder, load_sync_timestamps=True)
     # To show the start of recording time
     # raw_rec.get_times()[0]
         event = se.read_openephys_event(oe_folder)
+        session = Session(oe_folder)
+        recording = session.recordnodes[0].recordings[0]
+        # camera_trigger_on_oe = recording.events.timestamp[
+        #     (recording.events.line == 2) & (recording.events.state == 1)
+        # ]
+        pd_on_oe = recording.events.timestamp[
+            (recording.events.line == 1) & (recording.events.state == 1)
+        ]
+        pd_off_oe = recording.events.timestamp[
+            (recording.events.line == 1) & (recording.events.state == 0)
+        ]
+        np.save(oe_folder/"pd_on.npy",pd_on_oe)
+        np.save(oe_folder/"pd_off.npy",pd_off_oe)
     # event_channel_ids=channel_ids
     # events = event.get_events(channel_id=channel_ids[1], segment_index=0)# a complete record of events including [('time', '<f8'), ('duration', '<f8'), ('label', '<U100')]
         events_times = event.get_event_times(
