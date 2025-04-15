@@ -47,7 +47,7 @@ def generate_sorter_suffix(this_sorter):
         sorter_suffix = "_KS4"
     return sorter_suffix
 def motion_correction_shankbyshank(recording_saved,oe_folder,analysis_methods):
-    (win_step_um,win_scale_um)=(100,100)        
+    (win_step_um,win_scale_um)=(75,150)        
     recording_corrected_dict = {}
     #create a temporary boolean here to account for correct motion not ready to accept dict. If the recording is an Object, it wwill first split it based groups. If an recording Object has no the group attribute,
     #that means it does not go through this line raw_rec = raw_rec.set_probe(probe,group_mode='by_shank') to create the attribute. In this case, a fake Group0 is created just because the function needs that
@@ -224,12 +224,17 @@ def get_preprocessed_recording(oe_folder,analysis_methods):
             #sw.plot_traces(recordings_dict[shankid],  mode="auto",time_range=[10, 10.1])
 
         # apply common median reference to remove common noise
-        # recording_cmr = spre.common_reference(
-        #     recordings_dict, reference="global", operator="average"
-        # )
         recording_cmr = spre.common_reference(
-            recording_f, reference="global", operator="median"
+            recordings_dict, reference="global", operator="median"
         )
+        # recording_cmr = spre.common_reference(
+        #     recording_f, reference="global", operator="median" 
+        # )
+        '''
+        ref_channel_idslist | str | int | None, default: None
+If “global” reference, a list of channels to be used as reference. If “single” reference, a list of one channel or a single channel id is expected. If “groups” is provided, then a list of channels to be applied to each group is expected.
+        '''
+
         # another filter to consider: https://github.com/SpikeInterface/SpikeInterface-Training-Edinburgh-May24/blob/main/hands_on/preprocessing/preprocessing.ipynb
         # recording_cmr = spre.highpass_spatial_filter(
         #     recording_f
@@ -418,9 +423,9 @@ def raw2si(thisDir, json_file):
             else:
                 print("use kilosort4")  
                 if probe_type=='H10_stacked':
-                    sorter_params.update({"dminx": 18.5,"batch_size": 180000})
+                    sorter_params.update({"dminx": 18.5,"batch_size": 180000,"nearest_templates": 32})
                 elif probe_type=='P2':
-                    sorter_params.update({"dminx": 22.5,"nearest_templates": 16, "max_channel_distance": 32,"batch_size": 180000})
+                    sorter_params.update({"dminx": 22.5,"batch_size": 180000,"nearest_templates": 16})
                 elif probe_type=='H5':
                     sorter_params.update({"dminx": 22.5,"batch_size": 180000})
 
@@ -480,7 +485,8 @@ if __name__ == "__main__":
     #thisDir = r"D:\Open Ephys\2025-04-03_19-13-57"
     #thisDir= r"Z:\DATA\experiment_openEphys\H-series-128channels\2025-04-09_22-46-23"
     #thisDir= r"D:\Open Ephys\2025-04-09_19-33-08"
-    thisDir= r"D:\Open Ephys\2025-04-11_22-42-40"
+    #thisDir= r"D:\Open Ephys\2025-04-11_22-42-40"
+    thisDir= r"D:\Open Ephys\2025-04-03_19-13-57"
     #thisDir= r"D:\Open Ephys\2025-04-09_21-22-00"
     #thisDir=r"Z:\DATA\experiment_openEphys\H-series-128channels\2025-03-23_21-33-38"
     #thisDir = r"D:\Open Ephys\2025-04-09_21-22-00"
