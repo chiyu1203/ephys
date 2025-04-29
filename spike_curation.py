@@ -44,7 +44,6 @@ class MplColorHelper:
 colormap_name = "coolwarm"
 COL = MplColorHelper(colormap_name, 0, 8)
 
-
 def spike_overview(
     oe_folder,
     this_sorter,
@@ -209,7 +208,7 @@ def si2phy(thisDir, json_file):
     result_folder_name = "results" + sorter_suffix
     sorting_folder_name = "sorting" + sorter_suffix
     analyser_folder_name = "analyser" + sorter_suffix
-    phy_folder_name = phy_folder_name = "phy" + sorter_suffix
+    phy_folder_name = "phy" + sorter_suffix
     report_folder_name = "report" + sorter_suffix
     remove_excess_spikes = 1
 
@@ -238,7 +237,8 @@ def si2phy(thisDir, json_file):
         # sorting_spikes = sorting_duduplicated
         unit_labels = sorting_spikes.get_property("quality")
         recording_saved = get_preprocessed_recording(oe_folder,analysis_methods)
-        analysis_methods.update({"load_existing_motion_info": True})  
+        analysis_methods.update({"load_existing_motion_info": True})
+        recording_saved=spre.astype(recording_saved,np.float32)
         recording_corrected_dict=motion_correction_shankbyshank(recording_saved,oe_folder,analysis_methods)
         if len(recording_corrected_dict)>1:
             recording_for_analysis=si.aggregate_channels(recording_corrected_dict)
@@ -272,7 +272,8 @@ def si2phy(thisDir, json_file):
             oe_folder / sorting_folder_name
         )  # this acts quite similar than above one line.
         recording_saved = get_preprocessed_recording(oe_folder,analysis_methods)
-        analysis_methods.update({"load_existing_motion_info": True})  
+        analysis_methods.update({"load_existing_motion_info": True})
+        recording_saved=spre.astype(recording_saved,np.float32)
         recording_corrected_dict=motion_correction_shankbyshank(recording_saved,oe_folder,analysis_methods)
         if len(recording_corrected_dict)>1:
             recording_for_analysis=si.aggregate_channels(recording_corrected_dict)
@@ -299,7 +300,7 @@ def si2phy(thisDir, json_file):
                 output_folder=oe_folder / phy_folder_name,
                 compute_amplitudes=True,
                 compute_pc_features=True,
-                copy_binary=True,
+                copy_binary=False,
                 remove_if_exists=True,
             )
         else:
@@ -334,8 +335,9 @@ if __name__ == "__main__":
     # thisDir = r"Z:\DATA\experiment_trackball_Optomotor\Zball\GN23015\240201\coherence\session1\2024-02-01_15-25-25"
     #thisDir = r"Z:\DATA\experiment_openEphys\P-series-32channels\2025-02-26_17-00-43"
     #thisDir = r"Z:\DATA\experiment_openEphys\H-series-128channels\2025-03-23_21-33-38"
-    #thisDir = r"D:\Open Ephys\2025-03-05_13-45-15"
-    thisDir = r"D:\Open Ephys\2025-04-03_19-13-57"
+    thisDir = r"D:\Open Ephys\2025-03-05_13-45-15"
+    #thisDir = r"D:\Open Ephys\2025-04-03_19-13-57"
+    #thisDir = r"D:\Open Ephys\2025-04-09_19-33-08"
     # thisDir = r"C:\Users\neuroPC\Documents\Open Ephys\2024-02-01_15-25-25"
     #thisDir = r"D:\Open Ephys\2025-02-23_20-39-04"
     json_file = "./analysis_methods_dictionary.json"
