@@ -434,6 +434,7 @@ def raw2si(thisDir, json_file):
                 sorting_spikes = ss.run_sorter_by_property(
                 sorter_name=this_sorter,
                 recording=rec_for_sorting,
+                remove_existing_folder=True,
                 grouping_property='group',
                 folder=oe_folder / result_folder_name,
                 verbose=True,
@@ -452,13 +453,14 @@ def raw2si(thisDir, json_file):
         else:
             ### add some lines here to update the parameters based on the sorter type
             #e.g. sorter_params.update({"projection_threshold": [9, 9]})
+            sorter_params.update({"apply_motion_correction": False,"apply_preprocessing": False})
+            sorter_params['general'].update({"radius_um":150})
             sorting_spikes = ss.run_sorter(
                 sorter_name=this_sorter,
                 recording=rec_for_sorting,
                 remove_existing_folder=True,
                 output_folder=oe_folder / result_folder_name,
-                verbose=True,
-                sorter_params=sorter_params,
+                verbose=True,**sorter_params,
             )
         ##this will return a sorting object
     ############################# spike sorting preview and saving ##########################
@@ -486,12 +488,13 @@ if __name__ == "__main__":
     #thisDir= r"Z:\DATA\experiment_openEphys\H-series-128channels\2025-04-09_22-46-23"
     #thisDir= r"D:\Open Ephys\2025-04-09_19-33-08"
     #thisDir= r"D:\Open Ephys\2025-04-11_22-42-40"
-    thisDir= r"D:\Open Ephys\2025-04-03_19-13-57"
+    #thisDir= r"D:\Open Ephys\2025-04-03_19-13-57"
+    #thisDir = r"D:\Open Ephys\2025-04-09_19-33-08"
     #thisDir= r"D:\Open Ephys\2025-04-09_21-22-00"
     #thisDir=r"Z:\DATA\experiment_openEphys\H-series-128channels\2025-03-23_21-33-38"
     #thisDir = r"D:\Open Ephys\2025-04-09_21-22-00"
     #thisDir = r"D:\Open Ephys\2025-04-03_20-36-55"
-    #thisDir = r"D:\Open Ephys\2025-03-05_13-45-15"
+    thisDir = r"D:\Open Ephys\2025-03-05_13-45-15"
     #thisDir = r"D:\Open Ephys\2025-02-23_20-39-04"
     json_file = "./analysis_methods_dictionary.json"
     ##Time the function
