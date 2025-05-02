@@ -56,7 +56,7 @@ def AP_band_drift_estimation(group,recording_saved,oe_folder,analysis_methods,wi
         if motion_corrector in motion_corrector_tuple:
             test_folder = motion_folder / motion_corrector
             motion_corrector_params = spre.get_motion_parameters_preset(motion_corrector)
-            motion_corrector_params['estimate_motion_kwargs'].update({"win_step_um":75.0,"win_scale_um":250.0,"win_margin_um":150})
+            motion_corrector_params['estimate_motion_kwargs'].update({"win_step_um":win_step_um,"win_scale_um":win_scale_um})
             # dredge_preset_params = spre.get_motion_parameters_preset("dredge")
             if test_folder.is_dir() and load_existing_motion_info:
                 motion_info = spre.load_motion_info(test_folder)
@@ -90,6 +90,18 @@ def AP_band_drift_estimation(group,recording_saved,oe_folder,analysis_methods,wi
                     output_motion_info=False,
                     estimate_motion_kwargs=motion_corrector_params['estimate_motion_kwargs'])#interpolate_motion_kwargs={'border_mode' : 'force_extrapolate'},
                 print('recording is corrected but output_motion and info are not generated')
+            fig = plt.figure(figsize=(14, 8))
+            sw.plot_motion_info(
+                motion_info,
+                recording_corrected,
+                figure=fig,
+                depth_lim=(0, 400),
+                color_amplitude=True,
+                amplitude_cmap="inferno",
+                scatter_decimate=10,
+            )
+            fig.suptitle(f"{motion_corrector=} win_step: {win_step_um} win_scale: {win_scale_um}")
+            fig.savefig(test_folder / "estimated_motion_result.png")
             motion_info_list.append(motion_info)  # the default mode will remove channels at the border, trying using force_extrapolate
         elif motion_corrector == ("testing"):
             # This is a section to test which algorithm is better for motion correction. 
@@ -186,7 +198,7 @@ def AP_band_drift_estimation(group,recording_saved,oe_folder,analysis_methods,wi
             recording_corrected = recording_saved
     return recording_corrected,motion_info_list
 
-def run_estimation(thisDir, json_file):
+def run(thisDir, json_file):
     oe_folder = Path(thisDir)
     if isinstance(json_file, dict):
         analysis_methods = json_file
@@ -306,6 +318,6 @@ if __name__ == "__main__":
     json_file = "./analysis_methods_dictionary.json"
     ##Time the function
     tic = time.perf_counter()
-    run_estimation(thisDir, json_file)
+    run(thisDir, json_file)
     toc = time.perf_counter()
     print(f"it takes {toc-tic:0.4f} seconds to run the main function")
