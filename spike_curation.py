@@ -183,12 +183,13 @@ def calculate_analyzer_extension(sorting_analyzer):
     #     peak_sign="neg"
     # ),
     # method="center_of_mass")
+    #
     sorting_analyzer.compute(
         [
             "spike_locations",
-            "amplitude_scalings",
             "template_metrics",
             "template_similarity",
+            "amplitude_scalings",
             "quality_metrics",
         ]
     )
@@ -303,13 +304,15 @@ def si2phy(thisDir, json_file):
                 copy_binary=False,
                 remove_if_exists=True,
             )
-        else:
-            isi_viol_thresh = 0.5
-            amp_cutoff_thresh = 0.1
-            our_query = f"amplitude_cutoff < {amp_cutoff_thresh} & isi_violations_ratio < {isi_viol_thresh}"
-            print(our_query)
-            keep_units = sqm.query(our_query)
-            keep_unit_ids = keep_units.index.values
+        # else:
+        #     isi_viol_thresh = 0.5
+        #     amp_cutoff_thresh = 0.1
+        #     our_query = f"amplitude_cutoff < {amp_cutoff_thresh} & isi_violations_ratio < {isi_viol_thresh}"
+        #     print(our_query)
+        #     keep_units = sqm.query(our_query)
+        #     keep_unit_ids = keep_units.index.values
+        sqm.compute_quality_metrics(sorting_analyzer,metric_names=["isolation_distance","d_prime"])
+        sw.plot_quality_metrics(sorting_analyzer, include_metrics=["amplitude_cutoff", "presence_ratio", "isi_violations_ratio", "snr","isolation_distance","d_prime"])
     else:
         return print(
             f"{sorting_folder_name} is not found. Noting can be done here without some putative spikes..."
@@ -333,9 +336,10 @@ if __name__ == "__main__":
     # thisDir = r"Z:\DATA\experiment_trackball_Optomotor\Zball\GN23019\240507\coherence\session1\2024-05-07_23-08-55"
     # thisDir = r"Z:\DATA\experiment_trackball_Optomotor\Zball\GN23018\240422\coherence\session2\2024-04-22_01-09-50"
     # thisDir = r"Z:\DATA\experiment_trackball_Optomotor\Zball\GN23015\240201\coherence\session1\2024-02-01_15-25-25"
-    #thisDir = r"Z:\DATA\experiment_openEphys\P-series-32channels\2025-02-26_17-00-43"
+    #thisDir = r"Z:\DATA\experiment_openEphys\P-series-32channels\2025-02-26_17-00-43"del rec_for_sorting[2]
     #thisDir = r"Z:\DATA\experiment_openEphys\H-series-128channels\2025-03-23_21-33-38"
-    thisDir = r"D:\Open Ephys\2025-03-05_13-45-15"
+    thisDir = r"Z:\DATA\experiment_openEphys\H8-stacked-128channels\2025-03-23_21-33-38"
+    #thisDir = r"D:\Open Ephys\2025-03-05_13-45-15"
     #thisDir = r"D:\Open Ephys\2025-04-03_19-13-57"
     #thisDir = r"D:\Open Ephys\2025-04-09_19-33-08"
     # thisDir = r"C:\Users\neuroPC\Documents\Open Ephys\2024-02-01_15-25-25"
