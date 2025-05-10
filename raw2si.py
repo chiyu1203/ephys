@@ -454,14 +454,28 @@ def raw2si(thisDir, json_file):
             ### add some lines here to update the parameters based on the sorter type
             #e.g. sorter_params.update({"projection_threshold": [9, 9]})
             sorter_params.update({"apply_motion_correction": False,"apply_preprocessing": False})
-            sorter_params['general'].update({"radius_um":150})
-            sorting_spikes = ss.run_sorter(
+            #sorter_params['general'].update({"radius_um":150})
+            #sorter_params['cache_preprocessing'].update({"mode": "no-cache"})
+            if len(recording_corrected_dict)>1:
+                rec_for_sorting=si.aggregate_channels(rec_for_sorting)
+                sorting_spikes = ss.run_sorter_by_property(
                 sorter_name=this_sorter,
                 recording=rec_for_sorting,
                 remove_existing_folder=True,
-                output_folder=oe_folder / result_folder_name,
-                verbose=True,**sorter_params,
-            )
+                grouping_property='group',
+                folder=oe_folder / result_folder_name,
+                verbose=True,
+                **sorter_params
+                )
+            else:
+
+                sorting_spikes = ss.run_sorter(
+                    sorter_name=this_sorter,
+                    recording=rec_for_sorting,
+                    remove_existing_folder=True,
+                    output_folder=oe_folder / result_folder_name,
+                    verbose=True,**sorter_params,
+                )
         ##this will return a sorting object
     ############################# spike sorting preview and saving ##########################
         w_rs = sw.plot_rasters(sorting_spikes, time_range=(0, 30), backend="matplotlib")
@@ -483,7 +497,7 @@ if __name__ == "__main__":
     # thisDir = r"D:\Open Ephys\2025-03-10_20-25-05"
     #thisDir = r"D:\Open Ephys\2025-03-19_18-02-13"
     #thisDir = r"Z:\DATA\experiment_openEphys\H-series-128channels\2025-03-23_20-47-26"
-    #thisDir = r"Z:\DATA\experiment_openEphys\H-series-128channels\2025-03-23_21-33-38"
+    thisDir = r"Z:\DATA\experiment_openEphys\H8-stacked-128channels\2025-03-23_21-33-38"
     #thisDir = r"D:\Open Ephys\2025-04-03_19-13-57"
     #thisDir= r"Z:\DATA\experiment_openEphys\H-series-128channels\2025-04-09_22-46-23"
     #thisDir= r"D:\Open Ephys\2025-04-09_19-33-08"
@@ -494,7 +508,7 @@ if __name__ == "__main__":
     #thisDir=r"Z:\DATA\experiment_openEphys\H-series-128channels\2025-03-23_21-33-38"
     #thisDir = r"D:\Open Ephys\2025-04-09_21-22-00"
     #thisDir = r"D:\Open Ephys\2025-04-03_20-36-55"
-    thisDir = r"D:\Open Ephys\2025-03-05_13-45-15"
+    #thisDir = r"D:\Open Ephys\2025-03-05_13-45-15"
     #thisDir = r"D:\Open Ephys\2025-02-23_20-39-04"
     json_file = "./analysis_methods_dictionary.json"
     ##Time the function
