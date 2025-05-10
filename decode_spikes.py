@@ -242,8 +242,9 @@ def align_async_signals(thisDir, json_file):
     analyser_folder_name = "analyser" + sorter_suffix
     phy_folder_name = phy_folder_name = "phy" + sorter_suffix
     report_folder_name = "report" + sorter_suffix
+    stim_directory = oe_folder.resolve().parents[0]
     pd_ext='pd_*.npy'
-    pd_files = find_file(oe_folder, pd_ext)
+    pd_files = find_file(stim_directory, pd_ext)
     if pd_files is not None:
         pd_on_oe=np.load(pd_files[1])
         pd_off_oe=np.load(pd_files[0])
@@ -275,9 +276,9 @@ def align_async_signals(thisDir, json_file):
     stim_sync_file = find_file(stim_directory, stim_sync_ext)
     barcode_ext = "*_barcode.csv"
     barcode_file = find_file(stim_directory, barcode_ext)
-    velocity_ext = "*velocity.npy"
+    velocity_ext = "velocity_tbt.npy"
     velocity_file = find_file(stim_directory, velocity_ext)
-    rotation_ext = "z_vector.npy"
+    rotation_ext = "angular_velocity_tbt.npy"
     rotation_file = find_file(stim_directory, rotation_ext)
 
     camera_fps = analysis_methods.get("camera_fps")
@@ -435,8 +436,6 @@ def align_async_signals(thisDir, json_file):
     ###start loading info from sorted spikes
     ## if use kilosort standaliner, then load kilosort folder. Otherwise, load spikeinterface's preprocessed data and its toolkit.
     if analysis_methods.get("motion_corrector")=="kilosort_default":
-        #sorting_KS = se.read_kilosort(r"C:\Users\neuroPC\Documents\Open Ephys\GN25011\kilosort4_shank023_0block_32ntern")
-        #phy_sorting = se.read_phy(r"C:\Users\neuroPC\Documents\Open Ephys\GN25011\kilosort4_shank023_0block_32ntern",exclude_cluster_groups=['noise'])
         for this_folder in os.listdir(stim_directory):
             if this_folder.startswith("kilosort"):
                 curated_folder = this_folder
@@ -446,23 +445,11 @@ def align_async_signals(thisDir, json_file):
         cluster_group=pd.read_csv(stim_directory/curated_folder/"cluster_group.tsv", sep='\t',header=0)
         #cluster_info=pd.read_csv(r'C:\Users\neuroPC\Documents\Open Ephys\GN25011\kilosort4_shank023_0block_32ntern\cluster_info.tsv', sep='\t',header=0)
         
-        #cluster_group.loc[cluster_group['group']=='good']['cluster_id'].values
-        mask= np.isin(spike_clusters,cluster_group.loc[cluster_group['group']=='good']['cluster_id'].values)
+        mask= np.isin(spike_clusters,cluster_group.loc[cluster_group['group']=='mua']['cluster_id'].values)
+        #mask= np.isin(spike_clusters,cluster_group.loc[cluster_group['group']=='good']['cluster_id'].values)
         #mask= np.isin(spike_clusters,cluster_group.loc[(cluster_group['group'].reset_index(drop=True)=='mua') | (cluster_group['group'].reset_index(drop=True)=='good')].values)
         cluster_id_interest=spike_clusters[mask]
         spike_time_interest=spike_times[mask]
-
-
-
-        #events_OE = se.read_openephys_event(folder_path=oe_folder)
-        # recording_saved = get_preprocessed_recording(oe_folder,analysis_methods)
-        # sorting_analyzer = si.create_sorting_analyzer(
-        #         sorting=sorting_spikes,
-        #         recording=recording_saved,
-        #         sparse=True,  # default
-        #         format="memory",  # default
-        #     )
-
     else:
         recording_saved = get_preprocessed_recording(oe_folder,analysis_methods)
         if (
@@ -567,8 +554,10 @@ if __name__ == "__main__":
     #thisDir = r"Z:\DATA\experiment_trackball_Optomotor\Zball\GN23018\240422\coherence\session2\2024-04-22_01-09-50"
     #thisDir = r"Z:\DATA\experiment_openEphys\P-series-32channels\2025-02-26_17-00-43"
     #thisDir = r"C:\Users\neuroPC\Documents\Open Ephys\GN25011\2025-04-09_19-33-08"
-    thisDir= r"D:\Open Ephys\2025-04-11_22-42-40"
-    #thisDir = r"C:\Users\neuroPC\Documents\Open Ephys\GN25011"
+    #thisDir= r"D:\Open Ephys\2025-04-11_22-42-40"
+    #thisDir = r"C:\Users\neuroPC\Documents\Open Ephys\GN25012"
+    #thisDir = r"C:\Users\neuroPC\Documents\Open Ephys\GN25012\2025-04-11_22-42-40"
+    thisDir = r"Z:\DATA\experiment_trackball_Optomotor\Zball\GN25009\250403\coherence\session1\2025-04-03_19-13-57"
     #thisDir = r"D:\2025-04-09_19-33-08"
     #thisDir = r"Z:\DATA\experiment_trackball_Optomotor\Zball\GN23015\240201\coherence\session1\2024-02-01_15-25-25"
     # thisDir = r"C:\Users\neuroPC\Documents\Open Ephys\2024-02-01_15-25-25"
