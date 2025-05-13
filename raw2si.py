@@ -93,7 +93,8 @@ def get_preprocessed_recording(oe_folder,analysis_methods):
         this_experimenter = analysis_methods.get("experimenter")
         probe_type = analysis_methods.get("probe_type")
         plot_traces = analysis_methods.get("plot_traces")
-        raw_rec = se.read_openephys(oe_folder, load_sync_timestamps=True)
+        #raw_rec = se.read_openephys(oe_folder, load_sync_timestamps=True)
+        raw_rec = se.read_openephys(oe_folder, load_sync_timestamps=True,block_index=0,stream_id='0')
     # To show the start of recording time
     # raw_rec.get_times()[0]
         event = se.read_openephys_event(oe_folder)
@@ -134,6 +135,9 @@ def get_preprocessed_recording(oe_folder,analysis_methods):
         if probe_type == "H10_stacked":
             stacked_probes = pi.read_probeinterface("H10_stacked_probes_2D.json")
             probe = stacked_probes.probes[0]
+        elif probe_type == "H10_single":
+            stacked_probes = pi.read_probeinterface("H10_single_shank2.json")
+            probe = stacked_probes.probes[0]
         else:
             manufacturer = "cambridgeneurotech"
             if probe_type == "P2":
@@ -141,6 +145,9 @@ def get_preprocessed_recording(oe_folder,analysis_methods):
                 connector_type="ASSY-116>RHD2132"
             elif probe_type == "H5":
                 probe_name = "ASSY-77-H5"
+                connector_type="ASSY-77>Adpt.A64-Om32_2x-sm-NN>RHD2164"
+            elif probe_type == "H10":
+                probe_name = "ASSY-77-H10"
                 connector_type="ASSY-77>Adpt.A64-Om32_2x-sm-NN>RHD2164"
             else:
                 print("the name of probe not identified. stop the programme")
@@ -192,6 +199,7 @@ def get_preprocessed_recording(oe_folder,analysis_methods):
             bad_channel_ids,channel_labels = spre.detect_bad_channels(
                 recording_f, method="coherence+psd"
             )
+            #bad_channel_ids=np.array(['CH1','CH2','CH3','CH4','CH5','CH6','CH7','CH8','CH9','CH10','CH11','CH12','CH13','CH14','CH15','CH16','CH17','CH18','CH19','CH20','CH21','CH22','CH23','CH24','CH25','CH26','CH27','CH28','CH29','CH30','CH31','CH32','CH40','CH61','CH63','CH64'])
             # (noise_inds,) = np.where(channel_labels=='noise')
             # noise_channel_ids = recording_f.channel_ids[noise_inds]
             (dead_inds,) = np.where(channel_labels=='dead')
@@ -422,7 +430,7 @@ def raw2si(thisDir, json_file):
                 ss.Kilosort3Sorter.set_kilosort3_path(kilosort_3_path)
             else:
                 print("use kilosort4")  
-                if probe_type=='H10_stacked':
+                if probe_type.startswith('H10') :
                     sorter_params.update({"dminx": 18.5,"batch_size": 180000,"nearest_templates": 32})
                 elif probe_type=='P2':
                     sorter_params.update({"dminx": 22.5,"batch_size": 180000,"nearest_templates": 16})
@@ -497,7 +505,12 @@ if __name__ == "__main__":
     # thisDir = r"D:\Open Ephys\2025-03-10_20-25-05"
     #thisDir = r"D:\Open Ephys\2025-03-19_18-02-13"
     #thisDir = r"Z:\DATA\experiment_openEphys\H-series-128channels\2025-03-23_20-47-26"
-    thisDir = r"Z:\DATA\experiment_openEphys\H8-stacked-128channels\2025-03-23_21-33-38"
+    #thisDir = r"Z:\DATA\experiment_openEphys\H8-stacked-128channels\2025-03-23_21-33-38"
+    #thisDir = r"D:\Open Ephys\2025-05-10_21-07-48"
+    #thisDir = r"D:\Open Ephys\2025-05-10_21-23-07"
+    #thisDir = r"D:\Open Ephys\2025-05-12_19-02-11"
+    thisDir = r"D:\Open Ephys\2025-05-12_19-17-47"
+    #thisDir = r"D:\Open Ephys\2025-05-12_21-01-37"
     #thisDir = r"D:\Open Ephys\2025-04-03_19-13-57"
     #thisDir= r"Z:\DATA\experiment_openEphys\H-series-128channels\2025-04-09_22-46-23"
     #thisDir= r"D:\Open Ephys\2025-04-09_19-33-08"
