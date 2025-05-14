@@ -33,9 +33,9 @@ needs scipy 1.13 so I hopes there is no conflict between them
 pip install git+https://github.com/chiyu1203/ibllib.git
 ````
 
-Then installing other dependencies. (open ephys python tool is for loading timestamp; zarr and numcodesc for compressing data; ipympl is for interactive plots on Jupyter notebook )
+Then installing other dependencies. (open ephys python tool is for loading timestamp; zarr and numcodesc for compressing data; ipympl is for interactive plots on Jupyter notebook. Pyside 6 is for spikeinterface-gui )
 ````
-pip install open-ephys-python-tools zarr docker cuda-python numcodecs hdbscan ipympl
+pip install open-ephys-python-tools zarr docker cuda-python numcodecs hdbscan ipympl spikeinterface-gui PySide6
 ````
 
 If you have a good GPU and wants to install kilosort. Here is the instruction.
