@@ -2,6 +2,8 @@ import time, os, json, warnings, sys
 from open_ephys.analysis import Session
 import spikeinterface.core as si
 import spikeinterface.extractors as se
+import spikeinterface.qualitymetrics as sqm
+import spikeinterface.widgets as sw
 # For kilosort/phy output files we can use the read_phy
 # most formats will have a read_xx that can used.
 import matplotlib.pyplot as plt
@@ -225,6 +227,7 @@ def sort_arrays(arr1, *arrays):
 
 
 def align_async_signals(thisDir, json_file):
+    
     colormap_name = "coolwarm"
     COL = MplColorHelper(colormap_name, 0, 8)
     oe_folder = Path(thisDir)
@@ -234,6 +237,7 @@ def align_async_signals(thisDir, json_file):
         with open(json_file, "r") as f:
             print(f"load analysis methods from file {json_file}")
             analysis_methods = json.loads(f.read())
+    
     this_sorter = analysis_methods.get("sorter_name")
     this_experimenter = analysis_methods.get("experimenter")
     sorter_suffix = generate_sorter_suffix(this_sorter)
@@ -243,8 +247,9 @@ def align_async_signals(thisDir, json_file):
     phy_folder_name = phy_folder_name = "phy" + sorter_suffix
     report_folder_name = "report" + sorter_suffix
     stim_directory = oe_folder.resolve().parents[0]
+    meta_dir=oe_folder
     pd_ext='pd_*.npy'
-    pd_files = find_file(stim_directory, pd_ext)
+    pd_files = find_file(meta_dir, pd_ext)
     if pd_files is not None:
         pd_on_oe=np.load(pd_files[1])
         pd_off_oe=np.load(pd_files[0])
@@ -304,9 +309,9 @@ def align_async_signals(thisDir, json_file):
                 )
             print("load raw stimulus information")
             trial_ext = "trial*.csv"
-            this_csv = find_file(stim_directory, trial_ext)
+            this_csv = find_file(meta_dir, trial_ext)
             stim_pd = pd.read_csv(this_csv)
-            meta_info, _ = sorting_trial_info(stim_pd)
+            meta_info, _ = sorting_trial_info(stim_pd,analysis_methods)
             stimulus_meta_info = meta_info[1::2]
             num_stim = stimulus_meta_info.shape[0]
         else:
@@ -476,13 +481,15 @@ def align_async_signals(thisDir, json_file):
             sorting_analyzer = si.create_sorting_analyzer(
                 sorting=sorting_spikes,
                 recording=recording_saved,
-                sparse=True,  # default
+                sparse=False, # default
                 format="memory",  # default
             )
             calculate_analyzer_extension(sorting_analyzer)
+            # sqm.compute_quality_metrics(sorting_analyzer,metric_names=["isolation_distance","d_prime"])
+            # sw.plot_quality_metrics(sorting_analyzer, include_metrics=["amplitude_cutoff", "presence_ratio", "isi_violations_ratio", "snr","isolation_distance","d_prime"])
 
     ## go through the peri_event_time_histogram of every cluster
-        spike_time_interest, cluster_id_interest, spike_amp_all, spike_loc_all = spike_overview(
+        spike_time_interest, cluster_id_interest, _, _ = spike_overview(
             oe_folder,
             this_sorter,
             sorting_spikes,
@@ -528,7 +535,7 @@ def align_async_signals(thisDir, json_file):
                     include_raster=True,
                     raster_kwargs={"color": "black", "lw": 1},
                 )
-                #fig_name = f"peth_stim{this_stim}_unit{this_cluster_id}.svg"
+                # fig_name = f"peth_stim{this_stim}_unit{this_cluster_id}.svg"
                 fig_name = f"peth_stim{this_stim}_unit{this_cluster_id}.jpg"
                 fig_dir = oe_folder / fig_name
                 ax.figure.savefig(fig_dir)
@@ -557,7 +564,8 @@ if __name__ == "__main__":
     #thisDir= r"D:\Open Ephys\2025-04-11_22-42-40"
     #thisDir = r"C:\Users\neuroPC\Documents\Open Ephys\GN25012"
     #thisDir = r"C:\Users\neuroPC\Documents\Open Ephys\GN25012\2025-04-11_22-42-40"
-    thisDir = r"Z:\DATA\experiment_trackball_Optomotor\Zball\GN25009\250403\coherence\session1\2025-04-03_19-13-57"
+    #thisDir = r"Z:\DATA\experiment_trackball_Optomotor\Zball\GN25009\250403\coherence\session1\2025-04-03_19-13-57"
+    thisDir=r"D:\Open Ephys\2025-05-12_19-17-47"
     #thisDir = r"D:\2025-04-09_19-33-08"
     #thisDir = r"Z:\DATA\experiment_trackball_Optomotor\Zball\GN23015\240201\coherence\session1\2024-02-01_15-25-25"
     # thisDir = r"C:\Users\neuroPC\Documents\Open Ephys\2024-02-01_15-25-25"
