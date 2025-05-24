@@ -238,7 +238,6 @@ def calculate_analyzer_extension(sorting_analyzer):
 
 def si2phy(thisDir, json_file):
     oe_folder = Path(thisDir)
-    c_drive=Path(r"C:\Users\einat\Documents\Open Ephys\2025-05-12_19-17-47")
     if isinstance(json_file, dict):
         analysis_methods = json_file
     else:
@@ -329,7 +328,7 @@ def si2phy(thisDir, json_file):
             sorting_spikes = scur.remove_excess_spikes(
                 sorting_spikes, recording_for_analysis
             )
-            print(scur.find_redundant_units(sorting_spikes))
+            print(f"find redundant units: {scur.find_redundant_units(sorting_spikes)}")
             #sorting_spikes= scur.remove_redundant_units(sorting_spikes,align=False) this is used in the Guided Spikeinterface Hands-on but not sure if I should use it 
         sorting_analyzer = si.create_sorting_analyzer(
             sorting=sorting_spikes,
@@ -338,20 +337,21 @@ def si2phy(thisDir, json_file):
             format="memory",  # default
         )
         calculate_analyzer_extension(sorting_analyzer)
-        if (
-            analysis_methods.get("export_to_phy") == True
-            and analysis_methods.get("overwrite_existing_phy") == True
-        ):
-            sep.export_to_phy(
-                sorting_analyzer,
-                output_folder=oe_folder / phy_folder_name,
-                compute_amplitudes=True,
-                compute_pc_features=True,
-                copy_binary=True,
-                remove_if_exists=True,
-            )
-            print(scur.get_potential_auto_merge(sorting_analyzer))
-            print(f"postprocessing is done. Export the files to phy to do manual curation")
+        if analysis_methods.get("export_to_phy") == True:
+            if Path(oe_folder / phy_folder_name).exists() and analysis_methods.get("overwrite_existing_phy") == False:
+                _ = se.read_phy(
+                oe_folder / phy_folder_name)
+            else:
+                sep.export_to_phy(
+                    sorting_analyzer,
+                    output_folder=oe_folder / phy_folder_name,
+                    compute_amplitudes=True,
+                    compute_pc_features=True,
+                    copy_binary=True,
+                    remove_if_exists=True,
+                )
+                print(f"postprocessing is done. Export the files to phy to do manual curation")
+            print(f"get potential auto merge{scur.get_potential_auto_merge(sorting_analyzer)}")
         else:
             print("try out some automatic curation")
             quality_metrics=sqm.compute_quality_metrics(sorting_analyzer)
@@ -365,7 +365,7 @@ def si2phy(thisDir, json_file):
             curation_rule = f"firing_rate > {firing_rate_thresh} & snr > {snr_thresh} & rp_contamination < {rp_thresh} & sd_ratio < {sd_thresh}" #the one used in Guided Spikeinterface Hands-on
             good_metrics=quality_metrics.query(curation_rule)
             curated_unit_ids=list(good_metrics.index)
-            print(curated_unit_ids)
+            print(f"potential good units: {curated_unit_ids}, they are defined by some fixed threshold")
         ### the following information should be calculated in calculate_analyzer_extension already
             # print(sqm.get_quality_metric_list())
             # sqm.compute_quality_metrics(sorting_analyzer,metric_names=["isolation_distance","d_prime","snr","sd_ratio"])
@@ -380,7 +380,7 @@ def si2phy(thisDir, json_file):
     noise_neuron_labels = scur.auto_label_units(sorting_analyzer = sorting_analyzer,repo_id ="SpikeInterface/UnitRefine_noise_neural_classifier",trust_model=True) #or ['numpy.dtype']
     # Apply the noise/not-noise model
     noise_units = noise_neuron_labels[noise_neuron_labels['prediction']=='noise']
-    noise_units.to_csv(oe_folder / analyser_folder_name/'predicted_noise_units.csv')
+    #noise_units.to_csv(oe_folder / sorting_folder_name/'predicted_noise_units.csv')
     print(noise_units)
     analyzer_neural = sorting_analyzer.remove_units(noise_units.index)
     # Apply the sua/mua model
@@ -390,7 +390,7 @@ def si2phy(thisDir, json_file):
         trust_model=True,
     )
     all_labels = pd.concat([sua_mua_labels, noise_units]).sort_index()
-    all_labels.to_csv(oe_folder / analyser_folder_name/'predicted_sua_mua.csv')
+    all_labels.to_csv(oe_folder / sorting_folder_name/'predicted_sua_mua.csv')
 
     if (analysis_methods.get("load_curated_spikes") == True
         and (oe_folder / phy_folder_name).is_dir()):
@@ -461,7 +461,10 @@ if __name__ == "__main__":
     #thisDir = r"D:\Open Ephys\2025-05-10_21-23-07"
     #thisDir = r"D:\Open Ephys\2025-05-12_19-17-47"
     #thisDir = r"D:\Open Ephys\2025-05-17_19-17-15"
-    thisDir = r"D:\Open Ephys\2025-05-17_19-33-07"
+    #thisDir = r"D:\Open Ephys\2025-05-17_19-33-07"
+    #thisDir = r"D:\Open Ephys\2025-05-18_21-58-19"
+    #thisDir = r"D:\Open Ephys\2025-03-05_13-45-15"
+    thisDir=r"D:\Open Ephys\2025-05-18_21-32-15"
     #thisDir = r"D:\Open Ephys\2025-03-05_13-45-15"
     #thisDir = r"D:\Open Ephys\2025-04-03_19-13-57"
     #thisDir = r"D:\Open Ephys\2025-04-09_19-33-08"
