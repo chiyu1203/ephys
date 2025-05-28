@@ -186,6 +186,7 @@ def get_preprocessed_recording(oe_folder,analysis_methods):
         # apply band pass filter
         ### need to double check whether there is a need to convert data type to float32. It seems that this will increase the size of the data
         recording_f = spre.bandpass_filter(raw_rec, freq_min=600, freq_max=6000)
+        #recording_f = spre.bandpass_filter(raw_rec, freq_min=600, freq_max=6000,filter_order=2,ftype="bessel") ## in the hands-on tutorial, one speaker use bessel filter
         #recording_f = spre.bandpass_filter(raw_rec, freq_min=600, freq_max=6000,dtype="float32")# it sounds that people recommend to run two separate bandpass filter for motion estimation and for spike sorting.
         # recording_f = spre.highpass_filter(raw_rec, freq_min=300,dtype="float32")
         
@@ -196,10 +197,15 @@ def get_preprocessed_recording(oe_folder,analysis_methods):
             detection, which means neural traces gone through bandpass filter and common reference.
             However, applying common reference takes signals from channels of interest which requires us to decide what we want to do with other bad or noisy channels first.
             """
+            if probe_name== "ASSY-77-H10":
+                broken_shank_ids=bad_channel_ids=np.array(['CH1','CH2','CH3','CH4','CH5','CH6','CH7','CH8','CH9','CH10','CH11','CH12','CH13','CH14','CH15','CH16','CH17','CH18','CH19','CH20','CH21','CH22','CH23','CH24','CH25','CH26','CH27','CH28','CH29','CH30','CH31','CH32'])
+                recording_f = recording_f.remove_channels(
+                        broken_shank_ids
+                    )
             bad_channel_ids,channel_labels = spre.detect_bad_channels(
                 recording_f, method="coherence+psd"
             )
-            #bad_channel_ids=np.array(['CH1','CH2','CH3','CH4','CH5','CH6','CH7','CH8','CH9','CH10','CH11','CH12','CH13','CH14','CH15','CH16','CH17','CH18','CH19','CH20','CH21','CH22','CH23','CH24','CH25','CH26','CH27','CH28','CH29','CH30','CH31','CH32','CH40','CH61','CH63','CH64'])
+            #
             # (noise_inds,) = np.where(channel_labels=='noise')
             # noise_channel_ids = recording_f.channel_ids[noise_inds]
             (dead_inds,) = np.where(channel_labels=='dead')
@@ -509,7 +515,15 @@ if __name__ == "__main__":
     #thisDir = r"D:\Open Ephys\2025-05-10_21-07-48"
     #thisDir = r"D:\Open Ephys\2025-05-10_21-23-07"
     #thisDir = r"D:\Open Ephys\2025-05-12_19-02-11"
-    thisDir = r"D:\Open Ephys\2025-05-12_19-17-47"
+    #thisDir = r"D:\Open Ephys\2025-05-12_19-17-47"
+    #thisDir = r"D:\Open Ephys\2025-05-17_19-17-15"
+    #thisDir = r"D:\Open Ephys\2025-05-18_21-32-15"
+    #thisDir = r"D:\Open Ephys\2025-03-05_13-45-15"
+    #thisDir = r"D:\Open Ephys\2025-05-24_15-11-49"
+    thisDir = r"D:\Open Ephys\2025-05-25_17-27-05"
+    #thisDir = r"D:\Open Ephys\2025-05-25_18-42-54"
+    #thisDir = r"D:\Open Ephys\2025-05-24_16-15-25"
+    #thisDir = r"D:\Open Ephys\2025-05-17_19-33-07"
     #thisDir = r"D:\Open Ephys\2025-05-12_21-01-37"
     #thisDir = r"D:\Open Ephys\2025-04-03_19-13-57"
     #thisDir= r"Z:\DATA\experiment_openEphys\H-series-128channels\2025-04-09_22-46-23"
