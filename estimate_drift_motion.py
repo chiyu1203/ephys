@@ -45,8 +45,9 @@ def AP_band_drift_estimation(group,recording_saved,oe_folder,analysis_methods,wi
     skip_motion_correction=analysis_methods.get("skip_motion_correction")
     motion_folder = oe_folder / f"motion_shank{group}"
     motion_info_list=[]
-    motion_corrector_tuple=("dredge","rigid_fast","kilosort_like")
-    #motion_corrector_tuple=("dredge","kilosort_like")
+    #motion_corrector_tuple=("rigid_fast","dredge","kilosort_like")
+    motion_corrector_tuple=("rigid_fast","kilosort_like")
+    #motion_corrector_tuple=("rigid_fast")
     if skip_motion_correction:
         print(
             "skipp correct motion/drift"
