@@ -248,9 +248,8 @@ def align_async_signals(thisDir, json_file):
     phy_folder_name = phy_folder_name = "phy" + sorter_suffix
     report_folder_name = "report" + sorter_suffix
     stim_directory = oe_folder.resolve().parents[0]
-    meta_dir=oe_folder
     pd_ext='pd_*.npy'
-    pd_files = find_file(meta_dir, pd_ext)
+    pd_files = find_file(oe_folder, pd_ext)
     if pd_files is not None:
         pd_on_oe=np.load(pd_files[1])
         pd_off_oe=np.load(pd_files[0])
@@ -311,7 +310,7 @@ def align_async_signals(thisDir, json_file):
                 )
             print("load raw stimulus information")
             trial_ext = "trial*.csv"
-            this_csv = find_file(meta_dir, trial_ext)
+            this_csv = find_file(stim_directory, trial_ext)
             stim_pd = pd.read_csv(this_csv)
             meta_info, stim_type = sorting_trial_info(stim_pd,analysis_methods)
             if experiment_name=='coherence':#RDK is special becuase isi info is logged seperately
@@ -456,7 +455,7 @@ def align_async_signals(thisDir, json_file):
         return
 
     ###start loading info from sorted spikes
-    ## if use kilosort standaliner, then load kilosort folder. Otherwise, load spikeinterface's preprocessed data and its toolkit.
+    ## if use kilosort standalone, then load kilosort folder. Otherwise, load spikeinterface's preprocessed data and its toolkit.
     if analysis_methods.get("motion_corrector")=="kilosort_default":
         for this_folder in os.listdir(stim_directory):
             if this_folder.startswith("kilosort"):
@@ -577,23 +576,7 @@ def align_async_signals(thisDir, json_file):
 
 
 if __name__ == "__main__":
-    # thisDir = r"C:\Users\neuroLaptop\Documents\Open Ephys\P-series-32channels\GN00003\2023-12-28_14-39-40"
-    # thisDir = r"Z:\DATA\experiment_trackball_Optomotor\Zball\GN23019\240507\coherence\session1\2024-05-07_23-08-55"
-    #thisDir = r"Z:\DATA\experiment_trackball_Optomotor\Zball\GN23018\240422\coherence\session2\2024-04-22_01-09-50"
-    #thisDir = r"Z:\DATA\experiment_openEphys\P-series-32channels\2025-02-26_17-00-43"
-    #thisDir = r"C:\Users\neuroPC\Documents\Open Ephys\GN25011\2025-04-09_19-33-08"
-    #thisDir= r"D:\Open Ephys\2025-04-11_22-42-40"
-    #thisDir = r"C:\Users\neuroPC\Documents\Open Ephys\GN25012"
-    #thisDir = r"C:\Users\neuroPC\Documents\Open Ephys\GN25012\2025-04-11_22-42-40"
-    #thisDir = r"Z:\DATA\experiment_trackball_Optomotor\Zball\GN25009\250403\coherence\session1\2025-04-03_19-13-57"
-    #thisDir=r"D:\Open Ephys\2025-05-12_19-17-47"
-    #thisDir=r"D:\Open Ephys\2025-05-17_19-33-07"
-    #thisDir=r"D:\Open Ephys\2025-05-17_19-17-15"
-    thisDir=r"D:\Open Ephys\2025-05-18_21-32-15"
-    #thisDir=r"D:\Open Ephys\2025-05-19_21-06-13"
-    #thisDir = r"D:\2025-04-09_19-33-08"
-    #thisDir = r"Z:\DATA\experiment_trackball_Optomotor\Zball\GN23015\240201\coherence\session1\2024-02-01_15-25-25"
-    # thisDir = r"C:\Users\neuroPC\Documents\Open Ephys\2024-02-01_15-25-25"
+    thisDir = r"Y:\GN25009\250403\coherence\session1\2025-04-03_19-13-57"
     json_file = "./analysis_methods_dictionary.json"
     ##Time the function
     tic = time.perf_counter()
