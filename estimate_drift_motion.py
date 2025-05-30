@@ -45,8 +45,8 @@ def AP_band_drift_estimation(group,recording_saved,oe_folder,analysis_methods,wi
     skip_motion_correction=analysis_methods.get("skip_motion_correction")
     motion_folder = oe_folder / f"motion_shank{group}"
     motion_info_list=[]
-    #motion_corrector_tuple=("rigid_fast","dredge","kilosort_like")
-    motion_corrector_tuple=("rigid_fast","kilosort_like")
+    motion_corrector_tuple=("dredge","rigid_fast","kilosort_like")
+    #motion_corrector_tuple=("rigid_fast","kilosort_like")
     #motion_corrector_tuple=("rigid_fast")
     if skip_motion_correction:
         print(
@@ -122,7 +122,7 @@ def AP_band_drift_estimation(group,recording_saved,oe_folder,analysis_methods,wi
                         recording=recording_saved,
                         preset=preset,
                         folder=test_folder,
-                        overwrite=False,
+                        overwrite=True,
                         output_motion=True,
                         output_motion_info=True,
                         estimate_motion_kwargs={
@@ -218,6 +218,8 @@ def run(thisDir, json_file):
         recording_saved = si.read_zarr(oe_folder / "preprocessed_compressed.zarr")
         print(recording_saved.get_property_keys())
         fs = recording_saved.get_sampling_frequency()
+        recording_saved=spre.astype(recording_saved,np.float32)
+        recordings_dict = recording_saved.split_by(property='group', outputs='dict')
     elif (
         analysis_methods.get("load_prepocessed_file") == True
         and (oe_folder / "preprocessed").is_dir()
@@ -227,6 +229,8 @@ def run(thisDir, json_file):
         )
         recording_saved = si.load_extractor(oe_folder / "preprocessed")
         fs = recording_saved.get_sampling_frequency()
+        recording_saved=spre.astype(recording_saved,np.float32)
+        recordings_dict = recording_saved.split_by(property='group', outputs='dict')
     else:
         print("Load meta information from openEphys")
 
@@ -272,19 +276,16 @@ def run(thisDir, json_file):
             description=f"Dataset of {this_experimenter}"
         )
 
-        raw_rec_dict = raw_rec.split_by(property='group', outputs='dict')
+        recordings_dict = raw_rec.split_by(property='group', outputs='dict')
         if lfp_drift_estimation:
             motion_lfp_dict={}
-            for group, rec_per_shank in raw_rec_dict.items():
+            for group, rec_per_shank in recordings_dict.items():
                 motion_lfp=LFP_band_drift_estimation(group,rec_per_shank,oe_folder)
                 motion_lfp_dict[group]=motion_lfp
-
-
-        
-    recordings_dict = recording_saved.split_by(property='group', outputs='dict')
-    win_step_set=[75,50,25]
+    win_step_set=[30,25]
     #win_scale_set=[150,200,250]
-    win_scale_set=[250,200,150]
+    #win_scale_set=[250,200,150]
+    win_scale_set=[150,100]
     #win_margin_set=[-150,0,150]
     #win_margin_set=[150,0]
     # win_step_um":75.0,"
@@ -294,8 +295,6 @@ def run(thisDir, json_file):
     recording_corrected_dict = {}
     motion_ap_dict={}
     for group, sub_recording in recordings_dict.items():
-        if group==1:#if group%2==1:
-            continue
         for win_scale_um in win_scale_set:
             for win_step_um in win_step_set:
                 #for win_margin_um in win_margin_set:
@@ -309,13 +308,7 @@ def run(thisDir, json_file):
 
 
 if __name__ == "__main__":
-    #thisDir = r"D:\Open Ephys\2025-03-10_20-25-05"
-    #thisDir = r"D:\Open Ephys\2025-03-19_18-02-13"
-    #thisDir = r"Z:\DATA\experiment_openEphys\H-series-128channels\2025-03-23_20-47-26"
-    #thisDir = r"Z:\DATA\experiment_openEphys\H-series-128channels\2025-04-09_22-46-23"
-    thisDir = r"Z:\DATA\experiment_openEphys\H-series-128channels\2025-04-09_21-22-00"
-    #thisDir = r"Z:\DATA\experiment_openEphys\H-series-128channels\2025-03-23_21-33-38"
-    #thisDir = r"Z:\DATA\experiment_openEphys\H-series-128channels\2025-03-23_20-47-26"
+    thisDir =  r"Y:\GN25019\250524\2025-05-24_15-11-49"
     json_file = "./analysis_methods_dictionary.json"
     ##Time the function
     tic = time.perf_counter()
