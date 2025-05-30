@@ -47,7 +47,11 @@ def generate_sorter_suffix(this_sorter):
         sorter_suffix = "_KS4"
     return sorter_suffix
 def motion_correction_shankbyshank(recording_saved,oe_folder,analysis_methods):
-    (win_step_um,win_scale_um)=(75,150)        
+    probe_type = analysis_methods.get("probe_type")
+    if probe_type=="P2":
+        (win_step_um,win_scale_um)=(30,100)
+    else:
+        (win_step_um,win_scale_um)=(75,150)
     recording_corrected_dict = {}
     #create a temporary boolean here to account for correct motion not ready to accept dict. If the recording is an Object, it wwill first split it based groups. If an recording Object has no the group attribute,
     #that means it does not go through this line raw_rec = raw_rec.set_probe(probe,group_mode='by_shank') to create the attribute. In this case, a fake Group0 is created just because the function needs that
