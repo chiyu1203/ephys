@@ -384,7 +384,7 @@ def raw2si(thisDir, json_file):
             else:
                 recording_corrected=recording_corrected_dict[0]
             # fig0=plt.figure()
-            # r_range=[50,100,200,400]
+            # r_range=[25,50,100,150]
             # #recording_saved.channel_ids[:10]np.linspace(1,10,10,dtype=int)
             # i=0
             # for this_r in r_range:
@@ -394,9 +394,9 @@ def raw2si(thisDir, json_file):
             #     if i==3:
             #         figcode=int(f"15{i+2}")
             #         ax1=fig0.add_subplot(figcode)
-            #         sw.plot_traces(recording_saved,channel_ids=recording_saved.channel_ids[:32],time_range=[10, 10.07],mode="auto",ax=ax1,add_legend=False)
+            #         sw.plot_traces(recording_saved,channel_ids=recording_saved.channel_ids[:32],time_range=[500, 500.1],mode="auto",ax=ax1,add_legend=False)
             #         ax1.title.set_text(f'before whitening')
-            #     sw.plot_traces(rec_w,channel_ids=recording_saved.channel_ids[:32],time_range=[10, 10.07],mode="auto",ax=ax,add_legend=False)
+            #     sw.plot_traces(rec_w,channel_ids=recording_saved.channel_ids[:32],time_range=[500, 500.1],mode="auto",ax=ax,add_legend=False)
             #     ax.title.set_text(f'radius: {this_r}')
             #     i=i+1
             # plt.show()
@@ -508,35 +508,7 @@ def raw2si(thisDir, json_file):
 
 
 if __name__ == "__main__":
-    # thisDir = r"D:\Open Ephys\2025-03-10_20-25-05"
-    #thisDir = r"D:\Open Ephys\2025-03-19_18-02-13"
-    #thisDir = r"Z:\DATA\experiment_openEphys\H-series-128channels\2025-03-23_20-47-26"
-    #thisDir = r"Z:\DATA\experiment_openEphys\H8-stacked-128channels\2025-03-23_21-33-38"
-    #thisDir = r"D:\Open Ephys\2025-05-10_21-07-48"
-    #thisDir = r"D:\Open Ephys\2025-05-10_21-23-07"
-    #thisDir = r"D:\Open Ephys\2025-05-12_19-02-11"
-    #thisDir = r"D:\Open Ephys\2025-05-12_19-17-47"
-    #thisDir = r"D:\Open Ephys\2025-05-17_19-17-15"
-    #thisDir = r"D:\Open Ephys\2025-05-18_21-32-15"
-    #thisDir = r"D:\Open Ephys\2025-03-05_13-45-15"
-    #thisDir = r"D:\Open Ephys\2025-05-24_15-11-49"
-    thisDir = r"D:\Open Ephys\2025-05-25_17-27-05"
-    #thisDir = r"D:\Open Ephys\2025-05-25_18-42-54"
-    #thisDir = r"D:\Open Ephys\2025-05-24_16-15-25"
-    #thisDir = r"D:\Open Ephys\2025-05-17_19-33-07"
-    #thisDir = r"D:\Open Ephys\2025-05-12_21-01-37"
-    #thisDir = r"D:\Open Ephys\2025-04-03_19-13-57"
-    #thisDir= r"Z:\DATA\experiment_openEphys\H-series-128channels\2025-04-09_22-46-23"
-    #thisDir= r"D:\Open Ephys\2025-04-09_19-33-08"
-    #thisDir= r"D:\Open Ephys\2025-04-11_22-42-40"
-    #thisDir= r"D:\Open Ephys\2025-04-03_19-13-57"
-    #thisDir = r"D:\Open Ephys\2025-04-09_19-33-08"
-    #thisDir= r"D:\Open Ephys\2025-04-09_21-22-00"
-    #thisDir=r"Z:\DATA\experiment_openEphys\H-series-128channels\2025-03-23_21-33-38"
-    #thisDir = r"D:\Open Ephys\2025-04-09_21-22-00"
-    #thisDir = r"D:\Open Ephys\2025-04-03_20-36-55"
-    #thisDir = r"D:\Open Ephys\2025-03-05_13-45-15"
-    #thisDir = r"D:\Open Ephys\2025-02-23_20-39-04"
+    thisDir = r"Y:\GN25019\250524\2025-05-24_15-11-49"
     json_file = "./analysis_methods_dictionary.json"
     ##Time the function
     tic = time.perf_counter()
