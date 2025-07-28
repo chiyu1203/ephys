@@ -30,7 +30,7 @@ import spikeinterface.curation as scur
 n_cpus = os.cpu_count()
 n_jobs = n_cpus - 4
 
-global_job_kwargs = dict(n_jobs=n_jobs, chunk_duration="2s", progress_bar=True)
+global_job_kwargs = dict(n_jobs=n_jobs, chunk_duration="5s", progress_bar=False)
 # global_job_kwargs = dict(n_jobs=16, chunk_duration="5s", progress_bar=False)
 si.set_global_job_kwargs(**global_job_kwargs)
 
@@ -182,9 +182,14 @@ def get_preprocessed_recording(oe_folder,analysis_methods):
             raw_rec_dict = raw_rec.split_by(property='group', outputs='dict')
             for group, rec_per_shank in raw_rec_dict.items():
                 LFP_band_drift_estimation(group,rec_per_shank,oe_folder)
-        
-
-
+        elif plot_traces:
+            raw_rec_dict = raw_rec.split_by(property='group', outputs='dict')
+            fig0=plt.figure()
+            for group, rec_per_shank in raw_rec_dict.items():
+                figcode=int(f"22{group+1}")
+                ax=fig0.add_subplot(figcode)
+                sw.plot_traces(rec_per_shank,  mode="auto",ax=ax)
+            plt.show()
 
         ################ preprocessing ################
         # apply band pass filter
@@ -202,7 +207,7 @@ def get_preprocessed_recording(oe_folder,analysis_methods):
             However, applying common reference takes signals from channels of interest which requires us to decide what we want to do with other bad or noisy channels first.
             """
             if probe_name== "ASSY-77-H10":
-                broken_shank_ids=bad_channel_ids=np.array(['CH1','CH2','CH3','CH4','CH5','CH6','CH7','CH8','CH9','CH10','CH11','CH12','CH13','CH14','CH15','CH16','CH17','CH18','CH19','CH20','CH21','CH22','CH23','CH24','CH25','CH26','CH27','CH28','CH29','CH30','CH31','CH32'])
+                broken_shank_ids=np.array(['CH1','CH2','CH3','CH4','CH5','CH6','CH7','CH8','CH9','CH10','CH11','CH12','CH13','CH14','CH15','CH16','CH17','CH18','CH19','CH20','CH21','CH22','CH23','CH24','CH25','CH26','CH27','CH28','CH29','CH30','CH31','CH32'])
                 recording_f = recording_f.remove_channels(
                         broken_shank_ids
                     )
@@ -214,6 +219,11 @@ def get_preprocessed_recording(oe_folder,analysis_methods):
             # noise_channel_ids = recording_f.channel_ids[noise_inds]
             (dead_inds,) = np.where(channel_labels=='dead')
             dead_channel_ids = recording_f.channel_ids[dead_inds]
+            if oe_folder.stem == '2025-07-27_19-24-54':
+                bad_connection_ids=np.array(['CH64','CH63','CH62','CH58','CH56','CH55'])
+                recording_f = recording_f.remove_channels(
+                    bad_connection_ids
+                ) 
 
             print("bad_channel_ids", bad_channel_ids)
             print("channel_labels", channel_labels)
@@ -230,13 +240,13 @@ def get_preprocessed_recording(oe_folder,analysis_methods):
                 pass
         ##start to split the recording into groups here because remove bad channels function is not ready to receive dict as input
         recordings_dict = recording_f.split_by(property='group', outputs='dict')
-        if plot_traces:
-            fig0=plt.figure()
-            for group, rec_per_shank in recordings_dict.items():
-                figcode=int(f"22{group+1}")
-                ax=fig0.add_subplot(figcode)
-                sw.plot_traces(rec_per_shank,  mode="auto",ax=ax)
-            plt.show()
+        # if plot_traces:
+        #     fig0=plt.figure()
+        #     for group, rec_per_shank in recordings_dict.items():
+        #         figcode=int(f"22{group+1}")
+        #         ax=fig0.add_subplot(figcode)
+        #         sw.plot_traces(rec_per_shank,  mode="auto",ax=ax)
+        #     plt.show()
             #shankid=0
             #sw.plot_traces({f"shank{shankid+1}": recordings_dict[shankid]},  mode="auto",time_range=[10, 10.1], backend="ipywidgets")
             #sw.plot_traces(recordings_dict[shankid],  mode="auto",time_range=[10, 10.1])
@@ -283,24 +293,10 @@ def raw2si(thisDir, json_file):
     result_folder_name = "results" + sorter_suffix
     sorting_folder_name = "sorting" + sorter_suffix
     
-    if analysis_methods.get("load_sorting_file") == True:
-        if (oe_folder / result_folder_name).is_dir():
-            # sorting_spikes = ss.read_sorter_folder(oe_folder/result_folder_name)
-            sorting_spikes = si.load_extractor(
-                oe_folder / sorting_folder_name
-            )  # this acts quite similar than above one line.
-        else:
-            print(f"no result folder found for {this_sorter}")
-        # load recording in case there is a need to extract waveform
-        if (oe_folder / "preprocessed_compressed.zarr").is_dir():
-            recording_saved = si.read_zarr(oe_folder / "preprocessed_compressed.zarr")
-            print(recording_saved.get_property_keys())
-        elif (oe_folder / "preprocessed").is_dir():
-            recording_saved = si.load_extractor(oe_folder / "preprocessed")
-        else:
-            print(f"no pre-processed folder found. Unable to extract waveform")
-            return sorting_spikes
-        recording_saved.annotate(is_filtered=True)
+    if (oe_folder / sorting_folder_name).is_dir() and analysis_methods.get("overwrite_curated_dataset") == False:
+        sorting_spikes = si.load_extractor(oe_folder / sorting_folder_name)
+        w_rs = sw.plot_rasters(sorting_spikes, time_range=(0, 30), backend="matplotlib")
+        return print("this data is processed already.")
     else:
         rec_of_interest=get_preprocessed_recording(oe_folder,analysis_methods)
         # at the moment, leaving raw data intact while saving preprocessed files in compressed format but in the future,
@@ -441,7 +437,7 @@ def raw2si(thisDir, json_file):
             else:
                 print("use kilosort4")  
                 if probe_type.startswith('H10') :
-                    sorter_params.update({"dminx": 18.5,"batch_size": 180000,"nearest_templates": 32})
+                    sorter_params.update({"dminx": 18.5,"batch_size": 60000,"nearest_templates": 16})#change the batch size here due to an error according to  https://github.com/MouseLand/Kilosort/issues/719 The error probably comes from after removing some channels manually
                 elif probe_type=='P2':
                     sorter_params.update({"dminx": 22.5,"batch_size": 180000,"nearest_templates": 16})
                 elif probe_type=='H5':
@@ -473,7 +469,7 @@ def raw2si(thisDir, json_file):
             #e.g. sorter_params.update({"projection_threshold": [9, 9]})
             sorter_params.update({"apply_motion_correction": False,"apply_preprocessing": False})
             #sorter_params['general'].update({"radius_um":150})
-            #sorter_params['cache_preprocessing'].update({"mode": "no-cache"})
+            sorter_params['cache_preprocessing'].update({"mode": "no-cache"})
             if len(recording_corrected_dict)>1:
                 rec_for_sorting=si.aggregate_channels(rec_for_sorting)
                 sorting_spikes = ss.run_sorter_by_property(
@@ -512,7 +508,14 @@ def raw2si(thisDir, json_file):
 
 
 if __name__ == "__main__":
-    thisDir = r"Y:\GN25019\250524\2025-05-24_15-11-49"
+    #thisDir = r"Y:\GN25022\250531\coherence\session1\2025-05-31_17-48-06"
+    #thisDir = r"Y:\GN25023\250711\looming\session1\2025-07-11_17-35-18"
+    #thisDir = r"Y:\GN25024\250719\coherence\session1\2025-07-19_18-07-27"
+    #thisDir = r"Y:\GN25025\250720\looming\session1\2025-07-20_18-32-52"
+    thisDir = r"Y:\GN25028\250727\coherence\session1\2025-07-27_19-24-54"
+    #thisDir = r"Y:\GN25028\250727\looming\session1\2025-07-27_20-46-29"
+    #thisDir = r"Y:\GN25026\250722\coherence\session1\2025-07-22_16-38-06"
+    #thisDir = r"Y:\GN25022\250531\gratings\session1\2025-05-31_19-20-41"
     json_file = "./analysis_methods_dictionary.json"
     ##Time the function
     tic = time.perf_counter()
