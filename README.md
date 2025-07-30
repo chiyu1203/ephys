@@ -102,7 +102,7 @@ Note: The downside of removing the gut is that the head would become a big dry h
 
 # Multicamera filmming
 
-1. Use bonVision based visual paradigm: open the designed workflow and use arduino to trigger the cameras (and then turn on fictrac if this is a closed-loop experiment). Note: there is a difference feature file for camera 1557 for fictrac or for pose estimation.
+1. Use bonVision based visual paradigm: open the designed workflow and use arduino to trigger the cameras (and then turn on fictrac if this is a closed-loop experiment). Note: there is a difference feature file for camera 1557 for fictrac or for pose estimation. The camera config files are stored at C:\src\fictrac\pose_estimate\setup2025
 
 2. Use Unity based visual paradigm: Open pylon viewer and turn on camera 1557 so that we can load feature into the camera (somehow fictrac automatically use this camera so we load a particular feature file:432x480_hw in this camera for fictrac) and then close Pylon Viewer.
 

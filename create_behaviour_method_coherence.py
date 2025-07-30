@@ -31,7 +31,7 @@ behaviour_methods = {
     "stim_duration": [5,25,50],
     "interval_duration": [5,25,50],
     "analysis_window": [-5,10],
-    "prestim_duration": 300,
+    "prestim_duration": 60,
 }  # plue value representing clockwise, counterclockwise is minus, then the rest is coherence leve
 json_file = f"./{file_name}"
 if isinstance(json_file, dict):
