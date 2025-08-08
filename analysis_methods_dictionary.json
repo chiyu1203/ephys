@@ -5,18 +5,18 @@
  "sorter_name": "kilosort4",
  "overwrite_curated_dataset": true,
  "remove_dead_channels": true,
- "analyse_good_channels_only": true,
- "interpolate_noisy_channels": true,
+ "analyse_good_channels_only": false,
+ "interpolate_noisy_channels": false,
  "load_raw_traces": false,
- "plot_traces": false,
+ "plot_traces": true,
  "tmin_tmax": [
   0.0,
   -1.0
  ],
  "skip_motion_correction": false,
  "load_existing_motion_info": false,
- "save_prepocessed_file": false,
- "load_prepocessed_file": true,
+ "save_prepocessed_file": true,
+ "load_prepocessed_file": false,
  "save_sorting_file": true,
  "load_sorting_file": false,
  "save_analyser_to_disc": true,
@@ -31,7 +31,7 @@
  "event_of_interest": "stim_onset",
  "analyse_stim_evoked_activity": true,
  "exp_place": "Zball",
- "experiment_name": "coherence",
+ "experiment_name": "looming",
  "temperature_data_options": "bonsai",
  "graph_colour_code": [
   "r",
@@ -63,28 +63,19 @@
  "trackball_radius": 50,
  "monitor_fps": 144,
  "stim_duration": [
-  5,
-  25,
-  50
+  1,
+  4,
+  8,
+  16
  ],
  "interval_duration": [
+  4,
   5,
-  25,
-  50
+  6
  ],
  "analysis_window": [
-  -5,
-  10
+  -2,
+  18
  ],
- "prestim_duration": 60,
- "stim_type": [
-  0,
-  45,
-  90,
-  135,
-  180,
-  225,
-  270,
-  315
- ]
+ "prestim_duration": 60
 }

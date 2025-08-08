@@ -7,7 +7,7 @@ behaviour_methods = {
     "overwrite_curated_dataset": True,
     "plot_traces":False,
     "exp_place": "Zball",
-    "experiment_name": "looming",
+    "experiment_name": "sweeping",
     "temperature_data_options": "bonsai",
     "graph_colour_code": ["r", "y", "m", "c", "k", "b", "g", "r"],
     "fictrac_posthoc_analysis": True,
@@ -28,9 +28,9 @@ behaviour_methods = {
     "camera_fps": 144,
     "trackball_radius": 50,
     "monitor_fps": 144,
-    "stim_duration": [1,4,8,16],
+    "stim_duration": [1,4,8],
     "interval_duration": [4,5,6],
-    "analysis_window": [-2,18],
+    "analysis_window": [-2,10],
     "prestim_duration": 60,
 }  # plue value representing clockwise, counterclockwise is minus, then the rest is coherence leve
 json_file = f"./{file_name}"
