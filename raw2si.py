@@ -186,9 +186,13 @@ def get_preprocessed_recording(oe_folder,analysis_methods):
             raw_rec_dict = raw_rec.split_by(property='group', outputs='dict')
             fig0=plt.figure()
             for group, rec_per_shank in raw_rec_dict.items():
+                if group==0:
+                    continue
                 figcode=int(f"22{group+1}")
                 ax=fig0.add_subplot(figcode)
-                sw.plot_traces(rec_per_shank,  mode="auto",ax=ax)
+                sw.plot_traces(rec_per_shank,time_range=[0,0.1], mode="auto",ax=ax)
+                # if group==1:
+                #     tmp_data=rec_per_shank
             plt.show()
 
         ################ preprocessing ################
@@ -207,23 +211,38 @@ def get_preprocessed_recording(oe_folder,analysis_methods):
             However, applying common reference takes signals from channels of interest which requires us to decide what we want to do with other bad or noisy channels first.
             """
             if probe_name== "ASSY-77-H10":
-                broken_shank_ids=np.array(['CH1','CH2','CH3','CH4','CH5','CH6','CH7','CH8','CH9','CH10','CH11','CH12','CH13','CH14','CH15','CH16','CH17','CH18','CH19','CH20','CH21','CH22','CH23','CH24','CH25','CH26','CH27','CH28','CH29','CH30','CH31','CH32'])
+                # broken_shank_ids=np.array(['CH1','CH2','CH3','CH4','CH5','CH6','CH7','CH8','CH9','CH10','CH11','CH12','CH13','CH14','CH15','CH16','CH17','CH18','CH19','CH20','CH21','CH22','CH23','CH24','CH25','CH26','CH27','CH28','CH29','CH30','CH31','CH32'])
+                # recording_f = recording_f.remove_channels(
+                #         broken_shank_ids
+                #     )
+                broken_shank_ids=np.array(['CH33','CH34','CH35','CH36','CH37','CH38','CH39','CH40','CH41','CH42','CH43','CH44','CH45','CH46','CH47','CH48','CH49','CH50','CH51','CH52','CH53','CH54','CH55','CH56','CH57','CH58','CH59','CH60','CH61','CH62','CH63','CH64'])
                 recording_f = recording_f.remove_channels(
                         broken_shank_ids
                     )
+            if oe_folder.stem.startswith('2025-07-27'):
+                bad_connection_ids=np.array(['CH64','CH63','CH62','CH61','CH60','CH59','CH58','CH56','CH55','CH37','CH40','CH42'])
+                recording_f = recording_f.remove_channels(
+                    bad_connection_ids
+                )
+            elif oe_folder.stem.startswith('2025-07-26'):
+                bad_connection_ids=np.array(['CH64','CH63','CH62','CH61','CH60','CH59','CH58','CH57','CH56','CH55','CH37','CH38','CH40','CH42','CH43','CH45'])
+                recording_f = recording_f.remove_channels(
+                    bad_connection_ids
+                )
+            elif oe_folder.stem == '2025-07-19_18-07-27':
+                bad_connection_ids=np.array(['CH60','CH59','CH58','CH57'])
+                recording_f = recording_f.remove_channels(
+                    bad_connection_ids
+                )
             bad_channel_ids,channel_labels = spre.detect_bad_channels(
-                recording_f, method="coherence+psd"
-            )
-            #
+                recording_f)
+            #wait for spikeinterface to see if I should use "std" or default coherence +psd
+
             # (noise_inds,) = np.where(channel_labels=='noise')
             # noise_channel_ids = recording_f.channel_ids[noise_inds]
             (dead_inds,) = np.where(channel_labels=='dead')
             dead_channel_ids = recording_f.channel_ids[dead_inds]
-            if oe_folder.stem == '2025-07-27_19-24-54':
-                bad_connection_ids=np.array(['CH64','CH63','CH62','CH58','CH56','CH55'])
-                recording_f = recording_f.remove_channels(
-                    bad_connection_ids
-                ) 
+
 
             print("bad_channel_ids", bad_channel_ids)
             print("channel_labels", channel_labels)
@@ -240,13 +259,17 @@ def get_preprocessed_recording(oe_folder,analysis_methods):
                 pass
         ##start to split the recording into groups here because remove bad channels function is not ready to receive dict as input
         recordings_dict = recording_f.split_by(property='group', outputs='dict')
-        # if plot_traces:
-        #     fig0=plt.figure()
-        #     for group, rec_per_shank in recordings_dict.items():
-        #         figcode=int(f"22{group+1}")
-        #         ax=fig0.add_subplot(figcode)
-        #         sw.plot_traces(rec_per_shank,  mode="auto",ax=ax)
-        #     plt.show()
+        if plot_traces:
+            fig0=plt.figure()
+            for group, rec_per_shank in recordings_dict.items():
+                figcode=int(f"22{group+1}")
+                ax=fig0.add_subplot(figcode)
+                # if group==0:
+                #     sw.plot_traces(tmp_data,  mode="auto",ax=ax)
+                # else:
+                sw.plot_traces(rec_per_shank,time_range=[0,0.1], mode="auto",ax=ax)
+
+            plt.show()
             #shankid=0
             #sw.plot_traces({f"shank{shankid+1}": recordings_dict[shankid]},  mode="auto",time_range=[10, 10.1], backend="ipywidgets")
             #sw.plot_traces(recordings_dict[shankid],  mode="auto",time_range=[10, 10.1])
@@ -437,7 +460,8 @@ def raw2si(thisDir, json_file):
             else:
                 print("use kilosort4")  
                 if probe_type.startswith('H10') :
-                    sorter_params.update({"dminx": 18.5,"batch_size": 60000,"nearest_templates": 16})#change the batch size here due to an error according to  https://github.com/MouseLand/Kilosort/issues/719 The error probably comes from after removing some channels manually
+                    sorter_params.update({"dminx": 18.5,"batch_size": 180000,"nearest_templates": 32})
+                    #sorter_params.update({"dminx": 18.5,"batch_size": 60000,"nearest_templates": 16})#change the batch size here due to an error according to  https://github.com/MouseLand/Kilosort/issues/719 The error probably comes from after removing some channels manually
                 elif probe_type=='P2':
                     sorter_params.update({"dminx": 22.5,"batch_size": 180000,"nearest_templates": 16})
                 elif probe_type=='H5':
@@ -512,8 +536,16 @@ if __name__ == "__main__":
     #thisDir = r"Y:\GN25023\250711\looming\session1\2025-07-11_17-35-18"
     #thisDir = r"Y:\GN25024\250719\coherence\session1\2025-07-19_18-07-27"
     #thisDir = r"Y:\GN25025\250720\looming\session1\2025-07-20_18-32-52"
-    thisDir = r"Y:\GN25028\250727\coherence\session1\2025-07-27_19-24-54"
+    #thisDir = r"Y:\GN25028\250727\coherence\session1\2025-07-27_19-24-54"
     #thisDir = r"Y:\GN25028\250727\looming\session1\2025-07-27_20-46-29"
+    #thisDir = r"Y:\GN25027\250726\coherence\session1\2025-07-26_20-11-04"
+    #thisDir = r"Y:\GN25027\250726\looming\session1\2025-07-26_22-04-13"
+    thisDir = r"Y:\GN25029\250729\looming\session1\2025-07-29_15-22-54"
+    #thisDir = r"Y:\GN25030\250802\looming\session1\2025-08-02_19-34-32"
+    #thisDir = r"Y:\GN25030\250802\sweeping\session1\2025-08-02_21-13-32"
+    #thisDir = r"Y:\GN25031\250804\sweeping\session1\2025-08-03_19-15-57"
+    #thisDir = r"Y:\GN25031\250804\looming\session1\2025-08-03_17-52-45"
+    #thisDir = r"Y:\GN25031\250804\sweeping\session1\2025-08-03_19-15-57"
     #thisDir = r"Y:\GN25026\250722\coherence\session1\2025-07-22_16-38-06"
     #thisDir = r"Y:\GN25022\250531\gratings\session1\2025-05-31_19-20-41"
     json_file = "./analysis_methods_dictionary.json"
