@@ -285,7 +285,7 @@ def run(thisDir, json_file):
     win_step_set=[30,25]
     #win_scale_set=[150,200,250]
     #win_scale_set=[250,200,150]
-    win_scale_set=[150,100]
+    win_scale_set=[100,150]
     #win_margin_set=[-150,0,150]
     #win_margin_set=[150,0]
     # win_step_um":75.0,"
@@ -308,7 +308,9 @@ def run(thisDir, json_file):
 
 
 if __name__ == "__main__":
-    thisDir =  r"Y:\GN25019\250524\2025-05-24_15-11-49"
+    #thisDir =  r"Y:\GN25019\250524\gratings\session1\2025-05-24_16-15-25"
+    #thisDir=r"Y:\GN25020\250525\gratings\session1\2025-05-25_18-42-54"
+    thisDir=r"Y:\GN25022\250531\coherence\session1\2025-05-31_17-48-06"
     json_file = "./analysis_methods_dictionary.json"
     ##Time the function
     tic = time.perf_counter()
