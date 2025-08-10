@@ -186,8 +186,6 @@ def get_preprocessed_recording(oe_folder,analysis_methods):
             raw_rec_dict = raw_rec.split_by(property='group', outputs='dict')
             fig0=plt.figure()
             for group, rec_per_shank in raw_rec_dict.items():
-                if group==0:
-                    continue
                 figcode=int(f"22{group+1}")
                 ax=fig0.add_subplot(figcode)
                 sw.plot_traces(rec_per_shank,time_range=[0,0.1], mode="auto",ax=ax)
@@ -219,31 +217,31 @@ def get_preprocessed_recording(oe_folder,analysis_methods):
                 recording_f = recording_f.remove_channels(
                         broken_shank_ids
                     )
-            if oe_folder.stem.startswith('2025-07-27'):
-                bad_connection_ids=np.array(['CH64','CH63','CH62','CH61','CH60','CH59','CH58','CH56','CH55','CH37','CH40','CH42'])
-                recording_f = recording_f.remove_channels(
-                    bad_connection_ids
-                )
-            elif oe_folder.stem.startswith('2025-07-26'):
-                bad_connection_ids=np.array(['CH64','CH63','CH62','CH61','CH60','CH59','CH58','CH57','CH56','CH55','CH37','CH38','CH40','CH42','CH43','CH45'])
-                recording_f = recording_f.remove_channels(
-                    bad_connection_ids
-                )
-            elif oe_folder.stem == '2025-07-19_18-07-27':
-                bad_connection_ids=np.array(['CH60','CH59','CH58','CH57'])
-                recording_f = recording_f.remove_channels(
-                    bad_connection_ids
-                )
+            # if oe_folder.stem.startswith('2025-07-27'):
+            #     bad_connection_ids=np.array(['CH64','CH63','CH62','CH61','CH60','CH59','CH58','CH56','CH55','CH37','CH40','CH42'])
+            #     recording_f = recording_f.remove_channels(
+            #         bad_connection_ids
+            #     )
+            # elif oe_folder.stem.startswith('2025-07-26'):
+            #     bad_connection_ids=np.array(['CH64','CH63','CH62','CH61','CH60','CH59','CH58','CH57','CH56','CH55','CH37','CH38','CH40','CH42','CH43','CH45'])
+            #     recording_f = recording_f.remove_channels(
+            #         bad_connection_ids
+            #     )
+            # elif oe_folder.stem == '2025-07-19_18-07-27':
+            #     bad_connection_ids=np.array(['CH60','CH59','CH58','CH57'])
+            #     recording_f = recording_f.remove_channels(
+            #         bad_connection_ids
+            #     )
             bad_channel_ids,channel_labels = spre.detect_bad_channels(
                 recording_f)
-            #wait for spikeinterface to see if I should use "std" or default coherence +psd
+        #wait for spikeinterface to see if I should use "std" or default coherence +psd
 
-            # (noise_inds,) = np.where(channel_labels=='noise')
-            # noise_channel_ids = recording_f.channel_ids[noise_inds]
+        # (noise_inds,) = np.where(channel_labels=='noise')
+        # noise_channel_ids = recording_f.channel_ids[noise_inds]
             (dead_inds,) = np.where(channel_labels=='dead')
             dead_channel_ids = recording_f.channel_ids[dead_inds]
-
-
+            if oe_folder.stem.startswith('2025-08-02') or oe_folder.stem.startswith('2025-08-03'):
+                bad_channel_ids=np.array(['CH7','CH8','CH9'])
             print("bad_channel_ids", bad_channel_ids)
             print("channel_labels", channel_labels)
             if analysis_methods.get("analyse_good_channels_only") == True:
@@ -257,7 +255,7 @@ def get_preprocessed_recording(oe_folder,analysis_methods):
                 #recording_f=spre.interpolate_bad_channels(dead_channel_ids)
             else: 
                 pass
-        ##start to split the recording into groups here because remove bad channels function is not ready to receive dict as input
+            ##start to split the recording into groups here because remove bad channels function is not ready to receive dict as input
         recordings_dict = recording_f.split_by(property='group', outputs='dict')
         if plot_traces:
             fig0=plt.figure()
@@ -540,12 +538,20 @@ if __name__ == "__main__":
     #thisDir = r"Y:\GN25028\250727\looming\session1\2025-07-27_20-46-29"
     #thisDir = r"Y:\GN25027\250726\coherence\session1\2025-07-26_20-11-04"
     #thisDir = r"Y:\GN25027\250726\looming\session1\2025-07-26_22-04-13"
-    thisDir = r"Y:\GN25029\250729\looming\session1\2025-07-29_15-22-54"
+    #thisDir = r"Y:\GN25029\250729\looming\session1\2025-07-29_15-22-54"
+    
+    
+
+
+
+
+
+    
     #thisDir = r"Y:\GN25030\250802\looming\session1\2025-08-02_19-34-32"
     #thisDir = r"Y:\GN25030\250802\sweeping\session1\2025-08-02_21-13-32"
-    #thisDir = r"Y:\GN25031\250804\sweeping\session1\2025-08-03_19-15-57"
-    #thisDir = r"Y:\GN25031\250804\looming\session1\2025-08-03_17-52-45"
-    #thisDir = r"Y:\GN25031\250804\sweeping\session1\2025-08-03_19-15-57"
+    #thisDir = r"Y:\GN25031\250803\sweeping\session1\2025-08-03_19-15-57"
+    #thisDir = r"Y:\GN25031\250803\looming\session1\2025-08-03_17-52-45"
+    #thisDir = r"Y:\GN25031\250803\sweeping\session1\2025-08-03_19-15-57"
     #thisDir = r"Y:\GN25026\250722\coherence\session1\2025-07-22_16-38-06"
     #thisDir = r"Y:\GN25022\250531\gratings\session1\2025-05-31_19-20-41"
     json_file = "./analysis_methods_dictionary.json"
