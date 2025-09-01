@@ -222,31 +222,20 @@ def get_preprocessed_recording(oe_folder,analysis_methods):
                 recording_f = recording_f.remove_channels(
                         broken_shank_ids
                     )
-            # if oe_folder.stem.startswith('2025-07-27'):
-            #     bad_connection_ids=np.array(['CH64','CH63','CH62','CH61','CH60','CH59','CH58','CH56','CH55','CH37','CH40','CH42'])
-            #     recording_f = recording_f.remove_channels(
-            #         bad_connection_ids
-            #     )
-            # elif oe_folder.stem.startswith('2025-07-26'):
-            #     bad_connection_ids=np.array(['CH64','CH63','CH62','CH61','CH60','CH59','CH58','CH57','CH56','CH55','CH37','CH38','CH40','CH42','CH43','CH45'])
-            #     recording_f = recording_f.remove_channels(
-            #         bad_connection_ids
-            #     )
-            # elif oe_folder.stem == '2025-07-19_18-07-27':
-            #     bad_connection_ids=np.array(['CH60','CH59','CH58','CH57'])
-            #     recording_f = recording_f.remove_channels(
-            #         bad_connection_ids
-            #     )
             bad_channel_ids,channel_labels = spre.detect_bad_channels(
-                recording_f)
-        #wait for spikeinterface to see if I should use "std" or default coherence +psd
-
-        # (noise_inds,) = np.where(channel_labels=='noise')
-        # noise_channel_ids = recording_f.channel_ids[noise_inds]
+                recording_f, method="coherence+psd"
+            )
+            #
+            # (noise_inds,) = np.where(channel_labels=='noise')
+            # noise_channel_ids = recording_f.channel_ids[noise_inds]
             (dead_inds,) = np.where(channel_labels=='dead')
             dead_channel_ids = recording_f.channel_ids[dead_inds]
-            if oe_folder.stem.startswith('2025-08-02') or oe_folder.stem.startswith('2025-08-03'):
-                bad_channel_ids=np.array(['CH7','CH8','CH9'])
+            if oe_folder.stem == '2025-07-27_19-24-54':
+                bad_connection_ids=np.array(['CH64','CH63','CH62','CH58','CH56','CH55'])
+                recording_f = recording_f.remove_channels(
+                    bad_connection_ids
+                ) 
+
             print("bad_channel_ids", bad_channel_ids)
             print("channel_labels", channel_labels)
             if analysis_methods.get("analyse_good_channels_only") == True:
@@ -260,7 +249,7 @@ def get_preprocessed_recording(oe_folder,analysis_methods):
                 #recording_f=spre.interpolate_bad_channels(dead_channel_ids)
             else: 
                 pass
-            ##start to split the recording into groups here because remove bad channels function is not ready to receive dict as input
+        ##start to split the recording into groups here because remove bad channels function is not ready to receive dict as input
         recordings_dict = recording_f.split_by(property='group', outputs='dict')
         if plot_traces:
             fig0=plt.figure()

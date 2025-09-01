@@ -28,9 +28,9 @@ behaviour_methods = {
     "camera_fps": 144,
     "trackball_radius": 50,
     "monitor_fps": 144,
-    "stim_duration": [1,4,8,16],
-    "interval_duration": [4,5,6],
-    "analysis_window": [-2,18],
+    "stim_duration": [5,15,30],
+    "interval_duration": 45,
+    "analysis_window": [-5,10],
     "prestim_duration": 60,
 }  # plue value representing clockwise, counterclockwise is minus, then the rest is coherence leve
 json_file = f"./{file_name}"

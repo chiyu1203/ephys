@@ -452,24 +452,7 @@ def si2phy(thisDir, json_file):
 
 
 if __name__ == "__main__":
-    # thisDir = r"Z:\DATA\experiment_trackball_Optomotor\Zball\GN23019\240507\coherence\session1\2024-05-07_23-08-55"
-    # thisDir = r"Z:\DATA\experiment_trackball_Optomotor\Zball\GN23018\240422\coherence\session2\2024-04-22_01-09-50"
-    # thisDir = r"Z:\DATA\experiment_trackball_Optomotor\Zball\GN23015\240201\coherence\session1\2024-02-01_15-25-25"
-    #thisDir = r"Z:\DATA\experiment_openEphys\P-series-32channels\2025-02-26_17-00-43"del rec_for_sorting[2]
-    #thisDir = r"Z:\DATA\experiment_openEphys\H-series-128channels\2025-03-23_21-33-38"
-    #thisDir = r"Z:\DATA\experiment_openEphys\H8-stacked-128channels\2025-03-23_21-33-38"
-    #thisDir = r"D:\Open Ephys\2025-05-10_21-23-07"
-    #thisDir = r"D:\Open Ephys\2025-05-12_19-17-47"
-    #thisDir = r"D:\Open Ephys\2025-05-17_19-17-15"
-    #thisDir = r"D:\Open Ephys\2025-05-17_19-33-07"
-    #thisDir = r"D:\Open Ephys\2025-05-18_21-58-19"
-    #thisDir = r"D:\Open Ephys\2025-03-05_13-45-15"
-    thisDir=r"D:\Open Ephys\2025-05-18_21-32-15"
-    #thisDir = r"D:\Open Ephys\2025-03-05_13-45-15"
-    #thisDir = r"D:\Open Ephys\2025-04-03_19-13-57"
-    #thisDir = r"D:\Open Ephys\2025-04-09_19-33-08"
-    # thisDir = r"C:\Users\neuroPC\Documents\Open Ephys\2024-02-01_15-25-25"
-    #thisDir = r"D:\Open Ephys\2025-02-23_20-39-04"
+    thisDir = r"Y:\GN25019\250524\2025-05-24_15-11-49"
     json_file = "./analysis_methods_dictionary.json"
     ##Time the function
     tic = time.perf_counter()
