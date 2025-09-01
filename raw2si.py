@@ -190,7 +190,17 @@ def get_preprocessed_recording(oe_folder,analysis_methods):
                 ax=fig0.add_subplot(figcode)
                 sw.plot_traces(rec_per_shank,  mode="auto",ax=ax)
             plt.show()
-
+        
+        # broken_shank_ids=np.array(['CH33','CH34','CH35','CH36','CH37','CH38','CH39','CH40','CH41','CH42','CH43','CH44','CH45','CH46','CH47','CH48','CH49','CH50','CH51','CH52','CH53','CH54','CH55','CH56','CH57','CH58','CH59','CH60','CH61','CH62','CH63','CH64'])
+        # raw_rec = raw_rec.remove_channels(broken_shank_ids)
+        # compressor_name = "zstd"
+        # compressor = numcodecs.Blosc(cname=compressor_name, clevel=9, shuffle=numcodecs.Blosc.BITSHUFFLE)
+        # raw_rec.save(
+        #     format="zarr",
+        #     folder=oe_folder / "preprocessed_compressed.zarr",
+        #     compressor=compressor,
+        #     overwrite=True,
+        # )
         ################ preprocessing ################
         # apply band pass filter
         ### need to double check whether there is a need to convert data type to float32. It seems that this will increase the size of the data
@@ -208,6 +218,7 @@ def get_preprocessed_recording(oe_folder,analysis_methods):
             """
             if probe_name== "ASSY-77-H10":
                 broken_shank_ids=np.array(['CH1','CH2','CH3','CH4','CH5','CH6','CH7','CH8','CH9','CH10','CH11','CH12','CH13','CH14','CH15','CH16','CH17','CH18','CH19','CH20','CH21','CH22','CH23','CH24','CH25','CH26','CH27','CH28','CH29','CH30','CH31','CH32'])
+                broken_shank_ids=np.array(['CH33','CH34','CH35','CH36','CH37','CH38','CH39','CH40','CH41','CH42','CH43','CH44','CH45','CH46','CH47','CH48','CH49','CH50','CH51','CH52','CH53','CH54','CH55','CH56','CH57','CH58','CH59','CH60','CH61','CH62','CH63','CH64'])
                 recording_f = recording_f.remove_channels(
                         broken_shank_ids
                     )
@@ -251,16 +262,17 @@ def get_preprocessed_recording(oe_folder,analysis_methods):
                 pass
             ##start to split the recording into groups here because remove bad channels function is not ready to receive dict as input
         recordings_dict = recording_f.split_by(property='group', outputs='dict')
-        # if plot_traces:
-        #     fig0=plt.figure()
-        #     for group, rec_per_shank in recordings_dict.items():
-        #         figcode=int(f"22{group+1}")
-        #         ax=fig0.add_subplot(figcode)
-        #         sw.plot_traces(rec_per_shank,  mode="auto",ax=ax)
-        #     plt.show()
+        if plot_traces:
+            fig0=plt.figure()
+            for group, rec_per_shank in recordings_dict.items():
+                figcode=int(f"22{group+1}")
+                ax=fig0.add_subplot(figcode)
+                sw.plot_traces(rec_per_shank,  mode="auto",ax=ax)
+            plt.show()
             #shankid=0
             #sw.plot_traces({f"shank{shankid+1}": recordings_dict[shankid]},  mode="auto",time_range=[10, 10.1], backend="ipywidgets")
             #sw.plot_traces(recordings_dict[shankid],  mode="auto",time_range=[10, 10.1])
+        
 
         # apply common median reference to remove common noise
         recording_cmr = spre.common_reference(
@@ -285,6 +297,13 @@ If “global” reference, a list of channels to be used as reference. If “sin
         rec_of_interest.annotate(
             is_filtered=True
         )  # needed to add this somehow because when loading a preprocessed data saved in the past, that data would not be labeled as filtered data
+        #recordings_dict = rec_of_interest.split_by(property='group', outputs='dict')
+        # fig0=plt.figure()
+        # for group, rec_per_shank in recordings_dict.items():
+        #     figcode=int(f"22{group+1}")
+        #     ax=fig0.add_subplot(figcode)
+        #     sw.plot_traces(rec_per_shank,  mode="auto",ax=ax)
+        # plt.show()
     return rec_of_interest
 
 
@@ -318,7 +337,7 @@ def raw2si(thisDir, json_file):
             if (oe_folder / "preprocessed_compressed.zarr").is_dir():
                 if analysis_methods.get("overwrite_curated_dataset") == True:
                     compressor = numcodecs.Blosc(
-                        cname="zstd", clevel=9, shuffle=numcodecs.Blosc.BITSHUFFLE
+                        cname=compressor_name, clevel=9, shuffle=numcodecs.Blosc.BITSHUFFLE
                     )
                     if type(rec_of_interest) == dict:#create a temporary boolean here to account for that save.() function can not take dict as input
                         rec_of_interest=si.aggregate_channels(rec_of_interest)
@@ -523,19 +542,11 @@ if __name__ == "__main__":
     #thisDir = r"Y:\GN25023\250711\looming\session1\2025-07-11_17-35-18"
     #thisDir = r"Y:\GN25024\250719\coherence\session1\2025-07-19_18-07-27"
     #thisDir = r"Y:\GN25025\250720\looming\session1\2025-07-20_18-32-52"
-    thisDir = r"Y:\GN25028\250727\coherence\session1\2025-07-27_19-24-54"
+    #thisDir = r"Y:\GN25028\250727\coherence\session1\2025-07-27_19-24-54"
     #thisDir = r"Y:\GN25028\250727\looming\session1\2025-07-27_20-46-29"
     #thisDir = r"Y:\GN25027\250726\coherence\session1\2025-07-26_20-11-04"
     #thisDir = r"Y:\GN25027\250726\looming\session1\2025-07-26_22-04-13"
-    #thisDir = r"Y:\GN25029\250729\looming\session1\2025-07-29_15-22-54"
-    
-    
-
-
-
-
-
-    
+    thisDir = r"Y:\GN25029\250729\looming\session1\2025-07-29_15-22-54"    
     #thisDir = r"Y:\GN25030\250802\looming\session1\2025-08-02_19-34-32"
     #thisDir = r"Y:\GN25030\250802\sweeping\session1\2025-08-02_21-13-32"
     #thisDir = r"Y:\GN25031\250803\sweeping\session1\2025-08-03_19-15-57"
