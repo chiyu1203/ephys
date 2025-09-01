@@ -85,15 +85,6 @@ def classify_walk(arr, speed_threshold=10, on_consecutive_length=50):
             until_walk_frame = w2s[w2s - s2w > on_consecutive_length]
             from_walk_frame = s2w[abs(s2w - w2s) > on_consecutive_length]
 
-        # if len(from_walk_frame) == 0 and len(from_walk_frame) == 0:
-        #     continue
-        # elif len(from_walk_frame) == 0:
-        #     walk_events = [i, 0, until_walk_frame]
-        # elif len(until_walk_frame) == 0:
-        #     walk_events = [i, from_walk_frame, arr.shape[1] - 1]
-        # else:
-        #     walk_events = [i, from_walk_frame, until_walk_frame]
-        # walk_events_all.append(walk_events)
         if len(from_walk_frame) == 0 and len(from_walk_frame) == 0:
             continue
         elif len(from_walk_frame) == 0:
@@ -111,77 +102,8 @@ def classify_walk(arr, speed_threshold=10, on_consecutive_length=50):
                     [np.ones(len(from_walk_frame), dtype=int) * i, from_walk_frame]
                 )
             )
-        # walk_events_all.append(walk_events)
 
     return np.hstack(from_walk_events), np.hstack(until_walk_events)
-    # return walk_events_all
-
-
-# def classify_walk_copilot(arr, speed_threshold=10, on_consecutive_length=30):
-#     walk_events_all = []
-#     mask = arr > speed_threshold
-#     trans = np.diff(mask.astype(int), axis=1)
-#     where_transition = np.where(trans)
-
-#     for i in np.unique(where_transition[0]):
-#         trial_of_interest = where_transition[1][where_transition[0] == i]
-#         w2s = trial_of_interest[arr[i, trial_of_interest] > speed_threshold]
-#         s2w = trial_of_interest[arr[i, trial_of_interest] <= speed_threshold]
-
-#         if arr[i, 0] > speed_threshold:
-#             w2s = np.append(w2s, arr.shape[1] - 1)
-#         else:
-#             s2w = np.append(s2w, arr.shape[1] - 1)
-
-#         until_walk_frame = []
-#         from_walk_frame = []
-#         for j in range(min(len(w2s), len(s2w))):
-#             if w2s[j] - s2w[j] >= on_consecutive_length:
-#                 until_walk_frame.append(w2s[j])
-#                 from_walk_frame.append(s2w[j])
-
-#         walk_events = [
-#             [i, from_walk_frame[k], until_walk_frame[k]]
-#             for k in range(len(from_walk_frame))
-#         ]
-#         walk_events_all.extend(walk_events)
-
-#     return walk_events_all
-# kernel = np.ones(consecutive_length, dtype=int)
-# if arr.ndim == 1:
-#     # Create a kernel of length 5 filled with ones
-
-#     # Use convolution to find the sum of 5 consecutive elements
-#     conv = np.convolve(mask, kernel, mode="valid")
-
-#     # Find the indices where the convolution result is 5 or more
-#     start_indices = np.where(conv >= consecutive_length)[0]
-
-#     # Adjust the indices to ensure that they point to the start of 5 or more consecutive elements
-#     start_indices = [
-#         idx for idx in start_indices if np.all(mask[idx : idx + consecutive_length])
-#     ]
-#     events = np.asarray(start_indices)
-# elif arr.ndim > 1:
-#     conv = np.apply_along_axis(
-#         lambda m: np.convolve(m, kernel, "valid"),
-#         axis=1,
-#         arr=mask,
-#     )
-#     # Find where the convolution is greater than or equal to 5 (indicating at least 5 consecutive True values)
-#     events = np.argwhere(conv >= consecutive_length)
-#     events = np.array(
-#         [
-#             (idx[0], idx[1])
-#             for idx in events
-#             if idx[1] + consecutive_length < arr.shape[1]
-#         ]
-#     )
-# else:
-#     print("this array is empty")
-#     events = None
-# return events
-
 
 def remove_run_during_isi(camera_time, camera_fps, ISI_duration):
     isi_len = camera_fps * ISI_duration
@@ -283,8 +205,6 @@ def align_async_signals(thisDir, json_file):
     tracking_file = find_file(stim_directory, database_ext)
     stim_sync_ext = "*_stim_sync.csv"
     stim_sync_file = find_file(stim_directory, stim_sync_ext)
-    barcode_ext = "*_barcode.csv"
-    barcode_file = find_file(stim_directory, barcode_ext)
     velocity_ext = "velocity_tbt.npy"
     velocity_file = find_file(stim_directory, velocity_ext)
     rotation_ext = "angular_velocity_tbt.npy"
@@ -308,10 +228,6 @@ def align_async_signals(thisDir, json_file):
         stimulus_meta_file = find_file(stim_directory, pd_ext)
 
         if stimulus_meta_file is None:
-            if oe_folder.name == "2024-02-01_15-25-25":
-                stim_directory = Path(
-                    r"Z:\DATA\experiment_trackball_Optomotor\Zball\GN23018\240422\coherence\session2"
-                )
             print("load raw stimulus information")
             trial_ext = "trial*.csv"
             this_csv = find_file(stim_directory, trial_ext)
@@ -345,8 +261,6 @@ def align_async_signals(thisDir, json_file):
         if analysis_methods.get("analyse_stim_evoked_activity") == True:
             if len(stim_on_oe) > num_stim:
                 stim_on_oe=stim_on_oe[preStim_duration<stim_on_oe]
-                isi_on_oe=isi_on_oe[preStim_duration<isi_on_oe]
-
                 stim_events_times=stim_on_oe[:num_stim]
                 # stim_events_times = stim_on_oe[
                 #     -num_stim:
@@ -368,6 +282,10 @@ def align_async_signals(thisDir, json_file):
         stim_events_tw = np.array(
             [stim_events_times + time_window_behaviours[0], stim_events_times + time_window_behaviours[1]]
         ).T
+    else:
+        print(
+            "detailed analysis about spontaneous activity should be done here"
+        )
         if event_of_interest.lower().startswith("walk"):
             if velocity_file is None:
                 print(
@@ -447,10 +365,6 @@ def align_async_signals(thisDir, json_file):
                         walk_events_start_oe + time_window_behaviours[1],
                     ]
                 ).T
-    else:
-        print(
-            "this part needs more work. basically we should just detect whether there is info about stimulation. If not just skip aligning behaviours with certain stimulus"
-        )
 
     if event_of_interest.lower().startswith("stim"):
         event_of_interest = stim_events_times
@@ -467,13 +381,6 @@ def align_async_signals(thisDir, json_file):
     ###start loading info from sorted spikes
     ## if use kilosort standalone, then load kilosort folder. Otherwise, load spikeinterface's preprocessed data and its toolkit.
     if analysis_methods.get("motion_corrector")=="kilosort_default":
-        # for this_folder in os.listdir(stim_directory):
-        #     if this_folder.startswith("kilosort"):
-        #         curated_folder = this_folder
-        #         break
-        # spike_clusters=np.load(stim_directory/curated_folder/"spike_clusters.npy")
-        # spike_times=np.load(stim_directory/curated_folder/"spike_times.npy")/30000.0#this is the default sampling frequency in openEphys
-        # cluster_group=pd.read_csv(stim_directory/curated_folder/"cluster_group.tsv", sep='\t',header=0)
         merged_units=True
         folder_suffix="_merged" if merged_units else ""
         spike_clusters=np.load(oe_folder/f"kilosort4{folder_suffix}"/"spike_clusters.npy")
@@ -635,7 +542,9 @@ if __name__ == "__main__":
     #thisDir = r"Y:\GN25029\250729\sweeping\session1\2025-07-29_16-34-15"
     #thisDir = r"Y:\GN25029\250729\coherence\session1\2025-07-29_20-16-03"
     #thisDir = r"Y:\GN25029\250729\looming\session3\2025-07-29_18-35-50"
-    thisDir = r"Y:\GN25029\250729\looming\session1\2025-07-29_15-22-54"
+    #thisDir = r"Y:\GN25029\250729\looming\session1\2025-07-29_15-22-54"
+    thisDir = r"C:\Users\neuroLaptop\Documents\Open Ephys\GN25029\session1\2025-07-29_15-22-54"
+    #thisDir = r"C:\Users\neuroLaptop\Documents\Open Ephys\GN25032\session1\2025-08-07_24-00-00"
     #thisDir = r"Y:\GN25029\250729\looming\session2\2025-07-29_17-35-20"
     json_file = "./analysis_methods_dictionary.json"
     ##Time the function
