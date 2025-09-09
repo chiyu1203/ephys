@@ -47,6 +47,7 @@ def generate_sorter_suffix(this_sorter):
         sorter_suffix = "_KS4"
     return sorter_suffix
 def motion_correction_shankbyshank(recording_saved,oe_folder,analysis_methods):
+    motion_corrector=analysis_methods.get("motion_corrector")
     probe_type = analysis_methods.get("probe_type")
     if probe_type=="P2":
         (win_step_um,win_scale_um)=(30,100)
@@ -59,7 +60,7 @@ def motion_correction_shankbyshank(recording_saved,oe_folder,analysis_methods):
     if type(recording_saved) == dict:
         for group, sub_recording in recording_saved.items():
             print(f"this probe has number of channels to analyse: {len(sub_recording.ids_to_indices())}")
-            recording_corrected,_=AP_band_drift_estimation(group,sub_recording,oe_folder,analysis_methods,win_step_um,win_scale_um)
+            recording_corrected,motion_info_list=AP_band_drift_estimation(group,sub_recording,oe_folder,analysis_methods,win_step_um,win_scale_um)
             recording_corrected_dict[group]=recording_corrected
     elif len(np.unique(recording_saved.get_property('group')))>1:
         recording_saved = recording_saved.split_by(property='group', outputs='dict')
@@ -69,8 +70,36 @@ def motion_correction_shankbyshank(recording_saved,oe_folder,analysis_methods):
             recording_corrected_dict[group]=recording_corrected
     else:
         group=0
-        recording_corrected,_=AP_band_drift_estimation(group,recording_saved,oe_folder,analysis_methods,win_step_um,win_scale_um)
+        recording_corrected,motion_info_list=AP_band_drift_estimation(group,recording_saved,oe_folder,analysis_methods,win_step_um,win_scale_um)
         recording_corrected_dict[group]=recording_corrected
+        #motion_info = spre.load_motion_info(oe_folder/f'motion_shank{group}'/motion_corrector)
+        if motion_corrector!='testing':
+            motion_info=motion_info_list[0]
+            motion = motion_info["motion"]
+            fig, axs = plt.subplots(ncols=2, figsize=(12, 8), sharey=True)
+            ax = axs[0]
+            sw.plot_probe_map(recording_saved, ax=ax)
+            peaks = motion_info["peaks"]
+            sr = recording_saved.get_sampling_frequency()
+            time_lim0 = 0.0
+            time_lim1 = 500.0
+            mask = (peaks["sample_index"] > int(sr * time_lim0)) & (peaks["sample_index"] < int(sr * time_lim1))
+            sl = slice(None, None, 5)
+            amps = np.abs(peaks["amplitude"][mask][sl])
+            amps /= np.quantile(amps, 0.95)
+            c = plt.get_cmap("inferno")(amps)
+            color_kargs = dict(alpha=0.2, s=2, c=c)
+            peak_locations = motion_info["peak_locations"]
+            # color='black',
+            ax.scatter(peak_locations["x"][mask][sl], peak_locations["y"][mask][sl], **color_kargs)
+            peak_locations2 = correct_motion_on_peaks(peaks, peak_locations, motion,recording_saved)
+            ax = axs[1]
+            sw.plot_probe_map(recording_saved, ax=ax)
+            #  color='black',
+            ax.scatter(peak_locations2["x"][mask][sl], peak_locations2["y"][mask][sl], **color_kargs)
+            ax.set_ylim(-100, 400)
+            #fig.suptitle(f"{preset=}")
+            fig.savefig(oe_folder /f'motion_shank{group}'/motion_corrector/"corrected_peak_location.png")
     return recording_corrected_dict
 
 def get_preprocessed_recording(oe_folder,analysis_methods):
@@ -140,7 +169,12 @@ def get_preprocessed_recording(oe_folder,analysis_methods):
             stacked_probes = pi.read_probeinterface("H10_stacked_probes_2D.json")
             probe = stacked_probes.probes[0]
         elif probe_type == "H10_single":
+            probe_name= "ASSY-77-H10"
             stacked_probes = pi.read_probeinterface("H10_single_shank2.json")
+            probe = stacked_probes.probes[0]
+        elif probe_type == "H10_rev":
+            probe_name= "ASSY-77-H10"
+            stacked_probes = pi.read_probeinterface("H10_RHD2164_rev.json")
             probe = stacked_probes.probes[0]
         else:
             manufacturer = "cambridgeneurotech"
@@ -149,10 +183,10 @@ def get_preprocessed_recording(oe_folder,analysis_methods):
                 connector_type="ASSY-116>RHD2132"
             elif probe_type == "H5":
                 probe_name = "ASSY-77-H5"
-                connector_type="ASSY-77>Adpt.A64-Om32_2x-sm-NN>RHD2164"
+                connector_type="ASSY-77>Adpt.A64-Om32_2x-sm-cambridgeneurotech>RHD2164"
             elif probe_type == "H10":
                 probe_name = "ASSY-77-H10"
-                connector_type="ASSY-77>Adpt.A64-Om32_2x-sm-NN>RHD2164"
+                connector_type="ASSY-77>Adpt.A64-Om32_2x-sm-cambridgeneurotech>RHD2164"
             else:
                 print("the name of probe not identified. stop the programme")
                 return
@@ -184,13 +218,12 @@ def get_preprocessed_recording(oe_folder,analysis_methods):
                 LFP_band_drift_estimation(group,rec_per_shank,oe_folder)
         elif plot_traces:
             raw_rec_dict = raw_rec.split_by(property='group', outputs='dict')
-            fig0=plt.figure()
+            fig0=plt.figure(figsize=[64,48])
             for group, rec_per_shank in raw_rec_dict.items():
                 figcode=int(f"22{group+1}")
                 ax=fig0.add_subplot(figcode)
                 sw.plot_traces(rec_per_shank,  mode="auto",ax=ax)
-            plt.show()
-        
+            fig0.savefig(oe_folder /'before_band_pass_and_remove_channels.png')
         # broken_shank_ids=np.array(['CH33','CH34','CH35','CH36','CH37','CH38','CH39','CH40','CH41','CH42','CH43','CH44','CH45','CH46','CH47','CH48','CH49','CH50','CH51','CH52','CH53','CH54','CH55','CH56','CH57','CH58','CH59','CH60','CH61','CH62','CH63','CH64'])
         # raw_rec = raw_rec.remove_channels(broken_shank_ids)
         # compressor_name = "zstd"
@@ -216,29 +249,39 @@ def get_preprocessed_recording(oe_folder,analysis_methods):
             detection, which means neural traces gone through bandpass filter and common reference.
             However, applying common reference takes signals from channels of interest which requires us to decide what we want to do with other bad or noisy channels first.
             """
-            if probe_name== "ASSY-77-H10":
-                broken_shank_ids=np.array(['CH1','CH2','CH3','CH4','CH5','CH6','CH7','CH8','CH9','CH10','CH11','CH12','CH13','CH14','CH15','CH16','CH17','CH18','CH19','CH20','CH21','CH22','CH23','CH24','CH25','CH26','CH27','CH28','CH29','CH30','CH31','CH32'])
+            if probe_type == "H10_rev":
                 broken_shank_ids=np.array(['CH33','CH34','CH35','CH36','CH37','CH38','CH39','CH40','CH41','CH42','CH43','CH44','CH45','CH46','CH47','CH48','CH49','CH50','CH51','CH52','CH53','CH54','CH55','CH56','CH57','CH58','CH59','CH60','CH61','CH62','CH63','CH64'])
                 recording_f = recording_f.remove_channels(
                         broken_shank_ids
                     )
-            bad_channel_ids,channel_labels = spre.detect_bad_channels(
-                recording_f, method="coherence+psd"
-            )
+            elif probe_type == "H10":
+                broken_shank_ids=np.array(['CH1','CH2','CH3','CH4','CH5','CH6','CH7','CH8','CH9','CH10','CH11','CH12','CH13','CH14','CH15','CH16','CH17','CH18','CH19','CH20','CH21','CH22','CH23','CH24','CH25','CH26','CH27','CH28','CH29','CH30','CH31','CH32'])
+                recording_f = recording_f.remove_channels(
+                        broken_shank_ids
+                    )
+            # recording_cmrf = spre.common_reference(recording_f, reference="global", operator="median")
+            # bad_channel_ids,channel_labels = spre.detect_bad_channels(recording_cmrf)
+            bad_channel_ids,channel_labels = spre.detect_bad_channels(recording_f)
             #
             # (noise_inds,) = np.where(channel_labels=='noise')
             # noise_channel_ids = recording_f.channel_ids[noise_inds]
             (dead_inds,) = np.where(channel_labels=='dead')
             dead_channel_ids = recording_f.channel_ids[dead_inds]
-            if oe_folder.stem == '2025-07-27_19-24-54':
+            if oe_folder.stem.startswith('2025-08-02') or oe_folder.stem.startswith('2025-08-03'):
+                bad_connection_ids=np.array(['CH7','CH8','CH9'])
+                recording_f = recording_f.remove_channels(
+                bad_connection_ids
+            ) 
+            elif oe_folder.stem == '2025-07-27_19-24-54':
                 bad_connection_ids=np.array(['CH64','CH63','CH62','CH58','CH56','CH55'])
                 recording_f = recording_f.remove_channels(
                     bad_connection_ids
                 ) 
-
             print("bad_channel_ids", bad_channel_ids)
             print("channel_labels", channel_labels)
             if analysis_methods.get("analyse_good_channels_only") == True:
+                if probe_type == "P2":
+                    bad_channel_ids=np.array(['CH24'])
                 recording_f = recording_f.remove_channels(
                     bad_channel_ids
                 )  #try this functino interpolate_bad_channels when I can put 3 shanks in the brain plus when there is some noisy channels
@@ -251,13 +294,15 @@ def get_preprocessed_recording(oe_folder,analysis_methods):
                 pass
         ##start to split the recording into groups here because remove bad channels function is not ready to receive dict as input
         recordings_dict = recording_f.split_by(property='group', outputs='dict')
+
+        fig0=plt.figure(figsize=[64,48])
+        for group, rec_per_shank in recordings_dict.items():
+            figcode=int(f"22{group+1}")
+            ax=fig0.add_subplot(figcode)
+            sw.plot_traces(rec_per_shank,  mode="auto",ax=ax)
+        fig0.savefig(oe_folder /'after_band_pass_and_remove_channels.png')
         if plot_traces:
-            fig0=plt.figure()
-            for group, rec_per_shank in recordings_dict.items():
-                figcode=int(f"22{group+1}")
-                ax=fig0.add_subplot(figcode)
-                sw.plot_traces(rec_per_shank,  mode="auto",ax=ax)
-            plt.show()
+            fig0.show()
             #shankid=0
             #sw.plot_traces({f"shank{shankid+1}": recordings_dict[shankid]},  mode="auto",time_range=[10, 10.1], backend="ipywidgets")
             #sw.plot_traces(recordings_dict[shankid],  mode="auto",time_range=[10, 10.1])
@@ -267,6 +312,12 @@ def get_preprocessed_recording(oe_folder,analysis_methods):
         recording_cmr = spre.common_reference(
             recordings_dict, reference="global", operator="median"
         )
+        fig1=plt.figure(figsize=[64,48])
+        for group, rec_per_shank in recording_cmr.items():
+            figcode=int(f"12{group+1}")
+            ax=fig1.add_subplot(figcode)
+            sw.plot_traces(rec_per_shank,  mode="auto",ax=ax)
+        fig1.savefig(oe_folder /'after_cmr.png')
         # recording_cmr = spre.common_reference(
         #     recording_f, reference="global", operator="median" 
         # )
@@ -286,7 +337,7 @@ If “global” reference, a list of channels to be used as reference. If “sin
         rec_of_interest.annotate(
             is_filtered=True
         )  # needed to add this somehow because when loading a preprocessed data saved in the past, that data would not be labeled as filtered data
-        #recordings_dict = rec_of_interest.split_by(property='group', outputs='dict')
+        # recordings_dict = rec_of_interest.split_by(property='group', outputs='dict')
         # fig0=plt.figure()
         # for group, rec_per_shank in recordings_dict.items():
         #     figcode=int(f"22{group+1}")
@@ -375,13 +426,13 @@ def raw2si(thisDir, json_file):
         recording_saved=spre.astype(recording_saved,np.float32)
         recording_corrected_dict=motion_correction_shankbyshank(recording_saved,oe_folder,analysis_methods)
 
-        if plot_traces:
-            fig1=plt.figure()
-            for group, rec_per_shank in recording_corrected_dict.items():
-                figcode=int(f"22{group+1}")
-                ax=fig1.add_subplot(figcode)
-                sw.plot_traces(rec_per_shank,  mode="auto",ax=ax)
-            plt.show()   
+        # if plot_traces:
+        #     fig1=plt.figure()
+        #     for group, rec_per_shank in recording_corrected_dict.items():
+        #         figcode=int(f"22{group+1}")
+        #         ax=fig1.add_subplot(figcode)
+        #         sw.plot_traces(rec_per_shank,  mode="auto",ax=ax)
+        #     plt.show()   
 
         if motion_corrector =='testing':
             return print("drift/correction testing is finished")
@@ -456,7 +507,8 @@ def raw2si(thisDir, json_file):
             else:
                 print("use kilosort4")  
                 if probe_type.startswith('H10') :
-                    sorter_params.update({"dminx": 18.5,"batch_size": 60000,"nearest_templates": 16})#change the batch size here due to an error according to  https://github.com/MouseLand/Kilosort/issues/719 The error probably comes from after removing some channels manually
+                    #sorter_params.update({"dminx": 18.5,"batch_size": 60000,"nearest_templates": 16})#change the batch size here due to an error according to  https://github.com/MouseLand/Kilosort/issues/719 The error probably comes from after removing some channels manually
+                    sorter_params.update({"dminx": 18.5,"batch_size": 180000,"nearest_templates": 32})
                 elif probe_type=='P2':
                     sorter_params.update({"dminx": 22.5,"batch_size": 180000,"nearest_templates": 16})
                 elif probe_type=='H5':
@@ -535,7 +587,21 @@ if __name__ == "__main__":
     #thisDir = r"Y:\GN25028\250727\looming\session1\2025-07-27_20-46-29"
     #thisDir = r"Y:\GN25027\250726\coherence\session1\2025-07-26_20-11-04"
     #thisDir = r"Y:\GN25027\250726\looming\session1\2025-07-26_22-04-13"
-    thisDir = r"Y:\GN25029\250729\looming\session1\2025-07-29_15-22-54"    
+    #thisDir = r"Y:\GN25029\250729\looming\session1\2025-07-29_15-22-54"
+    #thisDir = r"Y:\GN25034\250907\looming\session1\2025-09-07_17-26-48"
+    #thisDir = r"Y:\GN25029\250729\looming\session2\2025-07-29_17-35-20"
+    #thisDir = r"Y:\GN25029\250729\sweeping\session1\2025-07-29_16-34-15"
+    thisDir=r"Y:\GN25032\250807\looming\session1\2025-08-07_19-34-42"
+    #thisDir=r"Y:\GN25033\250906\gratings\session1\2025-09-06_20-09-26"
+    #thisDir=r"Y:\GN25033\250906\looming\session1\2025-09-06_18-42-24"
+    #thisDir=r"Y:\GN25034\250907\looming\session2\2025-09-07_21-18-07"#['CH8' 'CH9' 'CH14' 'CH24'] but probably CH25
+    #thisDir=r"Y:\GN25034\250907\looming\session3\2025-09-07_23-47-23"#['CH14' 'CH24'] but probably CH25
+    #thisDir=r"Y:\GN25034\250907\looming\session4\2025-09-08_04-05-44" #['CH24']
+    #thisDir=r"Y:\GN25034\250907\coherence\session1\2025-09-08_01-12-18" #['CH24']
+    #thisDir=r"Y:\GN25034\250907\gratings\session1\2025-09-08_00-40-55"#['CH24']
+    #thisDir=r"Y:\GN25034\250907\sweeping\session2\2025-09-07_22-44-33"#['CH1' 'CH2' 'CH8' 'CH9' 'CH14' 'CH19' 'CH24']
+    #thisDir=r"Y:\GN25033\250906\looming\session2\2025-09-06_20-46-29"
+    #thisDir=r"Y:\GN25032\250807\sweeping\session1\2025-08-07_20-58-03"
     #thisDir = r"Y:\GN25030\250802\looming\session1\2025-08-02_19-34-32"
     #thisDir = r"Y:\GN25030\250802\sweeping\session1\2025-08-02_21-13-32"
     #thisDir = r"Y:\GN25031\250803\sweeping\session1\2025-08-03_19-15-57"

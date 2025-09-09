@@ -58,6 +58,8 @@ def AP_band_drift_estimation(group,recording_saved,oe_folder,analysis_methods,wi
             test_folder = motion_folder / motion_corrector
             motion_corrector_params = spre.get_motion_parameters_preset(motion_corrector)
             motion_corrector_params['estimate_motion_kwargs'].update({"win_step_um":win_step_um,"win_scale_um":win_scale_um})
+            detection_threshold=20.0
+            motion_corrector_params['detect_kwargs'].update({'detect_threshold': detection_threshold})
             # dredge_preset_params = spre.get_motion_parameters_preset("dredge")
             if test_folder.is_dir() and load_existing_motion_info:
                 motion_info = spre.load_motion_info(test_folder)
@@ -78,6 +80,7 @@ def AP_band_drift_estimation(group,recording_saved,oe_folder,analysis_methods,wi
                     overwrite=True,
                     output_motion=True,
                     output_motion_info=True,
+                    detect_kwargs=motion_corrector_params['detect_kwargs'],
                     estimate_motion_kwargs=motion_corrector_params['estimate_motion_kwargs']
                 )
             else:
@@ -89,6 +92,7 @@ def AP_band_drift_estimation(group,recording_saved,oe_folder,analysis_methods,wi
                     overwrite=False,
                     output_motion=False,
                     output_motion_info=False,
+                    detect_kwargs=motion_corrector_params['detect_kwargs'],
                     estimate_motion_kwargs=motion_corrector_params['estimate_motion_kwargs'])#interpolate_motion_kwargs={'border_mode' : 'force_extrapolate'},
                 print('recording is corrected but output_motion and info are not generated')
             fig = plt.figure(figsize=(14, 8))
@@ -101,7 +105,7 @@ def AP_band_drift_estimation(group,recording_saved,oe_folder,analysis_methods,wi
                 amplitude_cmap="inferno",
                 scatter_decimate=10,
             )
-            fig.suptitle(f"{motion_corrector=} win_step: {win_step_um} win_scale: {win_scale_um}")
+            fig.suptitle(f"{motion_corrector=} win_step: {win_step_um} win_scale: {win_scale_um}, threshold: {detection_threshold}")
             fig.savefig(test_folder / "estimated_motion_result.png")
             motion_info_list.append(motion_info)  # the default mode will remove channels at the border, trying using force_extrapolate
         elif motion_corrector == ("testing"):
@@ -118,6 +122,8 @@ def AP_band_drift_estimation(group,recording_saved,oe_folder,analysis_methods,wi
                 if load_existing_motion_info and test_folder.exists():
                     motion_info = spre.load_motion_info(test_folder)
                 else:
+                    motion_corrector_params = spre.get_motion_parameters_preset(preset)
+                    print(motion_corrector_params)
                     recording_corrected, _, motion_info = spre.correct_motion(
                         recording=recording_saved,
                         preset=preset,
@@ -130,6 +136,7 @@ def AP_band_drift_estimation(group,recording_saved,oe_folder,analysis_methods,wi
                             "win_scale_um": win_scale_um,
                             #"win_margin_um": win_margin_um,
                         })  # the default mode will remove channels at the border, trying using force_extrapolate
+                    
                     fig = plt.figure(figsize=(14, 8))
                     sw.plot_motion_info(
                         motion_info,
@@ -282,7 +289,7 @@ def run(thisDir, json_file):
             for group, rec_per_shank in recordings_dict.items():
                 motion_lfp=LFP_band_drift_estimation(group,rec_per_shank,oe_folder)
                 motion_lfp_dict[group]=motion_lfp
-    win_step_set=[30,25]
+    win_step_set=[50,25]
     #win_scale_set=[150,200,250]
     #win_scale_set=[250,200,150]
     win_scale_set=[100,150]
@@ -310,7 +317,8 @@ def run(thisDir, json_file):
 if __name__ == "__main__":
     #thisDir =  r"Y:\GN25019\250524\gratings\session1\2025-05-24_16-15-25"
     #thisDir=r"Y:\GN25020\250525\gratings\session1\2025-05-25_18-42-54"
-    thisDir=r"Y:\GN25022\250531\coherence\session1\2025-05-31_17-48-06"
+    #thisDir=r"Y:\GN25022\250531\coherence\session1\2025-05-31_17-48-06"
+    thisDir = r"Y:\GN25029\250729\looming\session1\2025-07-29_15-22-54"
     json_file = "./analysis_methods_dictionary.json"
     ##Time the function
     tic = time.perf_counter()
