@@ -248,6 +248,9 @@ def align_async_signals(thisDir, json_file):
             pd_on_oe=pd_on_oe[preStim_duration<pd_on_oe]
             stim_on_oe = pd_on_oe[::2]
             isi_on_oe=pd_on_oe[1::2]
+            debug=isi_on_oe-stim_on_oe
+            np.savetxt(f"{oe_folder.stem}_debug.csv", debug, delimiter=",")
+            
         elif experiment_name in ['looming',"receding","conflict","sweeping"] and meta_info['PreMovDuration'].unique()==0:
             pd_on_oe=pd_on_oe[preStim_duration<pd_on_oe]
             pd_off_oe=pd_off_oe[preStim_duration<pd_off_oe]
@@ -543,8 +546,9 @@ if __name__ == "__main__":
     #thisDir = r"Y:\GN25029\250729\coherence\session1\2025-07-29_20-16-03"
     #thisDir = r"Y:\GN25029\250729\looming\session3\2025-07-29_18-35-50"
     #thisDir = r"Y:\GN25029\250729\looming\session1\2025-07-29_15-22-54"
-    thisDir = r"C:\Users\neuroLaptop\Documents\Open Ephys\GN25029\session1\2025-07-29_15-22-54"
-    #thisDir = r"C:\Users\neuroLaptop\Documents\Open Ephys\GN25032\session1\2025-08-07_24-00-00"
+    thisDir = r"Y:\GN25032\250807\looming\session1\2025-08-07_19-34-42"
+    #thisDir = r"Y:\GN25032\250807\looming\session2\2025-08-07_22-06-12"
+    #thisDir = r"Y:\GN25032\250807\looming\session4\2025-08-08_01-19-05"
     #thisDir = r"Y:\GN25029\250729\looming\session2\2025-07-29_17-35-20"
     json_file = "./analysis_methods_dictionary.json"
     ##Time the function
