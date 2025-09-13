@@ -68,6 +68,11 @@ phy template-gui params.py
 
 # data collection (doing a 3 hour recording with a 32-channel probe generates data at around 25 GB, double check if neuroPC has enough capacity before starting a session, a 80-min recording with 128 channels results in 40 GB)
 
+# Setting up Surround displays
+Surround displays are used to create panorama view. To set up surround displays, go to NVIDIA Control Panel with all 4 displays on and click Configure Surround, PhysX. Then click Configure, where you can specify which display to use and their relative position. In the case of 5840 * 1080 bezel corrected resolution, click on 5760 *1080 first resolution first and then add 40 Bezels value to each border (V1, V2). Note: it is possible to set the Refresh Rate to 240 Hz, however, we dont have/need that much fast camera and our computer has the closed-loop VR system to work on already so why bother.
+After that, enable Surround to let the effect kick in. Usually this will result the 4th display to turn off. To reconnect the 4th display, go to Set up multiple displays on the menus and click up the 4th display. Lastly, go to Change resolution to double check the resolution is  5840 * 1080 bezel corrected and 144 Hz refresh rate. (if ever needed, go to Set up G-SYNC to enable G-SYNC, G-SYNC Compatible). In general, this only needs to be setup once. However, the surround displays can break when turning on the computer with the surround displays stays "off" or any other reason. As long as you see Bonsai open the windows in the 4th display. That is usually the case when the surround display is off.
+
+
 # Probe mapping
 We use probes from CambridgeNeurotech. The mapping can be found via probeinterface, for more [details](https://github.com/SpikeInterface/probeinterface/issues/301), or customised adjusted json or prb file in the repository. For example, 'H10_RHD2164.prb' or 'H10_RHD2164_rev.prb'. rev means the intan chip is inserted in the opposite direction.
 
