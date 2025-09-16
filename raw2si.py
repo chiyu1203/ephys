@@ -174,8 +174,16 @@ def get_preprocessed_recording(oe_folder,analysis_methods):
             probe = stacked_probes.probes[0]
         elif probe_type == "H10_rev":
             probe_name= "ASSY-77-H10"
-            stacked_probes = pi.read_probeinterface("H10_RHD2164_rev.json")
+            stacked_probes = pi.read_probeinterface("H10_RHD2164_rev_correct_mapping.json")
             probe = stacked_probes.probes[0]
+        elif probe_type == "H10": 
+            probe_name= "ASSY-77-H10"
+            stacked_probes = pi.read_probeinterface("H10_RHD2164_correct_mapping.json")
+            probe = stacked_probes.probes[0]
+        elif probe_type == "P2":
+            probe_name= "ASSY-77-H10"
+            stacked_probes = pi.read_probeinterface("P2_RHD2132_openEphys_mapping.json")
+            probe = stacked_probes.probes[0]    
         else:
             manufacturer = "cambridgeneurotech"
             if probe_type == "P2":
@@ -184,9 +192,8 @@ def get_preprocessed_recording(oe_folder,analysis_methods):
             elif probe_type == "H5":
                 probe_name = "ASSY-77-H5"
                 connector_type="ASSY-77>Adpt.A64-Om32_2x-sm-cambridgeneurotech>RHD2164"
-            elif probe_type == "H10":
-                probe_name = "ASSY-77-H10"
-                connector_type="ASSY-77>Adpt.A64-Om32_2x-sm-cambridgeneurotech>RHD2164"
+                #probe_name = "ASSY-77-H10"
+                #connector_type="ASSY-77>Adpt.A64-Om32_2x-sm-cambridgeneurotech>RHD2164"
             else:
                 print("the name of probe not identified. stop the programme")
                 return
@@ -199,10 +206,10 @@ def get_preprocessed_recording(oe_folder,analysis_methods):
         # drop AUX channels here
         #raw_rec = raw_rec.set_probe(probe,group_mode='by_shank')
         raw_rec = raw_rec.set_probe(probe,group_mode='by_shank')
-        probe_rec = raw_rec.get_probe()
-        probe_rec.to_dataframe(complete=True).loc[
-            :, ["contact_ids", "device_channel_indices"]
-        ]
+        #probe_rec = raw_rec.get_probe()
+        # print(probe_rec.to_dataframe(complete=True).loc[
+        #     :, ["contact_ids", "device_channel_indices"]
+        # ])
 
         raw_rec.annotate(
             description=f"Dataset of {this_experimenter}"
@@ -280,8 +287,6 @@ def get_preprocessed_recording(oe_folder,analysis_methods):
             print("bad_channel_ids", bad_channel_ids)
             print("channel_labels", channel_labels)
             if analysis_methods.get("analyse_good_channels_only") == True:
-                if probe_type == "P2":
-                    bad_channel_ids=np.array(['CH24'])
                 recording_f = recording_f.remove_channels(
                     bad_channel_ids
                 )  #try this functino interpolate_bad_channels when I can put 3 shanks in the brain plus when there is some noisy channels
@@ -587,19 +592,20 @@ if __name__ == "__main__":
     #thisDir = r"Y:\GN25028\250727\looming\session1\2025-07-27_20-46-29"
     #thisDir = r"Y:\GN25027\250726\coherence\session1\2025-07-26_20-11-04"
     #thisDir = r"Y:\GN25027\250726\looming\session1\2025-07-26_22-04-13"
-    #thisDir = r"Y:\GN25029\250729\looming\session1\2025-07-29_15-22-54"
+    #thisDir = r"Y:\GN25029\250729\looming\session1\2025-07-29_15-22-54"#['CH16' 'CH21' 'CH24' 'CH31']
     #thisDir = r"Y:\GN25034\250907\looming\session1\2025-09-07_17-26-48"
     #thisDir = r"Y:\GN25029\250729\looming\session2\2025-07-29_17-35-20"
     #thisDir = r"Y:\GN25029\250729\sweeping\session1\2025-07-29_16-34-15"
-    thisDir=r"Y:\GN25032\250807\looming\session1\2025-08-07_19-34-42"
+    #thisDir=r"Y:\GN25032\250807\looming\session1\2025-08-07_19-34-42"#['CH4' 'CH6' 'CH8' 'CH19' 'CH24']
+    #thisDir=r"Y:\GN25029\250729\looming\session1\2025-07-29_15-22-54"
     #thisDir=r"Y:\GN25033\250906\gratings\session1\2025-09-06_20-09-26"
-    #thisDir=r"Y:\GN25033\250906\looming\session1\2025-09-06_18-42-24"
-    #thisDir=r"Y:\GN25034\250907\looming\session2\2025-09-07_21-18-07"#['CH8' 'CH9' 'CH14' 'CH24'] but probably CH25
-    #thisDir=r"Y:\GN25034\250907\looming\session3\2025-09-07_23-47-23"#['CH14' 'CH24'] but probably CH25
-    #thisDir=r"Y:\GN25034\250907\looming\session4\2025-09-08_04-05-44" #['CH24']
-    #thisDir=r"Y:\GN25034\250907\coherence\session1\2025-09-08_01-12-18" #['CH24']
+    #thisDir=r"Y:\GN25033\250906\looming\session1\2025-09-06_18-42-24"#['CH36' 'CH38' 'CH40' 'CH51' 'CH56' 'CH58']
+    #thisDir=r"Y:\GN25034\250907\looming\session2\2025-09-07_21-18-07"#
+    #thisDir=r"Y:\GN25034\250907\looming\session3\2025-09-07_23-47-23"#
+    #thisDir=r"Y:\GN25034\250907\looming\session4\2025-09-08_04-05-44" #
+    #thisDir=r"Y:\GN25034\250907\coherence\session1\2025-09-08_01-12-18"#['CH24']
     #thisDir=r"Y:\GN25034\250907\gratings\session1\2025-09-08_00-40-55"#['CH24']
-    #thisDir=r"Y:\GN25034\250907\sweeping\session2\2025-09-07_22-44-33"#['CH1' 'CH2' 'CH8' 'CH9' 'CH14' 'CH19' 'CH24']
+    #thisDir=r"Y:\GN25034\250907\sweeping\session2\2025-09-07_22-44-33"#
     #thisDir=r"Y:\GN25033\250906\looming\session2\2025-09-06_20-46-29"
     #thisDir=r"Y:\GN25032\250807\sweeping\session1\2025-08-07_20-58-03"
     #thisDir = r"Y:\GN25030\250802\looming\session1\2025-08-02_19-34-32"
