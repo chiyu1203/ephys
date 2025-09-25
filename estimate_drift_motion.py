@@ -57,8 +57,9 @@ def AP_band_drift_estimation(group,recording_saved,oe_folder,analysis_methods,wi
         if motion_corrector in motion_corrector_tuple:
             test_folder = motion_folder / motion_corrector
             motion_corrector_params = spre.get_motion_parameters_preset(motion_corrector)
+            print(motion_corrector_params)
             motion_corrector_params['estimate_motion_kwargs'].update({"win_step_um":win_step_um,"win_scale_um":win_scale_um})
-            detection_threshold=20.0
+            detection_threshold=8.0
             motion_corrector_params['detect_kwargs'].update({'detect_threshold': detection_threshold})
             # dredge_preset_params = spre.get_motion_parameters_preset("dredge")
             if test_folder.is_dir() and load_existing_motion_info:
@@ -318,7 +319,8 @@ if __name__ == "__main__":
     #thisDir =  r"Y:\GN25019\250524\gratings\session1\2025-05-24_16-15-25"
     #thisDir=r"Y:\GN25020\250525\gratings\session1\2025-05-25_18-42-54"
     #thisDir=r"Y:\GN25022\250531\coherence\session1\2025-05-31_17-48-06"
-    thisDir = r"Y:\GN25029\250729\looming\session1\2025-07-29_15-22-54"
+    #thisDir = r"Y:\GN25032\250807\looming\session1\2025-08-07_19-34-42"
+    thisDir=r"Y:\GN25033\250906\looming\session1\2025-09-06_18-42-24"
     json_file = "./analysis_methods_dictionary.json"
     ##Time the function
     tic = time.perf_counter()
