@@ -107,7 +107,11 @@ def AP_band_drift_estimation(group,recording_saved,oe_folder,analysis_methods,wi
                 scatter_decimate=10,
             )
             fig.suptitle(f"{motion_corrector=} win_step: {win_step_um} win_scale: {win_scale_um}, threshold: {detection_threshold}")
-            fig.savefig(test_folder / "estimated_motion_result.png")
+            estimated_motion_figure=test_folder / "estimated_motion_result.png"
+            if estimated_motion_figure.exists() and analysis_methods.get("overwrite_curated_dataset")==False:
+                print("the figure exists. analysis methods that does not overwrite it is chosen")
+            else:
+                fig.savefig(estimated_motion_figure)
             motion_info_list.append(motion_info)  # the default mode will remove channels at the border, trying using force_extrapolate
         elif motion_corrector == ("testing"):
             # This is a section to test which algorithm is better for motion correction. 
