@@ -72,6 +72,7 @@ def motion_correction_shankbyshank(recording_saved,oe_folder,analysis_methods):
         group=0
         recording_corrected,motion_info_list=AP_band_drift_estimation(group,recording_saved,oe_folder,analysis_methods,win_step_um,win_scale_um)
         recording_corrected_dict[group]=recording_corrected
+        test_folder = oe_folder /f'motion_shank{group}'/motion_corrector
         #motion_info = spre.load_motion_info(oe_folder/f'motion_shank{group}'/motion_corrector)
         if motion_corrector!='testing':
             motion_info=motion_info_list[0]
@@ -99,7 +100,11 @@ def motion_correction_shankbyshank(recording_saved,oe_folder,analysis_methods):
             ax2.set_ylim(-100, 400)
             ax2.set_title('corrected peak location')
             #fig.suptitle(f"{preset=}")
-            fig.savefig(oe_folder /f'motion_shank{group}'/motion_corrector/"corrected_peak_location.png")
+            peak_location_figure=test_folder/"corrected_peak_location.png"
+            if peak_location_figure.exists() and analysis_methods.get("overwrite_curated_dataset")==False:
+                print("the figure exists. analysis methods that does not overwrite it is chosen")
+            else:
+                fig.savefig(peak_location_figure)
     return recording_corrected_dict
 
 def get_preprocessed_recording(oe_folder,analysis_methods):
@@ -533,7 +538,7 @@ def raw2si(thisDir, json_file):
                     sorter_name=this_sorter,
                     recording=rec_for_sorting,
                     remove_existing_folder=True,
-                    output_folder=oe_folder / result_folder_name,
+                    folder=oe_folder / result_folder_name,
                     verbose=True,
                     **sorter_params,
                 )
@@ -543,7 +548,7 @@ def raw2si(thisDir, json_file):
             sorter_params.update({"apply_motion_correction": False,"apply_preprocessing": False})
             #sorter_params['general'].update({"radius_um":150})
             sorter_params['cache_preprocessing'].update({"mode": "no-cache"})
-            if len(recording_corrected_dict)>1:
+            if len(recording_corrected_dict)>1:#it sounds like skipping motion correction will lead here with only one dict. Note: correct motion correction will remove channels
                 rec_for_sorting=si.aggregate_channels(rec_for_sorting)
                 sorting_spikes = ss.run_sorter_by_property(
                 sorter_name=this_sorter,
@@ -560,7 +565,7 @@ def raw2si(thisDir, json_file):
                     sorter_name=this_sorter,
                     recording=rec_for_sorting,
                     remove_existing_folder=True,
-                    output_folder=oe_folder / result_folder_name,
+                    folder=oe_folder / result_folder_name,
                     verbose=True,**sorter_params,
                 )
         ##this will return a sorting object
@@ -589,11 +594,11 @@ if __name__ == "__main__":
     #thisDir = r"Y:\GN25028\250727\looming\session1\2025-07-27_20-46-29"
     #thisDir = r"Y:\GN25027\250726\coherence\session1\2025-07-26_20-11-04"
     #thisDir = r"Y:\GN25027\250726\looming\session1\2025-07-26_22-04-13"
-    #thisDir = r"Y:\GN25029\250729\looming\session1\2025-07-29_15-22-54"#
+    thisDir = r"Y:\GN25029\250729\looming\session1\2025-07-29_15-22-54"#
     #thisDir = r"Y:\GN25034\250907\looming\session1\2025-09-07_17-26-48"
     #thisDir = r"Y:\GN25029\250729\looming\session2\2025-07-29_17-35-20"
     #thisDir = r"Y:\GN25029\250729\sweeping\session1\2025-07-29_16-34-15"
-    thisDir=r"Y:\GN25032\250807\looming\session1\2025-08-07_19-34-42"
+    #thisDir=r"Y:\GN25032\250807\looming\session1\2025-08-07_19-34-42"
     #thisDir=r"Y:\GN25029\250729\looming\session1\2025-07-29_15-22-54"
     #thisDir=r"Y:\GN25033\250906\gratings\session1\2025-09-06_20-09-26"
     #thisDir=r"Y:\GN25033\250906\looming\session1\2025-09-06_18-42-24"#['CH36' 'CH38' 'CH40' 'CH51' 'CH56' 'CH58']
