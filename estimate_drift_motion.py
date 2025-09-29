@@ -70,6 +70,9 @@ def AP_band_drift_estimation(group,recording_saved,oe_folder,analysis_methods,wi
                     #temporal_bins=motion_info["temporal_bins"],
                     #spatial_bins=motion_info["spatial_bins"],
                 )
+                # border_mode="remove_channels",
+                # spatial_interpolation_method="kriging",
+                # sigma_um=30.
             elif analysis_methods.get("overwrite_curated_dataset") or test_folder.is_dir()==False:
                 # if motion_corrector == "kilosort_like":
                 #     estimate_motion_kwargs = {
@@ -258,21 +261,37 @@ def run(thisDir, json_file):
             )
 
         ################load probe information################
-        if probe_type == "P2":
+        if probe_type == "H10_stacked":
+            stacked_probes = pi.read_probeinterface("H10_stacked_probes_2D.json")
+            probe = stacked_probes.probes[0]
+        elif probe_type == "H10_rev":
+            probe_name= "ASSY-77-H10"
+            stacked_probes = pi.read_probeinterface("H10_RHD2164_rev_openEphys_mapping.json")
+            probe = stacked_probes.probes[0]
+        elif probe_type == "P2":
+            probe_name= "ASSY-37-P-2"
+            stacked_probes = pi.read_probeinterface("P2_RHD2132_openEphys_mapping.json")
+            probe = stacked_probes.probes[0]    
+        else:
             manufacturer = "cambridgeneurotech"
-            probe_name = "ASSY-37-P-2"
+            # if probe_type == "P2":
+            #     probe_name = "ASSY-37-P-2"
+            #     connector_type="ASSY-116>RHD2132"
+            if probe_type == "H5":
+                probe_name = "ASSY-77-H5"
+                connector_type="ASSY-77>Adpt.A64-Om32_2x-sm-cambridgeneurotech>RHD2164"
+            elif probe_type == "H10":
+                probe_name = "ASSY-77-H10"
+                connector_type="ASSY-77>Adpt.A64-Om32_2x-sm-cambridgeneurotech>RHD2164"
+            else:
+                print("the name of probe not identified. stop the programme")
+                return
             probe = pi.get_probe(manufacturer, probe_name)
-            print(probe)
-            probe.wiring_to_device("ASSY-116>RHD2132")
             probe.to_dataframe(complete=True).loc[
                 :, ["contact_ids", "shank_ids", "device_channel_indices"]
             ]
-        elif probe_type == "H10_stacked":
-            stacked_probes = pi.read_probeinterface("H10_stacked_probes.json")
-            probe = stacked_probes.probes[0]
-        else:
-            print("the name of probe not identified. stop the programme")
-            return
+            probe.wiring_to_device(connector_type)
+        print(probe)
         # drop AUX channels here
         raw_rec = raw_rec.set_probe(probe,group_mode='by_shank')
         probe_rec = raw_rec.get_probe()
@@ -290,7 +309,7 @@ def run(thisDir, json_file):
             for group, rec_per_shank in recordings_dict.items():
                 motion_lfp=LFP_band_drift_estimation(group,rec_per_shank,oe_folder)
                 motion_lfp_dict[group]=motion_lfp
-    win_step_set=[50,25]
+    win_step_set=[75,50,25]
     #win_scale_set=[150,200,250]
     #win_scale_set=[250,200,150]
     win_scale_set=[100,150]
@@ -319,8 +338,9 @@ if __name__ == "__main__":
     #thisDir =  r"Y:\GN25019\250524\gratings\session1\2025-05-24_16-15-25"
     #thisDir=r"Y:\GN25020\250525\gratings\session1\2025-05-25_18-42-54"
     #thisDir=r"Y:\GN25022\250531\coherence\session1\2025-05-31_17-48-06"
-    #thisDir = r"Y:\GN25032\250807\looming\session1\2025-08-07_19-34-42"
-    thisDir=r"Y:\GN25033\250906\looming\session1\2025-09-06_18-42-24"
+    thisDir = r"Y:\GN25032\250807\looming\session1\2025-08-07_19-34-42"
+    #thisDir=r"Y:\GN25033\250906\looming\session1\2025-09-06_18-42-24"
+    #thisDir=r"Y:\GN25029\250729\looming\session1\2025-07-29_15-22-54"
     json_file = "./analysis_methods_dictionary.json"
     ##Time the function
     tic = time.perf_counter()
