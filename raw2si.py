@@ -31,7 +31,6 @@ n_cpus = os.cpu_count()
 n_jobs = n_cpus - 4
 
 global_job_kwargs = dict(n_jobs=n_jobs, chunk_duration="5s", progress_bar=False)
-# global_job_kwargs = dict(n_jobs=16, chunk_duration="5s", progress_bar=False)
 si.set_global_job_kwargs(**global_job_kwargs)
 
 """
@@ -73,7 +72,6 @@ def motion_correction_shankbyshank(recording_saved,oe_folder,analysis_methods):
         recording_corrected,motion_info_list=AP_band_drift_estimation(group,recording_saved,oe_folder,analysis_methods,win_step_um,win_scale_um)
         recording_corrected_dict[group]=recording_corrected
         test_folder = oe_folder /f'motion_shank{group}'/motion_corrector
-        #motion_info = spre.load_motion_info(oe_folder/f'motion_shank{group}'/motion_corrector)
         if motion_corrector!='testing':
             motion_info=motion_info_list[0]
             motion = motion_info["motion"]
@@ -90,7 +88,6 @@ def motion_correction_shankbyshank(recording_saved,oe_folder,analysis_methods):
             c = plt.get_cmap("inferno")(amps)
             color_kargs = dict(alpha=0.2, s=2, c=c)
             peak_locations = motion_info["peak_locations"]
-            # color='black',
             ax1.scatter(peak_locations["x"][mask][sl], peak_locations["y"][mask][sl], **color_kargs)
             ax1.set_ylim(-100, 400)
             ax1.set_title('detected peak location')
@@ -99,7 +96,6 @@ def motion_correction_shankbyshank(recording_saved,oe_folder,analysis_methods):
             ax2.scatter(peak_locations2["x"][mask][sl], peak_locations2["y"][mask][sl], **color_kargs)
             ax2.set_ylim(-100, 400)
             ax2.set_title('corrected peak location')
-            #fig.suptitle(f"{preset=}")
             peak_location_figure=test_folder/"corrected_peak_location.png"
             if peak_location_figure.exists() and analysis_methods.get("overwrite_curated_dataset")==False:
                 print("the figure exists. analysis methods that does not overwrite it is chosen")
@@ -173,10 +169,6 @@ def get_preprocessed_recording(oe_folder,analysis_methods):
         if probe_type == "H10_stacked":
             stacked_probes = pi.read_probeinterface("H10_stacked_probes_2D.json")
             probe = stacked_probes.probes[0]
-        # elif probe_type == "H10_single": ### DONT CONNECT H10 probe with single RHD2132
-        #     probe_name= "ASSY-77-H10"
-        #     stacked_probes = pi.read_probeinterface("H10_single_shank2.json")
-        #     probe = stacked_probes.probes[0]
         elif probe_type == "H10_rev":
             probe_name= "ASSY-77-H10"
             stacked_probes = pi.read_probeinterface("H10_RHD2164_rev_openEphys_mapping.json")
@@ -187,9 +179,6 @@ def get_preprocessed_recording(oe_folder,analysis_methods):
             probe = stacked_probes.probes[0]    
         else:
             manufacturer = "cambridgeneurotech"
-            # if probe_type == "P2":
-            #     probe_name = "ASSY-37-P-2"
-            #     connector_type="ASSY-116>RHD2132"
             if probe_type == "H5":
                 probe_name = "ASSY-77-H5"
                 connector_type="ASSY-77>Adpt.A64-Om32_2x-sm-cambridgeneurotech>RHD2164"
@@ -206,13 +195,7 @@ def get_preprocessed_recording(oe_folder,analysis_methods):
             probe.wiring_to_device(connector_type)
         print(probe)
         # drop AUX channels here
-        #raw_rec = raw_rec.set_probe(probe,group_mode='by_shank')
         raw_rec = raw_rec.set_probe(probe,group_mode='by_shank')
-        #probe_rec = raw_rec.get_probe()
-        # print(probe_rec.to_dataframe(complete=True).loc[
-        #     :, ["contact_ids", "device_channel_indices"]
-        # ])
-
         raw_rec.annotate(
             description=f"Dataset of {this_experimenter}"
         )  # should change here for something related in the future
@@ -233,16 +216,6 @@ def get_preprocessed_recording(oe_folder,analysis_methods):
                 ax=fig0.add_subplot(figcode)
                 sw.plot_traces(rec_per_shank,  mode="auto",ax=ax)
             fig0.savefig(oe_folder /'before_band_pass_and_remove_channels.png')
-        # broken_shank_ids=np.array(['CH33','CH34','CH35','CH36','CH37','CH38','CH39','CH40','CH41','CH42','CH43','CH44','CH45','CH46','CH47','CH48','CH49','CH50','CH51','CH52','CH53','CH54','CH55','CH56','CH57','CH58','CH59','CH60','CH61','CH62','CH63','CH64'])
-        # raw_rec = raw_rec.remove_channels(broken_shank_ids)
-        # compressor_name = "zstd"
-        # compressor = numcodecs.Blosc(cname=compressor_name, clevel=9, shuffle=numcodecs.Blosc.BITSHUFFLE)
-        # raw_rec.save(
-        #     format="zarr",
-        #     folder=oe_folder / "preprocessed_compressed.zarr",
-        #     compressor=compressor,
-        #     overwrite=True,
-        # )
         ################ preprocessing ################
         # apply band pass filter
         ### need to double check whether there is a need to convert data type to float32. It seems that this will increase the size of the data
@@ -268,24 +241,12 @@ def get_preprocessed_recording(oe_folder,analysis_methods):
                 recording_f = recording_f.remove_channels(
                         broken_shank_ids
                     )
-            # recording_cmrf = spre.common_reference(recording_f, reference="global", operator="median")
-            # bad_channel_ids,channel_labels = spre.detect_bad_channels(recording_cmrf)
             bad_channel_ids,channel_labels = spre.detect_bad_channels(recording_f)
             #
             # (noise_inds,) = np.where(channel_labels=='noise')
             # noise_channel_ids = recording_f.channel_ids[noise_inds]
             (dead_inds,) = np.where(channel_labels=='dead')
             dead_channel_ids = recording_f.channel_ids[dead_inds]
-            if oe_folder.stem.startswith('2025-08-02') or oe_folder.stem.startswith('2025-08-03'):
-                bad_connection_ids=np.array(['CH7','CH8','CH9'])
-                recording_f = recording_f.remove_channels(
-                bad_connection_ids
-            ) 
-            elif oe_folder.stem == '2025-07-27_19-24-54':
-                bad_connection_ids=np.array(['CH64','CH63','CH62','CH58','CH56','CH55'])
-                recording_f = recording_f.remove_channels(
-                    bad_connection_ids
-                ) 
             print("bad_channel_ids", bad_channel_ids)
             print("channel_labels", channel_labels)
             if analysis_methods.get("analyse_good_channels_only") == True:
@@ -581,42 +542,15 @@ def raw2si(thisDir, json_file):
                 f.write(json_string)
 
     return print("Spiking sorting done. The rest of the tasks can be done in other PCs")
-    # for unit in sorting_spikes.get_unit_ids():
-    #     print(f'with {this_sorter} sorter, Spike train of a unit:{sorting_spikes.get_unit_spike_train(unit_id=unit)}')
 
 
 if __name__ == "__main__":
-    #thisDir = r"Y:\GN25022\250531\coherence\session1\2025-05-31_17-48-06"
-    #thisDir = r"Y:\GN25023\250711\looming\session1\2025-07-11_17-35-18"
-    #thisDir = r"Y:\GN25024\250719\coherence\session1\2025-07-19_18-07-27"
-    #thisDir = r"Y:\GN25025\250720\looming\session1\2025-07-20_18-32-52"
-    #thisDir = r"Y:\GN25028\250727\coherence\session1\2025-07-27_19-24-54"
-    #thisDir = r"Y:\GN25028\250727\looming\session1\2025-07-27_20-46-29"
-    #thisDir = r"Y:\GN25027\250726\coherence\session1\2025-07-26_20-11-04"
-    #thisDir = r"Y:\GN25027\250726\looming\session1\2025-07-26_22-04-13"
+    #thisDir = r'Y:/GN25031/250803/looming/session2/2025-08-03_21-24-13'#bad_channel_ids ['CH3' 'CH5' 'CH6' 'CH7' 'CH10']
+    #thisDir = r'Y:/GN25034/250907/gratings/session1/2025-09-08_00-40-55'#bad_channel_ids ['CH5' 'CH7' 'CH10']
+    #thisDir = r'Y:/GN25034/250907/coherence/session1/2025-09-08_01-12-18'#bad_channel_ids ['CH24']
+    #thisDir = r'Y:\GN25034\250907\gratings\session1\2025-09-08_00-40-55'#bad_channel_ids ['CH24']
+    #thisDir = r'Y:\GN25038\250924\gratings\session1\2025-09-24_18-40-05'#bad_channel_ids ['CH3']
     thisDir = r"Y:\GN25029\250729\looming\session1\2025-07-29_15-22-54"#
-    #thisDir = r"Y:\GN25034\250907\looming\session1\2025-09-07_17-26-48"
-    #thisDir = r"Y:\GN25029\250729\looming\session2\2025-07-29_17-35-20"
-    #thisDir = r"Y:\GN25029\250729\sweeping\session1\2025-07-29_16-34-15"
-    #thisDir=r"Y:\GN25032\250807\looming\session1\2025-08-07_19-34-42"
-    #thisDir=r"Y:\GN25029\250729\looming\session1\2025-07-29_15-22-54"
-    #thisDir=r"Y:\GN25033\250906\gratings\session1\2025-09-06_20-09-26"
-    #thisDir=r"Y:\GN25033\250906\looming\session1\2025-09-06_18-42-24"#['CH36' 'CH38' 'CH40' 'CH51' 'CH56' 'CH58']
-    #thisDir=r"Y:\GN25034\250907\looming\session2\2025-09-07_21-18-07"#
-    #thisDir=r"Y:\GN25034\250907\looming\session3\2025-09-07_23-47-23"#
-    #thisDir=r"Y:\GN25034\250907\looming\session4\2025-09-08_04-05-44" #
-    #thisDir=r"Y:\GN25034\250907\coherence\session1\2025-09-08_01-12-18"#['CH24']
-    #thisDir=r"Y:\GN25034\250907\gratings\session1\2025-09-08_00-40-55"#['CH24']
-    #thisDir=r"Y:\GN25034\250907\sweeping\session2\2025-09-07_22-44-33"#
-    #thisDir=r"Y:\GN25033\250906\looming\session2\2025-09-06_20-46-29"
-    #thisDir=r"Y:\GN25032\250807\sweeping\session1\2025-08-07_20-58-03"
-    #thisDir = r"Y:\GN25030\250802\looming\session1\2025-08-02_19-34-32"
-    #thisDir = r"Y:\GN25030\250802\sweeping\session1\2025-08-02_21-13-32"
-    #thisDir = r"Y:\GN25031\250803\sweeping\session1\2025-08-03_19-15-57"
-    #thisDir = r"Y:\GN25031\250803\looming\session1\2025-08-03_17-52-45"
-    #thisDir = r"Y:\GN25031\250803\sweeping\session1\2025-08-03_19-15-57"
-    #thisDir = r"Y:\GN25026\250722\coherence\session1\2025-07-22_16-38-06"
-    #thisDir = r"Y:\GN25022\250531\gratings\session1\2025-05-31_19-20-41"
     json_file = "./analysis_methods_dictionary.json"
     ##Time the function
     tic = time.perf_counter()
