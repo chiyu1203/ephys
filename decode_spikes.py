@@ -194,8 +194,6 @@ def align_async_signals(thisDir, json_file):
         ]
         np.save(oe_folder/"pd_on.npy",pd_on_oe)
         np.save(oe_folder/"pd_off.npy",pd_off_oe)
-    #print(f"Onset of ISI and preStim: {pd_off_oe.values-pd_on_oe[:-1].values}")
-    #print(f"Onset of Stim: {pd_on_oe[2:].values-pd_off_oe[1:].values}")
         if len(camera_trigger_on_oe)>0:
             np.where(camera_trigger_on_oe.values > pd_off_oe.values[1])
             np.where(camera_trigger_on_oe.values > pd_on_oe.values[2])
@@ -384,16 +382,18 @@ def align_async_signals(thisDir, json_file):
     ###start loading info from sorted spikes
     ## if use kilosort standalone, then load kilosort folder. Otherwise, load spikeinterface's preprocessed data and its toolkit.
     if analysis_methods.get("motion_corrector")=="kilosort_default":
-        merged_units=True
+        merged_units=False
         folder_suffix="_merged" if merged_units else ""
         spike_clusters=np.load(oe_folder/f"kilosort4{folder_suffix}"/"spike_clusters.npy")
         spike_times=np.load(oe_folder/f"kilosort4{folder_suffix}"/"spike_times.npy")/30000.0#this is the default sampling frequency in openEphys
         cluster_group=pd.read_csv(oe_folder/f"kilosort4{folder_suffix}"/"cluster_group.tsv", sep='\t',header=0)
         #cluster_info=pd.read_csv(r'C:\Users\neuroPC\Documents\Open Ephys\GN25011\kilosort4_shank023_0block_32ntern\cluster_info.tsv', sep='\t',header=0)
-        
         #mask= np.isin(spike_clusters,cluster_group.loc[cluster_group['group']=='mua']['cluster_id'].values)
-        mask= np.isin(spike_clusters,cluster_group.loc[cluster_group['group']=='good']['cluster_id'].values)
-        #mask= np.isin(spike_clusters,cluster_group.loc[(cluster_group['group'].reset_index(drop=True)=='mua') | (cluster_group['group'].reset_index(drop=True)=='good')].values)
+        if analysis_methods.get("include_MUA") == True:
+            mask= np.isin(spike_clusters,cluster_group.loc[(cluster_group['group'].reset_index(drop=True)=='mua') | (cluster_group['group'].reset_index(drop=True)=='good')].values)
+        else:
+            mask= np.isin(spike_clusters,cluster_group.loc[cluster_group['group']=='good']['cluster_id'].values)
+
         cluster_id_interest=spike_clusters[mask]
         spike_time_interest=spike_times[mask]
     else:
@@ -467,31 +467,6 @@ def align_async_signals(thisDir, json_file):
                 for this_stim in stim_type:
                     if np.where((stimulus_meta_info["stim_type"] == this_stim) & (stimulus_meta_info["Duration"]==this_duration))[0].shape[0]<2:
                         continue
-                    # troubleshoot this part. Dont know why it exceeds the max size
-                    # plt.figure()
-                    # ax = plt.gca()
-                    # ax.set_ylim([0., 250.0])
-                    # peri_event_time_histogram(
-                    #     spike_time_interest,
-                    #     cluster_id_interest,
-                    #     event_of_interest[
-                    #         (stimulus_meta_info["stim_type"] == this_stim) & (stimulus_meta_info["Duration"]==this_duration)
-                    #     ],
-                    #     this_cluster_id,
-                    #     # t_before=abs(time_window_behaviours[0]),
-                    #     # t_after=time_window_behaviours[1],
-                    #     t_before=2,
-                    #     t_after=2+this_duration,
-                    #     #bin_size=0.05,
-                    #     #smoothing=0.05,
-                    #     ax=ax,
-                    #     include_raster=True,
-                    #     raster_kwargs={"color": "black", "lw": 1},
-                    # )
-                    # # fig_name = f"peth_stim{this_stim}_unit{this_cluster_id}.svg"
-                    # fig_name = f"unit{this_cluster_id}_peth_stim{this_stim}_{this_duration}s_noraster.jpg"
-                    # fig_dir = oe_folder / fig_name
-                    # ax.figure.savefig(fig_dir)
                     ax = peri_event_time_histogram(
                         spike_time_interest,
                         cluster_id_interest,
@@ -503,23 +478,22 @@ def align_async_signals(thisDir, json_file):
                         # t_after=time_window_behaviours[1],
                         t_before=2,
                         t_after=2+this_duration,
-                        #bin_size=0.05,
-                        #smoothing=0.05,
+                        #bin_size=0.025,
+                        #smoothing=0.025,
                         include_raster=True,
-                        raster_kwargs={"color": "black", "lw": 1},
+                        raster_kwargs={"color": "black", "lw": 0.5},
                     )
-                    # fig_name = f"peth_stim{this_stim}_unit{this_cluster_id}.svg"
-                    fix_ylim=True
+                    fix_ylim=False
                     if fix_ylim:
                         ax.set_ylim([0, 250])
                         ax.set_yticks([0,250])
                         ax.set_xticks([])
                         ax.set_xlabel("")
                         ax.set_ylabel("")
-                        jpg_name = f"unit{this_cluster_id}_peth_stim{this_stim}_{this_duration}s_no_raster.jpg"
+                        jpg_name = f"unit{this_cluster_id}_peth_stim{this_stim}_{this_duration}s_no_raster.png"
                         #svg_name = f"unit{this_cluster_id}_peth_stim{this_stim}_{this_duration}s_no_raster.svg"
                     else:
-                        jpg_name = f"unit{this_cluster_id}_peth_stim{this_stim}_{this_duration}s.jpg"
+                        jpg_name = f"unit{this_cluster_id}_peth_stim{this_stim}_{this_duration}s.png"
                         svg_name = f"unit{this_cluster_id}_peth_stim{this_stim}_{this_duration}s.svg"
                         ax.figure.savefig(oe_folder / svg_name)
                     ax.figure.savefig(oe_folder / jpg_name)
@@ -545,8 +519,8 @@ if __name__ == "__main__":
     #thisDir = r"Y:\GN25029\250729\sweeping\session1\2025-07-29_16-34-15"
     #thisDir = r"Y:\GN25029\250729\coherence\session1\2025-07-29_20-16-03"
     #thisDir = r"Y:\GN25029\250729\looming\session3\2025-07-29_18-35-50"
-    #thisDir = r"Y:\GN25029\250729\looming\session1\2025-07-29_15-22-54"
-    thisDir = r"Y:\GN25032\250807\looming\session1\2025-08-07_19-34-42"
+    thisDir = r"Y:\GN25029\250729\looming\session1\2025-07-29_15-22-54"
+    #thisDir = r"Y:\GN25032\250807\looming\session1\2025-08-07_19-34-42"
     #thisDir = r"Y:\GN25032\250807\looming\session2\2025-08-07_22-06-12"
     #thisDir = r"Y:\GN25032\250807\looming\session4\2025-08-08_01-19-05"
     #thisDir = r"Y:\GN25029\250729\looming\session2\2025-07-29_17-35-20"
