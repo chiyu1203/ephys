@@ -5,8 +5,8 @@ function calibration_file(input_dir,input_file_name,output_file_name)
 %% manually load the path of file for intensity for different colours
 arguments
    input_dir (1,1) string= 'C:\Users\neuroPC\Documents\GitHub\UnityDataAnalysis\';
-   input_file_name (1,1) string= 'rgb_scale_4_gamma_calibration.csv';
-   output_file_name (1,1) string= 'gamma_corrected_LUT.bmp';   
+   input_file_name (1,1) string= 'rgb_scale_4_gamma_calibration_opsin_photons_20250805.csv';
+   output_file_name (1,1) string= 'gamma_corrected_LUT_opsin_photons_20250805.bmp';   
 end
 this_file_path = fullfile(input_dir,input_file_name);
 m=readmatrix(this_file_path);
@@ -27,6 +27,7 @@ PixelValue=m';
 
 
 %% compute inverse function for each colour
+%scale = 0.1:0.1:1;
 scale = 0:0.1:1;
 %[RGB_fit,RGB_params] = InverseGamma(PixelValue,scale','exp');
 [RGB_fit,~] = InverseGamma(PixelValue,scale','pm_exp');

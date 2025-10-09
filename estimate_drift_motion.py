@@ -57,7 +57,10 @@ def AP_band_drift_estimation(group,recording_saved,oe_folder,analysis_methods,wi
         if motion_corrector in motion_corrector_tuple:
             test_folder = motion_folder / motion_corrector
             motion_corrector_params = spre.get_motion_parameters_preset(motion_corrector)
+            print(motion_corrector_params)
             motion_corrector_params['estimate_motion_kwargs'].update({"win_step_um":win_step_um,"win_scale_um":win_scale_um})
+            detection_threshold=8.0
+            motion_corrector_params['detect_kwargs'].update({'detect_threshold': detection_threshold})
             # dredge_preset_params = spre.get_motion_parameters_preset("dredge")
             if test_folder.is_dir() and load_existing_motion_info:
                 motion_info = spre.load_motion_info(test_folder)
@@ -67,6 +70,9 @@ def AP_band_drift_estimation(group,recording_saved,oe_folder,analysis_methods,wi
                     #temporal_bins=motion_info["temporal_bins"],
                     #spatial_bins=motion_info["spatial_bins"],
                 )
+                # border_mode="remove_channels",
+                # spatial_interpolation_method="kriging",
+                # sigma_um=30.
             elif analysis_methods.get("overwrite_curated_dataset") or test_folder.is_dir()==False:
                 # if motion_corrector == "kilosort_like":
                 #     estimate_motion_kwargs = {
@@ -78,6 +84,7 @@ def AP_band_drift_estimation(group,recording_saved,oe_folder,analysis_methods,wi
                     overwrite=True,
                     output_motion=True,
                     output_motion_info=True,
+                    detect_kwargs=motion_corrector_params['detect_kwargs'],
                     estimate_motion_kwargs=motion_corrector_params['estimate_motion_kwargs']
                 )
             else:
@@ -89,6 +96,7 @@ def AP_band_drift_estimation(group,recording_saved,oe_folder,analysis_methods,wi
                     overwrite=False,
                     output_motion=False,
                     output_motion_info=False,
+                    detect_kwargs=motion_corrector_params['detect_kwargs'],
                     estimate_motion_kwargs=motion_corrector_params['estimate_motion_kwargs'])#interpolate_motion_kwargs={'border_mode' : 'force_extrapolate'},
                 print('recording is corrected but output_motion and info are not generated')
             fig = plt.figure(figsize=(14, 8))
@@ -101,8 +109,12 @@ def AP_band_drift_estimation(group,recording_saved,oe_folder,analysis_methods,wi
                 amplitude_cmap="inferno",
                 scatter_decimate=10,
             )
-            fig.suptitle(f"{motion_corrector=} win_step: {win_step_um} win_scale: {win_scale_um}")
-            fig.savefig(test_folder / "estimated_motion_result.png")
+            fig.suptitle(f"{motion_corrector=} win_step: {win_step_um} win_scale: {win_scale_um}, threshold: {detection_threshold}")
+            estimated_motion_figure=test_folder / "estimated_motion_result.png"
+            if estimated_motion_figure.exists() and analysis_methods.get("overwrite_curated_dataset")==False:
+                print("the figure exists. analysis methods that does not overwrite it is chosen")
+            else:
+                fig.savefig(estimated_motion_figure)
             motion_info_list.append(motion_info)  # the default mode will remove channels at the border, trying using force_extrapolate
         elif motion_corrector == ("testing"):
             # This is a section to test which algorithm is better for motion correction. 
@@ -118,6 +130,8 @@ def AP_band_drift_estimation(group,recording_saved,oe_folder,analysis_methods,wi
                 if load_existing_motion_info and test_folder.exists():
                     motion_info = spre.load_motion_info(test_folder)
                 else:
+                    motion_corrector_params = spre.get_motion_parameters_preset(preset)
+                    print(motion_corrector_params)
                     recording_corrected, _, motion_info = spre.correct_motion(
                         recording=recording_saved,
                         preset=preset,
@@ -130,6 +144,7 @@ def AP_band_drift_estimation(group,recording_saved,oe_folder,analysis_methods,wi
                             "win_scale_um": win_scale_um,
                             #"win_margin_um": win_margin_um,
                         })  # the default mode will remove channels at the border, trying using force_extrapolate
+                    
                     fig = plt.figure(figsize=(14, 8))
                     sw.plot_motion_info(
                         motion_info,
@@ -250,21 +265,37 @@ def run(thisDir, json_file):
             )
 
         ################load probe information################
-        if probe_type == "P2":
+        if probe_type == "H10_stacked":
+            stacked_probes = pi.read_probeinterface("H10_stacked_probes_2D.json")
+            probe = stacked_probes.probes[0]
+        elif probe_type == "H10_rev":
+            probe_name= "ASSY-77-H10"
+            stacked_probes = pi.read_probeinterface("H10_RHD2164_rev_openEphys_mapping.json")
+            probe = stacked_probes.probes[0]
+        elif probe_type == "P2":
+            probe_name= "ASSY-37-P-2"
+            stacked_probes = pi.read_probeinterface("P2_RHD2132_openEphys_mapping.json")
+            probe = stacked_probes.probes[0]    
+        else:
             manufacturer = "cambridgeneurotech"
-            probe_name = "ASSY-37-P-2"
+            # if probe_type == "P2":
+            #     probe_name = "ASSY-37-P-2"
+            #     connector_type="ASSY-116>RHD2132"
+            if probe_type == "H5":
+                probe_name = "ASSY-77-H5"
+                connector_type="ASSY-77>Adpt.A64-Om32_2x-sm-cambridgeneurotech>RHD2164"
+            elif probe_type == "H10":
+                probe_name = "ASSY-77-H10"
+                connector_type="ASSY-77>Adpt.A64-Om32_2x-sm-cambridgeneurotech>RHD2164"
+            else:
+                print("the name of probe not identified. stop the programme")
+                return
             probe = pi.get_probe(manufacturer, probe_name)
-            print(probe)
-            probe.wiring_to_device("ASSY-116>RHD2132")
             probe.to_dataframe(complete=True).loc[
                 :, ["contact_ids", "shank_ids", "device_channel_indices"]
             ]
-        elif probe_type == "H10_stacked":
-            stacked_probes = pi.read_probeinterface("H10_stacked_probes.json")
-            probe = stacked_probes.probes[0]
-        else:
-            print("the name of probe not identified. stop the programme")
-            return
+            probe.wiring_to_device(connector_type)
+        print(probe)
         # drop AUX channels here
         raw_rec = raw_rec.set_probe(probe,group_mode='by_shank')
         probe_rec = raw_rec.get_probe()
@@ -282,10 +313,10 @@ def run(thisDir, json_file):
             for group, rec_per_shank in recordings_dict.items():
                 motion_lfp=LFP_band_drift_estimation(group,rec_per_shank,oe_folder)
                 motion_lfp_dict[group]=motion_lfp
-    win_step_set=[30,25]
+    win_step_set=[75,50,25]
     #win_scale_set=[150,200,250]
     #win_scale_set=[250,200,150]
-    win_scale_set=[150,100]
+    win_scale_set=[100,150]
     #win_margin_set=[-150,0,150]
     #win_margin_set=[150,0]
     # win_step_um":75.0,"
@@ -308,7 +339,12 @@ def run(thisDir, json_file):
 
 
 if __name__ == "__main__":
-    thisDir =  r"Y:\GN25019\250524\2025-05-24_15-11-49"
+    #thisDir =  r"Y:\GN25019\250524\gratings\session1\2025-05-24_16-15-25"
+    #thisDir=r"Y:\GN25020\250525\gratings\session1\2025-05-25_18-42-54"
+    #thisDir=r"Y:\GN25022\250531\coherence\session1\2025-05-31_17-48-06"
+    thisDir = r"Y:\GN25032\250807\looming\session1\2025-08-07_19-34-42"
+    #thisDir=r"Y:\GN25033\250906\looming\session1\2025-09-06_18-42-24"
+    #thisDir=r"Y:\GN25029\250729\looming\session1\2025-07-29_15-22-54"
     json_file = "./analysis_methods_dictionary.json"
     ##Time the function
     tic = time.perf_counter()
