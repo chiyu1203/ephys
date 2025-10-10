@@ -10,8 +10,6 @@ import spikeinterface.qualitymetrics as sq
 import spikeinterface.exporters as sep
 from open_ephys.analysis import Session
 from estimate_drift_motion import AP_band_drift_estimation, LFP_band_drift_estimation
-# from spikeinterface.sortingcomponents.clustering import find_cluster_from_peaks
-# from spikeinterface.sortingcomponents.motion import InterpolateMotionRecording
 from spikeinterface.sortingcomponents.motion import (
     correct_motion_on_peaks,
     interpolate_motion,
@@ -22,9 +20,6 @@ import matplotlib.pyplot as plt
 import numpy as np
 from pathlib import Path
 import numcodecs
-##from brainbox.population.decode import get_spike_counts_in_bins
-##from brainbox.task.trials import get_event_aligned_raster, get_psth
-##from brainbox.ephys_plots import scatter_raster_plot
 warnings.simplefilter("ignore")
 import spikeinterface.curation as scur
 n_cpus = os.cpu_count()
@@ -72,7 +67,7 @@ def motion_correction_shankbyshank(recording_saved,oe_folder,analysis_methods):
         recording_corrected,motion_info_list=AP_band_drift_estimation(group,recording_saved,oe_folder,analysis_methods,win_step_um,win_scale_um)
         recording_corrected_dict[group]=recording_corrected
         test_folder = oe_folder /f'motion_shank{group}'/motion_corrector
-        if motion_corrector!='testing':
+        if motion_corrector!='testing' and analysis_methods.get("skip_motion_correction")==False:
             motion_info=motion_info_list[0]
             motion = motion_info["motion"]
             fig, (ax1,ax2) = plt.subplots(ncols=2, figsize=(12, 8), sharey=True)
@@ -242,9 +237,6 @@ def get_preprocessed_recording(oe_folder,analysis_methods):
                         broken_shank_ids
                     )
             bad_channel_ids,channel_labels = spre.detect_bad_channels(recording_f)
-            #
-            # (noise_inds,) = np.where(channel_labels=='noise')
-            # noise_channel_ids = recording_f.channel_ids[noise_inds]
             (dead_inds,) = np.where(channel_labels=='dead')
             dead_channel_ids = recording_f.channel_ids[dead_inds]
             print("bad_channel_ids", bad_channel_ids)
@@ -269,30 +261,20 @@ def get_preprocessed_recording(oe_folder,analysis_methods):
             ax=fig0.add_subplot(figcode)
             sw.plot_traces(rec_per_shank,  mode="auto",ax=ax)
         fig0.savefig(oe_folder /'after_band_pass_and_remove_channels.png')
-        if plot_traces:
-            fig0.show()
-            #shankid=0
-            #sw.plot_traces({f"shank{shankid+1}": recordings_dict[shankid]},  mode="auto",time_range=[10, 10.1], backend="ipywidgets")
-            #sw.plot_traces(recordings_dict[shankid],  mode="auto",time_range=[10, 10.1])
-        
-
         # apply common median reference to remove common noise
         recording_cmr = spre.common_reference(
             recordings_dict, reference="global", operator="median"
         )
-        fig1=plt.figure(figsize=[64,48])
-        for group, rec_per_shank in recording_cmr.items():
-            figcode=int(f"12{group+1}")
-            ax=fig1.add_subplot(figcode)
-            sw.plot_traces(rec_per_shank,  mode="auto",ax=ax)
-        fig1.savefig(oe_folder /'after_cmr.png')
-        # recording_cmr = spre.common_reference(
-        #     recording_f, reference="global", operator="median" 
-        # )
         '''
         ref_channel_idslist | str | int | None, default: None
 If “global” reference, a list of channels to be used as reference. If “single” reference, a list of one channel or a single channel id is expected. If “groups” is provided, then a list of channels to be applied to each group is expected.
         '''
+        fig_cmr=plt.figure(figsize=[64,48])
+        for group, rec_per_shank in recording_cmr.items():
+            figcode=int(f"12{group+1}")
+            ax=fig_cmr.add_subplot(figcode)
+            sw.plot_traces(rec_per_shank,  mode="auto",ax=ax)
+        fig_cmr.savefig(oe_folder /'after_cmr.png')
 
         # another filter to consider: https://github.com/SpikeInterface/SpikeInterface-Training-Edinburgh-May24/blob/main/hands_on/preprocessing/preprocessing.ipynb
         # recording_cmr = spre.highpass_spatial_filter(
@@ -305,13 +287,6 @@ If “global” reference, a list of channels to be used as reference. If “sin
         rec_of_interest.annotate(
             is_filtered=True
         )  # needed to add this somehow because when loading a preprocessed data saved in the past, that data would not be labeled as filtered data
-        # recordings_dict = rec_of_interest.split_by(property='group', outputs='dict')
-        # fig0=plt.figure()
-        # for group, rec_per_shank in recordings_dict.items():
-        #     figcode=int(f"22{group+1}")
-        #     ax=fig0.add_subplot(figcode)
-        #     sw.plot_traces(rec_per_shank,  mode="auto",ax=ax)
-        # plt.show()
     return rec_of_interest
 
 
@@ -392,53 +367,55 @@ def raw2si(thisDir, json_file):
         # use manual splitting for motion for now because correct_motion function does not take dict as input yet
         #the first two parameters to test in motion correction: "win_step_um" and "win_scale_um"
         recording_saved=spre.astype(recording_saved,np.float32)
+        #setting motion_corrector to 'kilosort_default' will skip motion_correction_shankbyshank
         recording_corrected_dict=motion_correction_shankbyshank(recording_saved,oe_folder,analysis_methods)
-
-        # if plot_traces:
-        #     fig1=plt.figure()
-        #     for group, rec_per_shank in recording_corrected_dict.items():
-        #         figcode=int(f"22{group+1}")
-        #         ax=fig1.add_subplot(figcode)
-        #         sw.plot_traces(rec_per_shank,  mode="auto",ax=ax)
-        #     plt.show()   
 
         if motion_corrector =='testing':
             return print("drift/correction testing is finished")
-        ############################# whitening ##########################
-        elif motion_corrector =='kilosort_default':
-            #setting motion_corrector to 'kilosort_default' will skip motion_correction_shankbyshank
+        if motion_corrector =='kilosort_default':
+            #setting motion_corrector to 'kilosort_default' will skip whitening step here
             if type(recording_saved)==dict:
                 rec_for_sorting=si.aggregate_channels(recording_saved)
             else:
-        #use_kilosort_motion_correction = True
                 rec_for_sorting = recording_saved
-        #if use_kilosort_motion_correction:
             print("use the default motion correction and whitening method in the kilosort")
             pass
         else:
+        ############################# whitening ##########################
             # create a temporary option here to account for manual splitting during motion correction
             if len(recording_corrected_dict)>1:
                 recording_corrected=recording_corrected_dict
             else:
                 recording_corrected=recording_corrected_dict[0]
-            # fig0=plt.figure()
-            # r_range=[25,50,100,150]
-            # #recording_saved.channel_ids[:10]np.linspace(1,10,10,dtype=int)
-            # i=0
-            # for this_r in r_range:
-            #     rec_w = spre.whiten(recording=recording_saved,mode="local",radius_um=this_r,int_scale=200,dtype=float)
-            #     figcode=int(f"15{i+1}")
-            #     ax=fig0.add_subplot(figcode)
-            #     if i==3:
-            #         figcode=int(f"15{i+2}")
-            #         ax1=fig0.add_subplot(figcode)
-            #         sw.plot_traces(recording_saved,channel_ids=recording_saved.channel_ids[:32],time_range=[500, 500.1],mode="auto",ax=ax1,add_legend=False)
-            #         ax1.title.set_text(f'before whitening')
-            #     sw.plot_traces(rec_w,channel_ids=recording_saved.channel_ids[:32],time_range=[500, 500.1],mode="auto",ax=ax,add_legend=False)
-            #     ax.title.set_text(f'radius: {this_r}')
-            #     i=i+1
-            # plt.show()
-            # rec_for_sorting = recording_corrected
+            fig_w=plt.figure(figsize=[32,16])
+            r_range=[25,50,100,150]
+            #r_range=[75,200,250,300]
+            fs = recording_corrected.get_sampling_frequency()
+            for i in range(len(r_range)+2):
+                ax=fig_w.add_subplot(2, 6, i+1)
+                if i==5:
+                    rec_w=recording_corrected
+                    ax.title.set_text(f'before whitening')
+                elif i==4:
+                    rec_w = spre.whiten(recording=recording_corrected,int_scale=200,dtype=float)
+                    ax.title.set_text(f'global mode')
+                else:
+                    this_r=r_range[i]
+                    rec_w = spre.whiten(recording=recording_corrected,mode="local",radius_um=this_r,int_scale=200,dtype=float)
+                    ax.title.set_text(f'local mode, r={this_r}um')
+
+                trace_snippet = rec_w.get_traces(
+                    start_frame=int(fs * 500), end_frame=int(fs * 500.1)
+                )
+                n=trace_snippet.shape[0]
+                D_demean = trace_snippet - np.mean(trace_snippet, axis=0)
+                S = D_demean.T@D_demean * (1/n)  # TODO: check
+                sw.plot_traces(rec_w,channel_ids=recording_corrected.channel_ids[:32],time_range=[500, 500.1],mode="auto",ax=ax,add_legend=False)
+                ax=fig_w.add_subplot(2, 6, i+7)
+                img=ax.imshow(S, cmap="Reds")
+                plt.colorbar(img,ax=ax)
+            fig_w.savefig(oe_folder /f'whitening_radius_{r_range[0]}_{r_range[1]}.png')
+            rec_for_sorting = recording_corrected
             
             rec_for_sorting = spre.whiten(
                 recording=recording_corrected,
@@ -551,6 +528,9 @@ if __name__ == "__main__":
     #thisDir = r'Y:\GN25034\250907\gratings\session1\2025-09-08_00-40-55'#bad_channel_ids ['CH24']
     #thisDir = r'Y:\GN25038\250924\gratings\session1\2025-09-24_18-40-05'#bad_channel_ids ['CH3']
     thisDir = r"Y:\GN25029\250729\looming\session1\2025-07-29_15-22-54"#
+    #thisDir = r"Y:\GN25040\250928\looming\session2\2025-09-28_18-23-15"
+    #thisDir = r"Y:\GN25039\250927\looming\session3\2025-09-27_18-43-31"
+    #thisDir = r"Y:\GN25037\250922\looming\session2\2025-09-22_15-59-41"
     json_file = "./analysis_methods_dictionary.json"
     ##Time the function
     tic = time.perf_counter()
