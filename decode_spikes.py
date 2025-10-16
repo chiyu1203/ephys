@@ -238,25 +238,34 @@ def align_async_signals(thisDir, json_file):
             stimulus_meta_info = pd.read_pickle(stimulus_meta_file)
             num_stim = stimulus_meta_info.shape[0]
         ### changed ISI and Stim signals to 1 and 0 from 2025 April 1st
-        if experiment_name in ['looming',"receding","conflict"]:
+        if experiment_name in ['looming',"receding","conflict"]  and meta_info['PreMovDuration'].unique()!=0:
             pd_on_oe=pd_on_oe[preStim_duration<pd_on_oe]
-            stim_on_oe = pd_on_oe[::2]
-            isi_on_oe=pd_on_oe[1::2]
-            debug=isi_on_oe-stim_on_oe
-            np.savetxt(f"{oe_folder.stem}_debug.csv", debug, delimiter=",")
+            pd_off_oe=pd_off_oe[preStim_duration<pd_off_oe]
+            if 'gregarious_locust' in stim_type:
+                pd_off_oe=pd_off_oe[preStim_duration<pd_off_oe]
+                pd_on_oe=pd_on_oe[1:]
+                pd_off_oe=pd_off_oe[1:]
+            stim_on_oe = pd_off_oe[::2]## if bright stimuli represent appearance of the stimulus or the stop of moving stimulus, then stim onset and ISI onset are based on pd_off_oe
+            isi_on_oe=pd_off_oe[1::2]
+            # debug=isi_on_oe-stim_on_oe
+            # np.savetxt(f"{oe_folder.stem}_debug.csv", debug, delimiter=",")
             
         elif experiment_name in ['looming',"receding","conflict","sweeping"] and meta_info['PreMovDuration'].unique()==0:
             pd_on_oe=pd_on_oe[preStim_duration<pd_on_oe]
             pd_off_oe=pd_off_oe[preStim_duration<pd_off_oe]
-            stim_on_oe = pd_on_oe[:num_stim]
-            isi_on_oe = pd_off_oe[:num_stim]
+            if pd_off_oe[0]>pd_on_oe[0]:
+                stim_on_oe = pd_on_oe[:num_stim]
+                isi_on_oe = pd_off_oe[:num_stim]
+            else:
+                stim_on_oe = pd_off_oe[:num_stim]
+                isi_on_oe = pd_on_oe[:num_stim]
         else:
             stim_on_oe = pd_on_oe
             isi_on_oe = pd_off_oe
 
         if analysis_methods.get("analyse_stim_evoked_activity") == True:
             if len(stim_on_oe) > num_stim:
-                stim_on_oe=stim_on_oe[preStim_duration<stim_on_oe]
+                stim_on_oe=stim_on_oe[preStim_duration<stim_on_oe]### I should move this to line 258 for coherence etc.
                 stim_events_times=stim_on_oe[:num_stim]
                 # stim_events_times = stim_on_oe[
                 #     -num_stim:
@@ -379,9 +388,25 @@ def align_async_signals(thisDir, json_file):
     if analysis_methods.get("motion_corrector")=="kilosort_default":
         merged_units=False
         folder_suffix="_merged" if merged_units else ""
-        spike_clusters=np.load(oe_folder/f"kilosort4{folder_suffix}"/"spike_clusters.npy")
-        spike_times=np.load(oe_folder/f"kilosort4{folder_suffix}"/"spike_times.npy")/30000.0#this is the default sampling frequency in openEphys
-        cluster_group=pd.read_csv(oe_folder/f"kilosort4{folder_suffix}"/"cluster_group.tsv", sep='\t',header=0)
+        file_type=".npy"
+        ks_path=[]
+        for root, _, files in os.walk(oe_folder/f"kilosort4{folder_suffix}"):
+            if len(files)==0:
+                continue
+            elif any(file_type in x for x in files):
+                ks_path.append(Path(root))
+            else:
+                continue         
+        if len(ks_path)==1:
+            spike_clusters=np.load(ks_path[0]/"spike_clusters.npy")
+            spike_times=np.load(ks_path[0]/"spike_times.npy")/30000.0#this is the default sampling frequency in openEphys
+            cluster_group=pd.read_csv(ks_path[0]/"cluster_group.tsv", sep='\t',header=0)
+        else:
+            ## not useful now because in kilosort standalone, not specifying shanks will result in no shank folder
+            for this_ks_path in ks_path:
+                spike_clusters=np.load(this_ks_path/"spike_clusters.npy")
+                spike_times=np.load(this_ks_path/"spike_times.npy")/30000.0#this is the default sampling frequency in openEphys
+                cluster_group=pd.read_csv(this_ks_path/"cluster_group.tsv", sep='\t',header=0)
         #cluster_info=pd.read_csv(r'C:\Users\neuroPC\Documents\Open Ephys\GN25011\kilosort4_shank023_0block_32ntern\cluster_info.tsv', sep='\t',header=0)
         #mask= np.isin(spike_clusters,cluster_group.loc[cluster_group['group']=='mua']['cluster_id'].values)
         if analysis_methods.get("include_MUA") == True:
@@ -413,7 +438,6 @@ def align_async_signals(thisDir, json_file):
                 oe_folder / phy_folder_name, exclude_cluster_groups=cluster_group_interest
             )
             unit_labels = sorting_spikes.get_property("quality")
-            recording_saved = get_preprocessed_recording(oe_folder,analysis_methods)
             sorting_analyzer = si.create_sorting_analyzer(
                 sorting=sorting_spikes,
                 recording=recording_saved,
@@ -516,6 +540,12 @@ if __name__ == "__main__":
     #thisDir = r"Y:\GN25029\250729\coherence\session1\2025-07-29_20-16-03"
     #thisDir = r"Y:\GN25029\250729\looming\session3\2025-07-29_18-35-50"
     thisDir = r"Y:\GN25029\250729\looming\session1\2025-07-29_15-22-54"
+    #thisDir = r"Y:\GN25045\251013\looming\session2\2025-10-13_13-31-57"
+    #thisDir = r"Y:\GN25043\251008\looming\session2\2025-10-07_14-22-22"
+    #thisDir = r"Y:\GN25037\250922\looming\session2\2025-09-22_15-59-41"
+    #thisDir = r"Y:\GN25031\250803\looming\session1\2025-08-03_17-52-45"
+    #thisDir = r"Y:\GN25037\250922\looming\session3\2025-09-22_17-48-42"
+    #thisDir = r"Y:\GN25039\250927\looming\session2\2025-09-27_17-12-17"
     #thisDir = r"Y:\GN25032\250807\looming\session1\2025-08-07_19-34-42"
     #thisDir = r"Y:\GN25032\250807\looming\session2\2025-08-07_22-06-12"
     #thisDir = r"Y:\GN25032\250807\looming\session4\2025-08-08_01-19-05"
