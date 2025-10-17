@@ -174,7 +174,8 @@ def get_preprocessed_recording(oe_folder,analysis_methods):
             probe = stacked_probes.probes[0]    
         elif probe_type == "H6D":
             probe_name= "ASSY-77-H6D"
-            stacked_probes = pi.read_probeinterface("H6D_RHD2164_openEphys_mapping.json")
+            #stacked_probes = pi.read_probeinterface("H6D_RHD2164_openEphys_mapping.json")
+            stacked_probes = pi.read_probeinterface("H6D_2_RHD2132_openEphys_mapping.json")
             probe = stacked_probes.probes[0]
         else:              
             manufacturer = "cambridgeneurotech"
