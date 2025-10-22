@@ -4,6 +4,7 @@ import spikeinterface.core as si
 import spikeinterface.extractors as se
 import spikeinterface.qualitymetrics as sqm
 import spikeinterface.widgets as sw
+import spikeinterface.curation as sc
 # For kilosort/phy output files we can use the read_phy
 # most formats will have a read_xx that can used.
 import matplotlib.pyplot as plt
@@ -245,8 +246,12 @@ def align_async_signals(thisDir, json_file):
                 pd_off_oe=pd_off_oe[preStim_duration<pd_off_oe]
                 pd_on_oe=pd_on_oe[1:]
                 pd_off_oe=pd_off_oe[1:]
-            stim_on_oe = pd_off_oe[::2]## if bright stimuli represent appearance of the stimulus or the stop of moving stimulus, then stim onset and ISI onset are based on pd_off_oe
-            isi_on_oe=pd_off_oe[1::2]
+            if pd_off_oe[0]<pd_on_oe[0] and pd_on_oe[0]-pd_off_oe[0]<0.8: #for some reason in GN25048, pd_off_oe happens before pd_on_oe
+                stim_on_oe = pd_on_oe[::2]## if bright stimuli represent appearance of the stimulus or the stop of moving stimulus, then stim onset and ISI onset are based on pd_off_oe
+                isi_on_oe=pd_on_oe[1::2]            
+            else:
+                stim_on_oe = pd_off_oe[::2]## if bright stimuli represent appearance of the stimulus or the stop of moving stimulus, then stim onset and ISI onset are based on pd_off_oe
+                isi_on_oe=pd_off_oe[1::2]
             # debug=isi_on_oe-stim_on_oe
             # np.savetxt(f"{oe_folder.stem}_debug.csv", debug, delimiter=",")
             
@@ -386,13 +391,13 @@ def align_async_signals(thisDir, json_file):
     ###start loading info from sorted spikes
     ## if use kilosort standalone, then load kilosort folder. Otherwise, load spikeinterface's preprocessed data and its toolkit.
     if analysis_methods.get("motion_corrector")=="kilosort_default":
-        merged_units=False
+        merged_units=True
         folder_suffix="_merged" if merged_units else ""
         file_type=".npy"
         ks_path=[]
-        for root, _, files in os.walk(oe_folder/f"kilosort4{folder_suffix}"):
-            if len(files)==0:
-                continue
+        for root, folders, files in os.walk(oe_folder/f"kilosort4{folder_suffix}"):
+            if len(folders)>0:
+                ks_path.append(Path(root)/folders[0])
             elif any(file_type in x for x in files):
                 ks_path.append(Path(root))
             else:
@@ -416,6 +421,11 @@ def align_async_signals(thisDir, json_file):
 
         cluster_id_interest=spike_clusters[mask]
         spike_time_interest=spike_times[mask]
+        for this_unit in np.unique(cluster_id_interest):
+            spike_time_temp=spike_time_interest[cluster_id_interest==this_unit]
+            duplicated_spikes=sc.find_duplicated_spikes(spike_time_temp,censored_period=0.0001,seed=0)
+            spike_time_interest=np.delete(spike_time_interest, duplicated_spikes)
+            cluster_id_interest=np.delete(cluster_id_interest, duplicated_spikes)
     else:
         recording_saved = get_preprocessed_recording(oe_folder,analysis_methods)
         if (
@@ -539,7 +549,11 @@ if __name__ == "__main__":
     #thisDir = r"Y:\GN25029\250729\sweeping\session1\2025-07-29_16-34-15"
     #thisDir = r"Y:\GN25029\250729\coherence\session1\2025-07-29_20-16-03"
     #thisDir = r"Y:\GN25029\250729\looming\session3\2025-07-29_18-35-50"
-    thisDir = r"Y:\GN25029\250729\looming\session1\2025-07-29_15-22-54"
+    #thisDir = r"Y:\GN25029\250729\looming\session1\2025-07-29_15-22-54"
+    #thisDir = r"Y:\GN25034\250907\looming\session2\2025-09-07_21-18-07"
+    thisDir = r"Y:\GN25048\251019\looming\session1\2025-10-19_18-50-34"
+    #thisDir = r"Y:\GN25045\251013\looming\session1\2025-10-13_11-16-41"
+    #thisDir = r"Y:\GN25046\251018\looming\session1\2025-10-18_16-34-27"
     #thisDir = r"Y:\GN25045\251013\looming\session2\2025-10-13_13-31-57"
     #thisDir = r"Y:\GN25043\251008\looming\session2\2025-10-07_14-22-22"
     #thisDir = r"Y:\GN25037\250922\looming\session2\2025-09-22_15-59-41"
