@@ -174,8 +174,8 @@ def get_preprocessed_recording(oe_folder,analysis_methods):
             probe = stacked_probes.probes[0]    
         elif probe_type == "H6D":
             probe_name= "ASSY-77-H6D"
-            #stacked_probes = pi.read_probeinterface("H6D_RHD2164_openEphys_mapping.json")
-            stacked_probes = pi.read_probeinterface("H6D_2_RHD2132_openEphys_mapping.json")
+            stacked_probes = pi.read_probeinterface("H6D_RHD2164_openEphys_mapping.json")
+            #stacked_probes = pi.read_probeinterface("H6D_2_RHD2132_openEphys_mapping.json")
             probe = stacked_probes.probes[0]
         else:              
             manufacturer = "cambridgeneurotech"
@@ -532,7 +532,15 @@ if __name__ == "__main__":
     #thisDir = r'Y:/GN25034/250907/coherence/session1/2025-09-08_01-12-18'#bad_channel_ids ['CH24']
     #thisDir = r'Y:\GN25034\250907\gratings\session1\2025-09-08_00-40-55'#bad_channel_ids ['CH24']
     #thisDir = r'Y:\GN25038\250924\gratings\session1\2025-09-24_18-40-05'#bad_channel_ids ['CH3']
-    thisDir = r"Y:\GN25029\250729\looming\session1\2025-07-29_15-22-54"#
+    #thisDir = r"Y:\GN25029\250729\looming\session1\2025-07-29_15-22-54"
+    #thisDir = r"Y:\GN25046\251018\sweeping\session1\2025-10-18_17-57-39"
+    #thisDir = r"Y:\GN25048\251019\looming\session1\2025-10-19_18-50-34"
+    #thisDir = r"Y:\GN25046\251018\sweeping\session1\2025-10-18_17-57-39"
+    #thisDir = r"Y:\GN25044\251012\looming\session2\2025-10-12_17-42-09"#['CH3' 'CH4' 'CH5' 'CH6' 'CH7' 'CH10' 'CH13' 'CH15' 'CH20' 'CH29' 'CH30']the last three are noisy
+    #thisDir = r"Y:\GN25044\251012\sweeping\session1\2025-10-12_19-05-58"
+    #thisDir = r"Y:\GN25049\251026\looming\session1\2025-10-25_16-06-08"
+    #thisDir = r"Y:\GN25049\251026\looming\session3\2025-10-25_20-08-11"
+    thisDir = r"Y:\GN25049\251026\looming\session2\2025-10-25_18-23-55"
     #thisDir = r"Y:\GN25040\250928\looming\session2\2025-09-28_18-23-15"
     #thisDir = r"Y:\GN25039\250927\looming\session3\2025-09-27_18-43-31"
     #thisDir = r"Y:\GN25037\250922\looming\session2\2025-09-22_15-59-41"

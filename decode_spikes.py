@@ -243,7 +243,6 @@ def align_async_signals(thisDir, json_file):
             pd_on_oe=pd_on_oe[preStim_duration<pd_on_oe]
             pd_off_oe=pd_off_oe[preStim_duration<pd_off_oe]
             if 'gregarious_locust' in stim_type:
-                pd_off_oe=pd_off_oe[preStim_duration<pd_off_oe]
                 pd_on_oe=pd_on_oe[1:]
                 pd_off_oe=pd_off_oe[1:]
             if pd_off_oe[0]<pd_on_oe[0] and pd_on_oe[0]-pd_off_oe[0]<0.8: #for some reason in GN25048, pd_off_oe happens before pd_on_oe
@@ -390,28 +389,43 @@ def align_async_signals(thisDir, json_file):
 
     ###start loading info from sorted spikes
     ## if use kilosort standalone, then load kilosort folder. Otherwise, load spikeinterface's preprocessed data and its toolkit.
-    if analysis_methods.get("motion_corrector")=="kilosort_default":
+    if analysis_methods.get("motion_corrector")=="kilosort_default" or analysis_methods.get("motion_corrector")=="testing":
+        #main_foler_name='kilosort4_ThU13'
+        main_foler_name='kilosort4'
         merged_units=True
         folder_suffix="_merged" if merged_units else ""
         file_type=".npy"
-        ks_path=[]
-        for root, folders, files in os.walk(oe_folder/f"kilosort4{folder_suffix}"):
-            if len(folders)>0:
-                ks_path.append(Path(root)/folders[0])
-            elif any(file_type in x for x in files):
-                ks_path.append(Path(root))
-            else:
-                continue         
-        if len(ks_path)==1:
-            spike_clusters=np.load(ks_path[0]/"spike_clusters.npy")
-            spike_times=np.load(ks_path[0]/"spike_times.npy")/30000.0#this is the default sampling frequency in openEphys
-            cluster_group=pd.read_csv(ks_path[0]/"cluster_group.tsv", sep='\t',header=0)
+        ks_path=oe_folder/f"{main_foler_name}{folder_suffix}"/ "shank_0"
+        if ks_path.is_dir():
+            pass
         else:
-            ## not useful now because in kilosort standalone, not specifying shanks will result in no shank folder
-            for this_ks_path in ks_path:
-                spike_clusters=np.load(this_ks_path/"spike_clusters.npy")
-                spike_times=np.load(this_ks_path/"spike_times.npy")/30000.0#this is the default sampling frequency in openEphys
-                cluster_group=pd.read_csv(this_ks_path/"cluster_group.tsv", sep='\t',header=0)
+            ks_path= oe_folder/f"{main_foler_name}{folder_suffix}"
+        spike_clusters=np.load(ks_path/"spike_clusters.npy")
+        spike_times=np.load(ks_path/"spike_times.npy")/30000.0#this is the default sampling frequency in openEphys
+        cluster_group=pd.read_csv(ks_path/"cluster_group.tsv", sep='\t',header=0)
+        # if oe_folder/f"kilosort4{folder_suffix}"/ "shank0".is_dir():
+        #     ks_path.append(oe_folder/f"kilosort4{folder_suffix}"/ "shank0")
+        # else:
+        #     ks_path.append(oe_folder/f"kilosort4{folder_suffix}")
+        # for root, folders, files in os.walk(oe_folder/f"kilosort4{folder_suffix}"):
+        #     if len(folders)==1:
+        #         ks_path.append(Path(root)/folders[0])
+        #         break
+        #     elif any(file_type in x for x in files):
+        #         ks_path.append(Path(root))
+        #         break
+        #     else:
+        #         continue         
+        # if len(ks_path)==1:
+        #     spike_clusters=np.load(ks_path[0]/"spike_clusters.npy")
+        #     spike_times=np.load(ks_path[0]/"spike_times.npy")/30000.0#this is the default sampling frequency in openEphys
+        #     cluster_group=pd.read_csv(ks_path[0]/"cluster_group.tsv", sep='\t',header=0)
+        # else:
+        #     ## not useful now because in kilosort standalone, not specifying shanks will result in no shank folder
+        #     for this_ks_path in ks_path:
+        #         spike_clusters=np.load(this_ks_path/"spike_clusters.npy")
+        #         spike_times=np.load(this_ks_path/"spike_times.npy")/30000.0#this is the default sampling frequency in openEphys
+        #         cluster_group=pd.read_csv(this_ks_path/"cluster_group.tsv", sep='\t',header=0)
         #cluster_info=pd.read_csv(r'C:\Users\neuroPC\Documents\Open Ephys\GN25011\kilosort4_shank023_0block_32ntern\cluster_info.tsv', sep='\t',header=0)
         #mask= np.isin(spike_clusters,cluster_group.loc[cluster_group['group']=='mua']['cluster_id'].values)
         if analysis_methods.get("include_MUA") == True:
@@ -423,7 +437,8 @@ def align_async_signals(thisDir, json_file):
         spike_time_interest=spike_times[mask]
         for this_unit in np.unique(cluster_id_interest):
             spike_time_temp=spike_time_interest[cluster_id_interest==this_unit]
-            duplicated_spikes=sc.find_duplicated_spikes(spike_time_temp,censored_period=0.0001,seed=0)
+            #duplicated_spikes=sc.find_duplicated_spikes(spike_time_temp,censored_period=0.0001,seed=0)
+            duplicated_spikes=sc.find_duplicated_spikes(spike_time_temp,censored_period=0.0015,seed=0)#we had to introduce a refractory period (tref = 1.5 ms) to replicate the nonlinear relation between the peak instantaneous firing rate frequency f0 and current over a large fraction of the LGMD firing range (Fig. 5B, gray trace).
             spike_time_interest=np.delete(spike_time_interest, duplicated_spikes)
             cluster_id_interest=np.delete(cluster_id_interest, duplicated_spikes)
     else:
@@ -551,7 +566,20 @@ if __name__ == "__main__":
     #thisDir = r"Y:\GN25029\250729\looming\session3\2025-07-29_18-35-50"
     #thisDir = r"Y:\GN25029\250729\looming\session1\2025-07-29_15-22-54"
     #thisDir = r"Y:\GN25034\250907\looming\session2\2025-09-07_21-18-07"
-    thisDir = r"Y:\GN25048\251019\looming\session1\2025-10-19_18-50-34"
+    #thisDir = r"Y:\GN25039\250927\looming\session1\2025-09-27_14-44-46"
+    #thisDir = r"Y:\GN25040\250928\looming\session1\2025-09-28_15-55-12"
+    #thisDir = r"Y:\GN25041\251004\looming\session1\2025-10-04_16-39-59"
+    thisDir = r"Y:\GN25042\251005\looming\session1\2025-10-05_16-22-44"
+    #thisDir = r"Y:\GN25048\251019\looming\session1\2025-10-19_18-50-34"
+    #thisDir = r"Y:\GN25044\251012\looming\session1\2025-10-12_14-22-01"
+    #thisDir = r"Y:\GN25030\250802\looming\session1\2025-08-02_19-34-32"
+    #thisDir = r"Y:\GN25033\250906\looming\session1\2025-09-06_18-42-24"
+    #thisDir = r"Y:\GN25037\250922\looming\session1\2025-09-22_13-24-39"
+    #thisDir = r"Y:\GN25038\250924\looming\session1\2025-09-24_21-10-39"
+    #thisDir = r"Y:\GN25049\251026\looming\session1\2025-10-25_16-06-08"
+    #thisDir = r"Y:\GN25049\251026\looming\session3\2025-10-25_20-08-11"
+    #thisDir = r"Y:\GN25035\250913\looming\session1\2025-09-13_14-29-00"
+    #thisDir = r"Y:\GN25034\250907\looming\session4\2025-09-08_04-05-44"
     #thisDir = r"Y:\GN25045\251013\looming\session1\2025-10-13_11-16-41"
     #thisDir = r"Y:\GN25046\251018\looming\session1\2025-10-18_16-34-27"
     #thisDir = r"Y:\GN25045\251013\looming\session2\2025-10-13_13-31-57"
@@ -565,6 +593,7 @@ if __name__ == "__main__":
     #thisDir = r"Y:\GN25032\250807\looming\session4\2025-08-08_01-19-05"
     #thisDir = r"Y:\GN25029\250729\looming\session2\2025-07-29_17-35-20"
     json_file = "./analysis_methods_dictionary.json"
+
     ##Time the function
     tic = time.perf_counter()
     align_async_signals(thisDir, json_file)
