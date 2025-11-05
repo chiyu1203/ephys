@@ -37,7 +37,7 @@ sys.path.insert(
     0, str(parent_dir) + "\\utilities"
 )  ## 0 means search for new dir first and 1 means search for sys.path first
 from useful_tools import find_file
-from data_cleaning import sorting_trial_info
+from data_cleaning import sorting_trial_info, load_fictrac_data_file
 
 # sys.path.insert(0, str(parent_dir) + "\\bonfic")
 # from analyse_stimulus_evoked_response import classify_trial_type
@@ -198,6 +198,10 @@ def align_async_signals(thisDir, json_file):
     stim_directory = oe_folder.resolve().parents[0]
     database_ext = "database*.pickle"
     tracking_file = find_file(stim_directory, database_ext)
+    video_ext = "*.mp4"
+    video_file = find_file(stim_directory, video_ext)
+    if tracking_file is None and video_file is not None:
+        fictrac_data=load_fictrac_data_file(video_file, analysis_methods,column_to_drop=[0, 1, 2, 3, 4, 5, 6, 8, 9, 10, 11, 12, 13, 18, 19, 20, 21, 22, 23])
     stim_sync_ext = "*_stim_sync.csv"
     stim_sync_file = find_file(stim_directory, stim_sync_ext)
     velocity_ext = "velocity_tbt.npy"
@@ -569,7 +573,8 @@ if __name__ == "__main__":
     #thisDir = r"Y:\GN25039\250927\looming\session1\2025-09-27_14-44-46"
     #thisDir = r"Y:\GN25040\250928\looming\session1\2025-09-28_15-55-12"
     #thisDir = r"Y:\GN25041\251004\looming\session1\2025-10-04_16-39-59"
-    thisDir = r"Y:\GN25042\251005\looming\session1\2025-10-05_16-22-44"
+    #thisDir = r"Y:\GN25042\251005\looming\session1\2025-10-05_16-22-44"
+    thisDir = r"Y:\GN25051\251101\gratings\session1\2025-11-01_20-31-41"
     #thisDir = r"Y:\GN25048\251019\looming\session1\2025-10-19_18-50-34"
     #thisDir = r"Y:\GN25044\251012\looming\session1\2025-10-12_14-22-01"
     #thisDir = r"Y:\GN25030\250802\looming\session1\2025-08-02_19-34-32"
