@@ -150,7 +150,7 @@ def sort_arrays(arr1, *arrays):
 
 
 def align_async_signals(thisDir, json_file):
-    
+    load_raw_trial_info=True
     colormap_name = "coolwarm"
     COL = MplColorHelper(colormap_name, 0, 8)
     oe_folder = Path(thisDir)
@@ -164,6 +164,7 @@ def align_async_signals(thisDir, json_file):
     this_sorter = analysis_methods.get("sorter_name")
     this_experimenter = analysis_methods.get("experimenter")
     experiment_name = analysis_methods.get("experiment_name")
+    stationary_phase_before_motion = analysis_methods.get("stationary_phase_before_motion",True)
     sorter_suffix = generate_sorter_suffix(this_sorter)
     result_folder_name = "results" + sorter_suffix
     sorting_folder_name = "sorting" + sorter_suffix
@@ -226,47 +227,65 @@ def align_async_signals(thisDir, json_file):
         pd_ext = "behavioural_summary.pickle"
         stimulus_meta_file = find_file(stim_directory, pd_ext)
 
-        if stimulus_meta_file is None:
+        if stimulus_meta_file is None or load_raw_trial_info==True:
             print("load raw stimulus information")
             trial_ext = "trial*.csv"
             this_csv = find_file(stim_directory, trial_ext)
             stim_pd = pd.read_csv(this_csv)
             meta_info, stim_type = sorting_trial_info(stim_pd,analysis_methods)
             if experiment_name=='coherence':#RDK is special becuase isi info is logged seperately
-                stimulus_meta_info = meta_info[1::2]
-                num_stim = stimulus_meta_info.shape[0]
-            else:
-                stimulus_meta_info = meta_info
-                num_stim = stimulus_meta_info.shape[0]
-
+                meta_info = meta_info[1::2]
         else:
-            stimulus_meta_info = pd.read_pickle(stimulus_meta_file)
-            num_stim = stimulus_meta_info.shape[0]
+            meta_info = pd.read_pickle(stimulus_meta_file)
+            meta_info['Duration']=meta_info['present_trial_duration']
+            stim_type=meta_info['stim_type'].unique()
+        num_stim = meta_info.shape[0]
         ### changed ISI and Stim signals to 1 and 0 from 2025 April 1st
-        if experiment_name in ['looming',"receding","conflict"]  and meta_info['PreMovDuration'].unique()!=0:
-            pd_on_oe=pd_on_oe[preStim_duration<pd_on_oe]
-            pd_off_oe=pd_off_oe[preStim_duration<pd_off_oe]
-            if 'gregarious_locust' in stim_type:
-                pd_on_oe=pd_on_oe[1:]
-                pd_off_oe=pd_off_oe[1:]
-            if pd_off_oe[0]<pd_on_oe[0] and pd_on_oe[0]-pd_off_oe[0]<0.8: #for some reason in GN25048, pd_off_oe happens before pd_on_oe
-                stim_on_oe = pd_on_oe[::2]## if bright stimuli represent appearance of the stimulus or the stop of moving stimulus, then stim onset and ISI onset are based on pd_off_oe
-                isi_on_oe=pd_on_oe[1::2]            
+
+        if experiment_name in ['looming',"receding","conflict","sweeping"]:
+            if 'PreMovDuration' in meta_info.columns:
+                if meta_info['PreMovDuration'].unique()==0:
+                    pd_on_oe=pd_on_oe[preStim_duration<pd_on_oe]
+                    pd_off_oe=pd_off_oe[preStim_duration<pd_off_oe]
+                    if pd_off_oe[0]>pd_on_oe[0]:
+                        stim_on_oe = pd_on_oe[:num_stim]
+                        isi_on_oe = pd_off_oe[:num_stim]
+                    else:
+                        stim_on_oe = pd_off_oe[:num_stim]
+                        isi_on_oe = pd_on_oe[:num_stim]
+                else:
+                    pd_on_oe=pd_on_oe[preStim_duration<pd_on_oe]
+                    pd_off_oe=pd_off_oe[preStim_duration<pd_off_oe]
+                    if 'gregarious_locust' in stim_type:
+                        pd_on_oe=pd_on_oe[1:]
+                        pd_off_oe=pd_off_oe[1:]
+                    if pd_off_oe[0]<pd_on_oe[0] and pd_on_oe[0]-pd_off_oe[0]<0.8: #for some reason in GN25048, pd_off_oe happens before pd_on_oe
+                        stim_on_oe = pd_on_oe[::2]## if bright stimuli represent appearance of the stimulus or the stop of moving stimulus, then stim onset and ISI onset are based on pd_off_oe
+                        isi_on_oe=pd_on_oe[1::2]            
+                    else:
+                        stim_on_oe = pd_off_oe[::2]## if bright stimuli represent appearance of the stimulus or the stop of moving stimulus, then stim onset and ISI onset are based on pd_off_oe
+                        isi_on_oe=pd_off_oe[1::2]            
+            elif stationary_phase_before_motion==True:
+                pd_on_oe=pd_on_oe[preStim_duration<pd_on_oe]
+                pd_off_oe=pd_off_oe[preStim_duration<pd_off_oe]
+                if 'gregarious_locust' in stim_type:
+                    pd_on_oe=pd_on_oe[1:]
+                    pd_off_oe=pd_off_oe[1:]
+                if pd_off_oe[0]<pd_on_oe[0] and pd_on_oe[0]-pd_off_oe[0]<0.8: #for some reason in GN25048, pd_off_oe happens before pd_on_oe
+                    stim_on_oe = pd_on_oe[::2]## if bright stimuli represent appearance of the stimulus or the stop of moving stimulus, then stim onset and ISI onset are based on pd_off_oe
+                    isi_on_oe=pd_on_oe[1::2]            
+                else:
+                    stim_on_oe = pd_off_oe[::2]## if bright stimuli represent appearance of the stimulus or the stop of moving stimulus, then stim onset and ISI onset are based on pd_off_oe
+                    isi_on_oe=pd_off_oe[1::2]
             else:
-                stim_on_oe = pd_off_oe[::2]## if bright stimuli represent appearance of the stimulus or the stop of moving stimulus, then stim onset and ISI onset are based on pd_off_oe
-                isi_on_oe=pd_off_oe[1::2]
-            # debug=isi_on_oe-stim_on_oe
-            # np.savetxt(f"{oe_folder.stem}_debug.csv", debug, delimiter=",")
-            
-        elif experiment_name in ['looming',"receding","conflict","sweeping"] and meta_info['PreMovDuration'].unique()==0:
-            pd_on_oe=pd_on_oe[preStim_duration<pd_on_oe]
-            pd_off_oe=pd_off_oe[preStim_duration<pd_off_oe]
-            if pd_off_oe[0]>pd_on_oe[0]:
-                stim_on_oe = pd_on_oe[:num_stim]
-                isi_on_oe = pd_off_oe[:num_stim]
-            else:
-                stim_on_oe = pd_off_oe[:num_stim]
-                isi_on_oe = pd_on_oe[:num_stim]
+                pd_on_oe=pd_on_oe[preStim_duration<pd_on_oe]
+                pd_off_oe=pd_off_oe[preStim_duration<pd_off_oe]
+                if pd_off_oe[0]>pd_on_oe[0]:
+                    stim_on_oe = pd_on_oe[:num_stim]
+                    isi_on_oe = pd_off_oe[:num_stim]
+                else:
+                    stim_on_oe = pd_off_oe[:num_stim]
+                    isi_on_oe = pd_on_oe[:num_stim]
         else:
             stim_on_oe = pd_on_oe
             isi_on_oe = pd_off_oe
@@ -311,7 +330,7 @@ def align_async_signals(thisDir, json_file):
                 walking_trials_threshold = 50
                 turning_trials_threshold = 0.33
                 classify_walk(
-                    stimulus_meta_info,
+                    meta_info,
                     turning_trials_threshold,
                     walking_trials_threshold,
                 )
@@ -510,15 +529,15 @@ def align_async_signals(thisDir, json_file):
         stim_type = analysis_methods.get("stim_type")
     for this_cluster_id in np.unique(cluster_id_interest):
         if analysis_methods.get("analysis_by_stimulus_type") == True:
-            for this_duration in stimulus_meta_info['Duration'].unique():
+            for this_duration in meta_info['Duration'].unique():
                 for this_stim in stim_type:
-                    if np.where((stimulus_meta_info["stim_type"] == this_stim) & (stimulus_meta_info["Duration"]==this_duration))[0].shape[0]<2:
+                    if np.where((meta_info["stim_type"] == this_stim) & (meta_info["Duration"]==this_duration))[0].shape[0]<2:
                         continue
                     ax = peri_event_time_histogram(
                         spike_time_interest,
                         cluster_id_interest,
                         event_of_interest[
-                            (stimulus_meta_info["stim_type"] == this_stim) & (stimulus_meta_info["Duration"]==this_duration)
+                            (meta_info["stim_type"] == this_stim) & (meta_info["Duration"]==this_duration)
                         ],
                         this_cluster_id,
                         # t_before=abs(time_window_behaviours[0]),
@@ -574,7 +593,8 @@ if __name__ == "__main__":
     #thisDir = r"Y:\GN25040\250928\looming\session1\2025-09-28_15-55-12"
     #thisDir = r"Y:\GN25041\251004\looming\session1\2025-10-04_16-39-59"
     #thisDir = r"Y:\GN25042\251005\looming\session1\2025-10-05_16-22-44"
-    thisDir = r"Y:\GN25051\251101\gratings\session1\2025-11-01_20-31-41"
+    #thisDir = r"Y:\GN25051\251101\gratings\session1\2025-11-01_20-31-41"
+    thisDir = r"Y:\GN25051\251101\looming\session1\2025-11-01_16-35-52"
     #thisDir = r"Y:\GN25048\251019\looming\session1\2025-10-19_18-50-34"
     #thisDir = r"Y:\GN25044\251012\looming\session1\2025-10-12_14-22-01"
     #thisDir = r"Y:\GN25030\250802\looming\session1\2025-08-02_19-34-32"
