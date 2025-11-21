@@ -3,25 +3,16 @@ General anaconda environment for all setups and data analyses
 
 Install the latest anaconda version for your operating system (https://www.anaconda.com/products/individual).
 
-Open the anaconda prompt and create a virtual environment via conda
-````
-conda create --name ephys --channel conda-forge python=3.10
-conda activate ephys
-conda update -n base -c defaults conda
-conda config --add channels conda-forge
-conda config --set channel_priority strict
-````
-Then installing spikeinterface. There was time when I was desperate for their bug fix so I installed spikeinterface from the source. However, it should be totally fine to install it from pypl
-If you want to install it from the source, then the following command will be useful. For further info, check out their github page or documentation webpage.
+Open the anaconda prompt and create a virtual environment via conda. Note: both ibllib and kilosort4 have started to move to numpy 2.0 already. It seems that Spikeinterface is compatible with them but not sure yet.
 
 ````
-cd Documents\GitHub
-git clone https://github.com/SpikeInterface/spikeinterface.git
-cd spikeinterface
-pip install -e .
-cd ..
-pip install git+https://github.com/NeuralEnsemble/python-neo.git
-pip install git+https://github.com/SpikeInterface/probeinterface.git
+conda create --name ephys python=3.12
+conda activate ephys
+````
+Then installing spikeinterface ibllib and other dependencies. Then installing other dependencies. (open ephys python tool is for loading timestamp; zarr and numcodesc for compressing data; ipympl is for interactive plots on Jupyter notebook. Pyside 6 is for spikeinterface-gui )
+
+````
+pip install ibllib spikeinterface[full,widgets] open-ephys-python-tools zarr docker cuda-python numcodecs hdbscan ipympl spikeinterface-gui PySide6
 ````
 
 [optional] ibllib has many plotting functions You can either install it via pip or to install it from source. Below is the version I forked from the source
@@ -31,11 +22,6 @@ needs scipy 1.13 so I hopes there is no conflict between them
 
 ````
 pip install git+https://github.com/chiyu1203/ibllib.git
-````
-
-Then installing other dependencies. (open ephys python tool is for loading timestamp; zarr and numcodesc for compressing data; ipympl is for interactive plots on Jupyter notebook. Pyside 6 is for spikeinterface-gui )
-````
-pip install open-ephys-python-tools zarr docker cuda-python numcodecs hdbscan ipympl spikeinterface-gui PySide6
 ````
 
 If you have a good GPU and wants to install kilosort. Here is the instruction under python 3.11.
