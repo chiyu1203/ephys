@@ -1,4 +1,4 @@
-import time, os, json, warnings
+import time, os, json, warnings,sys
 import probeinterface as pi
 from probeinterface.plotting import plot_probe
 import spikeinterface.core as si
@@ -27,6 +27,12 @@ n_jobs = n_cpus - 4
 
 global_job_kwargs = dict(n_jobs=n_jobs, chunk_duration="5s", progress_bar=False)
 si.set_global_job_kwargs(**global_job_kwargs)
+current_working_directory = Path.cwd()
+parent_dir = current_working_directory.resolve().parents[0]
+sys.path.insert(
+    0, str(parent_dir) + "\\utilities"
+)  ## 0 means search for new dir first and 1 means search for sys.path first
+from useful_tools import find_file
 
 """
 This pipeline uses spikeinterface as a backbone. This file includes preprocessing and sorting, converting raw data from openEphys to putative spikes by various sorters
@@ -311,6 +317,18 @@ def raw2si(thisDir, json_file):
     result_folder_name = "results" + sorter_suffix
     sorting_folder_name = "sorting" + sorter_suffix
     
+    load_previous_methods=analysis_methods.get("load_previous_methods",False)
+    if load_previous_methods:
+        previous_methods_file=find_file(oe_folder / sorting_folder_name, "analysis_methods_dictionary_backup.json")
+        if previous_methods_file!=None:
+            with open(previous_methods_file, "r") as f:
+                print(f"load analysis methods from previous file {previous_methods_file}")
+                previous_analysis_methods = json.loads(f.read())
+            analysis_methods.update(previous_analysis_methods)
+        else:
+            print("previous analysis methods file is not found. Use the current one.")
+
+    
     if (oe_folder / sorting_folder_name).is_dir() and analysis_methods.get("overwrite_curated_dataset") == False:
         sorting_spikes = si.load_extractor(oe_folder / sorting_folder_name)
         w_rs = sw.plot_rasters(sorting_spikes, time_range=(0, 30), backend="matplotlib")
@@ -540,7 +558,21 @@ if __name__ == "__main__":
     #thisDir = r"Y:\GN25044\251012\sweeping\session1\2025-10-12_19-05-58"
     #thisDir = r"Y:\GN25049\251026\looming\session1\2025-10-25_16-06-08"
     #thisDir = r"Y:\GN25049\251026\looming\session3\2025-10-25_20-08-11"
-    thisDir = r"Y:\GN25049\251026\looming\session2\2025-10-25_18-23-55"
+    #thisDir = r"Y:\GN25049\251026\looming\session2\2025-10-25_18-23-55"
+    #thisDir = r"Y:\GN25052\251102\coherence\session1\2025-11-02_21-29-57"#noisy channels= ['CH5','CH31','CH33']; bad channels=['CH20','CH61']
+    #thisDir = r"Y:\GN25052\251102\sweeping\session1\2025-11-02_20-08-16"
+    #thisDir = r"Y:\GN25051\251101\coherence\session1\2025-11-01_21-03-09"#noisy channels= ['CH20','CH33','CH49','CH61','CH62','CH63','CH64']bad channels= ['CH5','CH31','CH33','CH59']
+    #thisDir = r"Y:\GN25051\251101\looming\session2\2025-11-01_22-39-06"
+    #thisDir = r"Y:\GN25051\251101\gratings\session1\2025-11-01_20-31-41"#noisy channels= ['CH3','CH5','CH20','CH49','CH51','CH53','CH54','CH61','CH62','CH63','CH64'] bad channels= ['CH5','CH31','CH33','CH59']
+    #thisDir = r"Y:\GN25051\251101\looming\session1\2025-11-01_16-35-52"
+    #thisDir = r"Y:\GN25051\251101\sweeping\session1\2025-11-01_18-24-40"
+    #thisDir = r"Y:\GN25052\251102\looming\session1\2025-11-02_16-06-04"
+    #thisDir = r"Y:\GN25052\251102\gratings\session1\2025-11-02_17-41-06"
+    #thisDir = r"Y:\GN25055\251115\looming\session1\2025-11-15_19-01-54"#noisy channels= ['CH49']
+    #thisDir = r"Y:\GN25053\251108\looming\session4\2025-11-08_21-23-22"
+    #thisDir = r"Y:\GN25056\251116\gratings\session2\2025-11-16_19-00-27"
+    thisDir = r"Y:\GN25057\251122\looming\session2\2025-11-22_12-39-33"
+    #thisDir = r"Y:\GN25054\251109\sweeping\session2\2025-11-09_20-11-37"
     #thisDir = r"Y:\GN25040\250928\looming\session2\2025-09-28_18-23-15"
     #thisDir = r"Y:\GN25039\250927\looming\session3\2025-09-27_18-43-31"
     #thisDir = r"Y:\GN25037\250922\looming\session2\2025-09-22_15-59-41"

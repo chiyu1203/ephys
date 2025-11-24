@@ -150,7 +150,19 @@ def sort_arrays(arr1, *arrays):
 
 
 def align_async_signals(thisDir, json_file):
-    load_raw_trial_info=True
+    load_raw_trial_info=analysis_methods.get("load_raw_trial_info",False)
+    ## load previous analysis methods
+    load_previous_methods=analysis_methods.get("load_previous_methods",False)
+    if load_previous_methods:
+        previous_methods_file=find_file(thisDir, "ephys_analysis_methods_backup.json")
+        if previous_methods_file!=None:
+            with open(previous_methods_file, "r") as f:
+                print(f"load analysis methods from previous file {previous_methods_file}")
+                previous_analysis_methods = json.loads(f.read())
+            analysis_methods.update(previous_analysis_methods)
+        else:
+            print("previous analysis methods file is not found. Use the current one.")
+
     colormap_name = "coolwarm"
     COL = MplColorHelper(colormap_name, 0, 8)
     oe_folder = Path(thisDir)
@@ -160,7 +172,6 @@ def align_async_signals(thisDir, json_file):
         with open(json_file, "r") as f:
             print(f"load analysis methods from file {json_file}")
             analysis_methods = json.loads(f.read())
-    
     this_sorter = analysis_methods.get("sorter_name")
     this_experimenter = analysis_methods.get("experimenter")
     experiment_name = analysis_methods.get("experiment_name")
@@ -224,24 +235,38 @@ def align_async_signals(thisDir, json_file):
         time_window_behaviours = analysis_methods.get("analysis_window")
         #time_window_behaviours = np.array([-5, 5])
         ##load stimulus meta info
-        pd_ext = "behavioural_summary.pickle"
-        stimulus_meta_file = find_file(stim_directory, pd_ext)
-
-        if stimulus_meta_file is None or load_raw_trial_info==True:
+        if load_raw_trial_info==True:
             print("load raw stimulus information")
             trial_ext = "trial*.csv"
             this_csv = find_file(stim_directory, trial_ext)
             stim_pd = pd.read_csv(this_csv)
             meta_info, stim_type = sorting_trial_info(stim_pd,analysis_methods)
-            if experiment_name=='coherence':#RDK is special becuase isi info is logged seperately
+            if experiment_name=='coherence':#RDK is special because isi info is also logged in the trial info
                 meta_info = meta_info[1::2]
         else:
-            meta_info = pd.read_pickle(stimulus_meta_file)
-            meta_info['Duration']=meta_info['present_trial_duration']
+            summary_ext = "behavioural_summary.parquet.gzip"
+            stimulus_meta_file = find_file(stim_directory, summary_ext)
+            parquet_file_exist=True
+            pickle_file_exist=False
+            if stimulus_meta_file is None:
+                print("behavioural summary parquet file not found, try to find pickle file")
+                parquet_file_exist=False
+                pickle_file_exist=True
+                summary_ext = "behavioural_summary.pickle"
+                stimulus_meta_file = find_file(stim_directory, summary_ext)
+            if pickle_file_exist==True:
+                print(np.__version__)
+                print("if there is an error loading pickle file, check numpy version used when creating the pickle file and the current numpy version")
+                meta_info = pd.read_pickle(stimulus_meta_file)
+            elif parquet_file_exist==True:
+                meta_info = pd.read_parquet(stimulus_meta_file)
+            else:
+                print("no behavioural summary file can be found. Check stim directory")
+            meta_info['Duration']=meta_info['present_trial_duration']#create a new column called Duration temporary to procastinate unifying the variable name
             stim_type=meta_info['stim_type'].unique()
         num_stim = meta_info.shape[0]
-        ### changed ISI and Stim signals to 1 and 0 from 2025 April 1st
 
+        ### changed ISI and Stim signals to 1 and 0 from 2025 April 1st
         if experiment_name in ['looming',"receding","conflict","sweeping"]:
             if 'PreMovDuration' in meta_info.columns:
                 if meta_info['PreMovDuration'].unique()==0:
@@ -577,6 +602,9 @@ def align_async_signals(thisDir, json_file):
                 include_raster=False,
                 raster_kwargs={"color": "black", "lw": 1},
             )
+    json_string = json.dumps(analysis_methods, indent=1)
+    with open(thisDir / "ephys_analysis_methods_backup.json", "w") as f:
+        f.write(json_string)
     return spike_count, cluster_id
 
 
@@ -594,7 +622,8 @@ if __name__ == "__main__":
     #thisDir = r"Y:\GN25041\251004\looming\session1\2025-10-04_16-39-59"
     #thisDir = r"Y:\GN25042\251005\looming\session1\2025-10-05_16-22-44"
     #thisDir = r"Y:\GN25051\251101\gratings\session1\2025-11-01_20-31-41"
-    thisDir = r"Y:\GN25051\251101\looming\session1\2025-11-01_16-35-52"
+    #thisDir = r"Y:\GN25051\251101\looming\session1\2025-11-01_16-35-52"
+    thisDir = r"Y:\GN25051\251101\sweeping\session1\2025-11-01_18-24-40"
     #thisDir = r"Y:\GN25048\251019\looming\session1\2025-10-19_18-50-34"
     #thisDir = r"Y:\GN25044\251012\looming\session1\2025-10-12_14-22-01"
     #thisDir = r"Y:\GN25030\250802\looming\session1\2025-08-02_19-34-32"

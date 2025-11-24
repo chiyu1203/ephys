@@ -1,4 +1,4 @@
-import time, os, json, warnings
+import time, os, json, warnings,sys
 import spikeinterface.core as si
 import probeinterface as pi
 import spikeinterface.preprocessing as spre
@@ -26,6 +26,12 @@ n_jobs = n_cpus - 4
 global_job_kwargs = dict(n_jobs=n_jobs, chunk_duration="2s", progress_bar=True)
 # global_job_kwargs = dict(n_jobs=16, chunk_duration="5s", progress_bar=False)
 si.set_global_job_kwargs(**global_job_kwargs)
+current_working_directory = Path.cwd()
+parent_dir = current_working_directory.resolve().parents[0]
+sys.path.insert(
+    0, str(parent_dir) + "\\utilities"
+)  ## 0 means search for new dir first and 1 means search for sys.path first
+from useful_tools import find_file
 """
 This pipeline uses spikeinterface as a backbone. This file includes extracting waveform, calculating quality metrics and exporting to phy, doing analysis on putative spikes
 """
@@ -253,6 +259,17 @@ def si2phy(thisDir, json_file):
     phy_folder_name = "phy" + sorter_suffix
     report_folder_name = "report" + sorter_suffix
     remove_excess_spikes = True
+
+    load_previous_methods=analysis_methods.get("load_previous_methods",False)
+    if load_previous_methods:
+        previous_methods_file=find_file(oe_folder / sorting_folder_name, "analysis_methods_dictionary_backup.json")
+        if previous_methods_file!=None:
+            with open(previous_methods_file, "r") as f:
+                print(f"load analysis methods from previous file {previous_methods_file}")
+                previous_analysis_methods = json.loads(f.read())
+            analysis_methods.update(previous_analysis_methods)
+        else:
+            print("previous analysis methods file is not found. Use the current one.")
 
     if (
         analysis_methods.get("load_analyser_from_disc") == True
