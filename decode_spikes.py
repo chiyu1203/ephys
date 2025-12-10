@@ -150,6 +150,12 @@ def sort_arrays(arr1, *arrays):
 
 
 def align_async_signals(thisDir, json_file):
+    if isinstance(json_file, dict):
+        analysis_methods = json_file
+    else:
+        with open(json_file, "r") as f:
+            print(f"load analysis methods from file {json_file}")
+            analysis_methods = json.loads(f.read())
     load_raw_trial_info=analysis_methods.get("load_raw_trial_info",False)
     ## load previous analysis methods
     load_previous_methods=analysis_methods.get("load_previous_methods",False)
@@ -166,12 +172,7 @@ def align_async_signals(thisDir, json_file):
     colormap_name = "coolwarm"
     COL = MplColorHelper(colormap_name, 0, 8)
     oe_folder = Path(thisDir)
-    if isinstance(json_file, dict):
-        analysis_methods = json_file
-    else:
-        with open(json_file, "r") as f:
-            print(f"load analysis methods from file {json_file}")
-            analysis_methods = json.loads(f.read())
+
     this_sorter = analysis_methods.get("sorter_name")
     this_experimenter = analysis_methods.get("experimenter")
     experiment_name = analysis_methods.get("experiment_name")
@@ -250,19 +251,35 @@ def align_async_signals(thisDir, json_file):
             pickle_file_exist=False
             if stimulus_meta_file is None:
                 print("behavioural summary parquet file not found, try to find pickle file")
-                parquet_file_exist=False
-                pickle_file_exist=True
+
                 summary_ext = "behavioural_summary.pickle"
                 stimulus_meta_file = find_file(stim_directory, summary_ext)
+                if stimulus_meta_file is None:
+                    parquet_file_exist=False
+                    pickle_file_exist=False
+                    print("both parquet and pickle file not found. Load raw trial information")
+                    trial_ext = "trial*.csv"
+                    this_csv = find_file(stim_directory, trial_ext)
+                    stim_pd = pd.read_csv(this_csv)
+                    meta_info, stim_type = sorting_trial_info(stim_pd,analysis_methods)
+                    if experiment_name=='coherence':#RDK is special because isi info is also logged in the trial info
+                        meta_info = meta_info[1::2]
+                else:
+                    parquet_file_exist=False
+                    pickle_file_exist=True
             if pickle_file_exist==True:
                 print(np.__version__)
                 print("if there is an error loading pickle file, check numpy version used when creating the pickle file and the current numpy version")
                 meta_info = pd.read_pickle(stimulus_meta_file)
             elif parquet_file_exist==True:
                 meta_info = pd.read_parquet(stimulus_meta_file)
+            elif this_csv is None:
+                print("behavioural summary file and raw trial file not found")
+                return
             else:
-                print("no behavioural summary file can be found. Check stim directory")
-            meta_info['Duration']=meta_info['present_trial_duration']#create a new column called Duration temporary to procastinate unifying the variable name
+                print("behavioural summary file not found, but it looks like loading raw trial information is working.")
+            if 'present_trial_duration' in meta_info.columns:
+                meta_info['Duration']=meta_info['present_trial_duration']#create a new column called Duration temporary to procastinate unifying the variable name
             stim_type=meta_info['stim_type'].unique()
         num_stim = meta_info.shape[0]
 
@@ -438,10 +455,10 @@ def align_async_signals(thisDir, json_file):
     ###start loading info from sorted spikes
     ## if use kilosort standalone, then load kilosort folder. Otherwise, load spikeinterface's preprocessed data and its toolkit.
     if analysis_methods.get("motion_corrector")=="kilosort_default" or analysis_methods.get("motion_corrector")=="testing":
-        #main_foler_name='kilosort4_ThU13'
-        main_foler_name='kilosort4'
+        main_foler_name='kilosort4_ThU13'
+        #main_foler_name='kilosort4'
         merged_units=True
-        folder_suffix="_merged" if merged_units else ""
+        folder_suffix="_merged3" if merged_units else ""
         file_type=".npy"
         ks_path=oe_folder/f"{main_foler_name}{folder_suffix}"/ "shank_0"
         if ks_path.is_dir():
@@ -603,7 +620,7 @@ def align_async_signals(thisDir, json_file):
                 raster_kwargs={"color": "black", "lw": 1},
             )
     json_string = json.dumps(analysis_methods, indent=1)
-    with open(thisDir / "ephys_analysis_methods_backup.json", "w") as f:
+    with open(Path(thisDir) / "ephys_analysis_methods_backup.json", "w") as f:
         f.write(json_string)
     return spike_count, cluster_id
 
@@ -616,14 +633,14 @@ if __name__ == "__main__":
     #thisDir = r"Y:\GN25029\250729\coherence\session1\2025-07-29_20-16-03"
     #thisDir = r"Y:\GN25029\250729\looming\session3\2025-07-29_18-35-50"
     #thisDir = r"Y:\GN25029\250729\looming\session1\2025-07-29_15-22-54"
-    #thisDir = r"Y:\GN25034\250907\looming\session2\2025-09-07_21-18-07"
+    thisDir = r"Y:\GN25034\250907\looming\session2\2025-09-07_21-18-07"
     #thisDir = r"Y:\GN25039\250927\looming\session1\2025-09-27_14-44-46"
     #thisDir = r"Y:\GN25040\250928\looming\session1\2025-09-28_15-55-12"
     #thisDir = r"Y:\GN25041\251004\looming\session1\2025-10-04_16-39-59"
     #thisDir = r"Y:\GN25042\251005\looming\session1\2025-10-05_16-22-44"
     #thisDir = r"Y:\GN25051\251101\gratings\session1\2025-11-01_20-31-41"
     #thisDir = r"Y:\GN25051\251101\looming\session1\2025-11-01_16-35-52"
-    thisDir = r"Y:\GN25051\251101\sweeping\session1\2025-11-01_18-24-40"
+    #thisDir = r"Y:\GN25051\251101\sweeping\session1\2025-11-01_18-24-40"
     #thisDir = r"Y:\GN25048\251019\looming\session1\2025-10-19_18-50-34"
     #thisDir = r"Y:\GN25044\251012\looming\session1\2025-10-12_14-22-01"
     #thisDir = r"Y:\GN25030\250802\looming\session1\2025-08-02_19-34-32"
