@@ -5,6 +5,7 @@ import spikeinterface.extractors as se
 import spikeinterface.qualitymetrics as sqm
 import spikeinterface.widgets as sw
 import spikeinterface.curation as sc
+from datetime import datetime
 # For kilosort/phy output files we can use the read_phy
 # most formats will have a read_xx that can used.
 import matplotlib.pyplot as plt
@@ -47,6 +48,12 @@ global_job_kwargs = dict(n_jobs=n_jobs, chunk_duration="1s", progress_bar=True)
 # global_job_kwargs = dict(n_jobs=16, chunk_duration="5s", progress_bar=False)
 si.set_global_job_kwargs(**global_job_kwargs)
 
+def string2datetime(date_time):
+    #format = 'YYYY-MM-DD_HH_MM_SS'
+    format = "%Y-%m-%d_%H-%M-%S"
+    datetime_str = datetime.strptime(date_time, format)
+    
+    return datetime_str
 # based on chatGPT
 def sort_arrays(arr1, *arrays):
     # Combine all arrays into tuples
@@ -87,11 +94,14 @@ def align_async_signals(thisDir, json_file):
     colormap_name = "coolwarm"
     COL = MplColorHelper(colormap_name, 0, 8)
     oe_folder = Path(thisDir)
-
+    exp_datetime = string2datetime(oe_folder.stem)
     this_sorter = analysis_methods.get("sorter_name")
     this_experimenter = analysis_methods.get("experimenter")
     experiment_name = analysis_methods.get("experiment_name")
-    stationary_phase_before_motion = analysis_methods.get("stationary_phase_before_motion",True)
+    if experiment_name in ['gratings','coherence']:
+        stationary_phase_before_motion=False
+    else:
+        stationary_phase_before_motion = analysis_methods.get("stationary_phase_before_motion",True)
     analyse_behavioural_state_modulation =analysis_methods.get("analyse_behavioural_state_modulation",False)
     sorter_suffix = generate_sorter_suffix(this_sorter)
     result_folder_name = "results" + sorter_suffix
@@ -151,51 +161,51 @@ def align_async_signals(thisDir, json_file):
     time_window_behaviours = analysis_methods.get("analysis_window")
     #time_window_behaviours = np.array([-5, 5])
     ##load stimulus meta info
-    if load_raw_trial_info==True:
-        print("load raw stimulus information")
-        trial_ext = "trial*.csv"
-        this_csv = find_file(stim_directory, trial_ext)
-        stim_pd = pd.read_csv(this_csv)
-        meta_info, stim_type = sorting_trial_info(stim_pd,analysis_methods)
-        if experiment_name=='coherence':#RDK is special because isi info is also logged in the trial info
-            meta_info = meta_info[1::2]
-    else:
-        summary_ext = "behavioural_summary.parquet.gzip"
-        stimulus_meta_file = find_file(stim_directory, summary_ext)
-        parquet_file_exist=True
-        pickle_file_exist=False
-        if stimulus_meta_file is None:
-            print("behavioural summary parquet file not found, try to find pickle file")
+    # if load_raw_trial_info==True:
+    #     print("load raw stimulus information")
+    #     trial_ext = "trial*.csv"
+    #     this_csv = find_file(stim_directory, trial_ext)
+    #     stim_pd = pd.read_csv(this_csv)
+    #     meta_info, stim_type = sorting_trial_info(stim_pd,analysis_methods)
+    #     if experiment_name=='coherence':#RDK is special because isi info is also logged in the trial info
+    #         meta_info = meta_info[1::2]
+    # else:
+    summary_ext = "behavioural_summary.parquet.gzip"
+    stimulus_meta_file = find_file(stim_directory, summary_ext)
+    parquet_file_exist=True
+    pickle_file_exist=False
+    if stimulus_meta_file is None:
+        print("behavioural summary parquet file not found, try to find pickle file")
 
-            summary_ext = "behavioural_summary.pickle"
-            stimulus_meta_file = find_file(stim_directory, summary_ext)
-            if stimulus_meta_file is None:
-                parquet_file_exist=False
-                pickle_file_exist=False
-                print("both parquet and pickle file not found. Load raw trial information")
-                trial_ext = "trial*.csv"
-                this_csv = find_file(stim_directory, trial_ext)
-                stim_pd = pd.read_csv(this_csv)
-                meta_info, stim_type = sorting_trial_info(stim_pd,analysis_methods)
-                if experiment_name=='coherence':#RDK is special because isi info is also logged in the trial info
-                    meta_info = meta_info[1::2]
-            else:
-                parquet_file_exist=False
-                pickle_file_exist=True
-        if pickle_file_exist==True:
-            print(np.__version__)
-            print("if there is an error loading pickle file, check numpy version used when creating the pickle file and the current numpy version")
-            meta_info = pd.read_pickle(stimulus_meta_file)
-        elif parquet_file_exist==True:
-            meta_info = pd.read_parquet(stimulus_meta_file)
-        elif this_csv is None:
-            print("behavioural summary file and raw trial file not found")
-            return
+        summary_ext = "behavioural_summary.pickle"
+        stimulus_meta_file = find_file(stim_directory, summary_ext)
+        if stimulus_meta_file is None:
+            parquet_file_exist=False
+            pickle_file_exist=False
+            print("both parquet and pickle file not found. Load raw trial information. This also applies to experiments where behavour is not recorded")
+            trial_ext = "trial*.csv"
+            this_csv = find_file(stim_directory, trial_ext)
+            stim_pd = pd.read_csv(this_csv)
+            meta_info, stim_type = sorting_trial_info(stim_pd,analysis_methods)
+            if experiment_name=='coherence':#RDK is special because isi info is also logged in the trial info
+                meta_info = meta_info[1::2]
         else:
-            print("behavioural summary file not found, but it looks like loading raw trial information is working.")
-        if 'present_trial_duration' in meta_info.columns:
-            meta_info['Duration']=meta_info['present_trial_duration']#create a new column called Duration temporary to procastinate unifying the variable name
-        stim_type=meta_info['stim_type'].unique()
+            parquet_file_exist=False
+            pickle_file_exist=True
+    if pickle_file_exist==True:
+        print(np.__version__)
+        print("if there is an error loading pickle file, check numpy version used when creating the pickle file and the current numpy version")
+        meta_info = pd.read_pickle(stimulus_meta_file)
+    elif parquet_file_exist==True:
+        meta_info = pd.read_parquet(stimulus_meta_file)
+    elif this_csv is None:
+        print("behavioural summary file and raw trial file not found")
+        return
+    else:
+        print("behavioural summary file not found, but it looks like loading raw trial information is working.")
+    if 'present_trial_duration' in meta_info.columns:
+        meta_info['Duration']=meta_info['present_trial_duration']#create a new column called Duration temporary to procastinate unifying the variable name
+    stim_type=meta_info['stim_type'].unique()
     num_stim = meta_info.shape[0]
 
     ### changed ISI and Stim signals to 1 and 0 from 2025 April 1st
@@ -213,7 +223,7 @@ def align_async_signals(thisDir, json_file):
             else:
                 pd_on_oe=pd_on_oe[preStim_duration<pd_on_oe]
                 pd_off_oe=pd_off_oe[preStim_duration<pd_off_oe]
-                if 'gregarious_locust' in stim_type:
+                if 'gregarious_locust' in stim_type and exp_datetime < datetime(2025, 11, 1, 12, 0, 0):
                     pd_on_oe=pd_on_oe[1:]
                     pd_off_oe=pd_off_oe[1:]
                 if pd_off_oe[0]<pd_on_oe[0] and pd_on_oe[0]-pd_off_oe[0]<0.8: #for some reason in GN25048, pd_off_oe happens before pd_on_oe
@@ -222,10 +232,10 @@ def align_async_signals(thisDir, json_file):
                 else:
                     stim_on_oe = pd_off_oe[::2]## if bright stimuli represent appearance of the stimulus or the stop of moving stimulus, then stim onset and ISI onset are based on pd_off_oe
                     isi_on_oe=pd_off_oe[1::2]            
-        elif stationary_phase_before_motion==True:
+        elif stationary_phase_before_motion==True:## this is used in gratings or if the meta info was first processed by bonfic code where the 'PreMovDuration' is not in the meta_info.columns.
             pd_on_oe=pd_on_oe[preStim_duration<pd_on_oe]
             pd_off_oe=pd_off_oe[preStim_duration<pd_off_oe]
-            if 'gregarious_locust' in stim_type:
+            if 'gregarious_locust' in stim_type and exp_datetime < datetime(2025, 11, 1, 12, 0, 0):##the date before the bug in locust loom is fixed
                 pd_on_oe=pd_on_oe[1:]
                 pd_off_oe=pd_off_oe[1:]
             if pd_off_oe[0]<pd_on_oe[0] and pd_on_oe[0]-pd_off_oe[0]<0.8: #for some reason in GN25048, pd_off_oe happens before pd_on_oe
@@ -449,7 +459,7 @@ if __name__ == "__main__":
     #thisDir = r"Y:\GN25049\251025\looming\session1\2025-10-25_16-06-08"
     #thisDir = r"Y:\GN25049\251025\looming\session4\2025-10-25_21-53-25"
     #thisDir = r"Y:\GN25049\251025\looming\session3\2025-10-25_20-08-11"
-    thisDir = r"Y:\GN25034\250907\sweeping\session2\2025-09-07_22-44-33"
+    #thisDir = r"Y:\GN25034\250907\sweeping\session2\2025-09-07_22-44-33"
     #thisDir = r"Y:\GN25039\250927\looming\session1\2025-09-27_14-44-46"
     #thisDir = r"Y:\GN25040\250928\looming\session1\2025-09-28_15-55-12"
     #thisDir = r"Y:\GN25041\251004\looming\session1\2025-10-04_16-39-59"
@@ -479,7 +489,11 @@ if __name__ == "__main__":
     #thisDir = r"Y:\GN25032\250807\looming\session2\2025-08-07_22-06-12"
     #thisDir = r"Y:\GN25032\250807\looming\session4\2025-08-08_01-19-05"
     #thisDir = r"Y:\GN25029\250729\looming\session2\2025-07-29_17-35-20"
-    thisDir = r"Y:\GN25060\251130\coherence\session1\2025-11-30_14-25-01"
+    #thisDir = r"Y:\GN25060\251130\coherence\session1\2025-11-30_14-25-01"
+    #thisDir = r"Y:\GN25049\251025\looming\session5\2025-10-25_23-33-49"
+    #thisDir = r"Y:\GN25053\251108\looming\session2\2025-11-08_15-39-42"
+    thisDir = r"Y:\GN25051\251101\looming\session2\2025-11-01_22-39-06"
+    #thisDir = r"Y:\GN25060\251130\looming\session1\2025-11-30_16-12-19"
     json_file = "./analysis_methods_dictionary.json"
 
     ##Time the function
