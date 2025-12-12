@@ -28,7 +28,7 @@ analysis_methods = {
     "export_report": False,
     "include_MUA": True,
     "event_of_interest": "stim_onset",
-    "analyse_stim_evoked_activity": True,
+    "analyse_behavioural_state_modulation": True,
     "exp_place": "Zball",
     "experiment_name": "coherence",
     "temperature_data_options": "bonsai",
