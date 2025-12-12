@@ -39,98 +39,13 @@ sys.path.insert(
 from useful_tools import find_file
 from data_cleaning import sorting_trial_info, load_fictrac_data_file
 
-# sys.path.insert(0, str(parent_dir) + "\\bonfic")
-# from analyse_stimulus_evoked_response import classify_trial_type
+sys.path.insert(0, str(parent_dir) + "\\bonfic")
+from analyse_stimulus_evoked_response import classify_trial_type
 n_cpus = os.cpu_count()
 n_jobs = n_cpus - 4
 global_job_kwargs = dict(n_jobs=n_jobs, chunk_duration="1s", progress_bar=True)
 # global_job_kwargs = dict(n_jobs=16, chunk_duration="5s", progress_bar=False)
 si.set_global_job_kwargs(**global_job_kwargs)
-
-
-def root_sum_squared(tuples):
-    result = []
-    for tup in tuples:
-        # Sum of squares of tuple elements
-        sum_of_squares = sum(x**2 for x in tup)
-        # Add square root of sum of squares to result
-        result.append(math.sqrt(sum_of_squares))
-    return result
-
-
-def classify_walk(arr, speed_threshold=10, on_consecutive_length=50):
-    walk_events_all = []
-    until_walk_events = []
-    from_walk_events = []
-    mask = arr > speed_threshold
-    trans = np.diff(mask)
-    where_transition = np.where(trans)
-    for i in np.unique(where_transition[0]):
-        trial_of_interest = where_transition[1][where_transition[0] == i]
-        w2s = trial_of_interest[arr[i, trial_of_interest] > speed_threshold]
-        s2w = trial_of_interest[arr[i, trial_of_interest] < speed_threshold]
-        if len(w2s) == len(s2w) and arr[i, 0] < speed_threshold:
-            until_walk_frame = w2s[w2s - s2w > on_consecutive_length]
-            from_walk_frame = s2w[abs(s2w - w2s) > on_consecutive_length]
-        elif len(w2s) == len(s2w) and arr[i, 0] > speed_threshold:
-            s2w = np.insert(0, 1, s2w)
-            w2s = np.insert(arr.shape[1] - 1, -1, w2s)
-            until_walk_frame = w2s[w2s - s2w > on_consecutive_length]
-            from_walk_frame = s2w[abs(s2w - w2s) > on_consecutive_length]
-        elif len(s2w) > len(w2s) and arr[i, 0] < speed_threshold:
-            w2s = np.insert(arr.shape[1] - 1, -1, w2s)
-            until_walk_frame = w2s[w2s - s2w > on_consecutive_length]
-            from_walk_frame = s2w[abs(s2w - w2s) > on_consecutive_length]
-        elif len(s2w) < len(w2s) and arr[i, 0] > speed_threshold:
-            s2w = np.insert(0, 1, s2w)
-            until_walk_frame = w2s[w2s - s2w > on_consecutive_length]
-            from_walk_frame = s2w[abs(s2w - w2s) > on_consecutive_length]
-
-        if len(from_walk_frame) == 0 and len(from_walk_frame) == 0:
-            continue
-        elif len(from_walk_frame) == 0:
-            until_walk_events.append(np.array([i, until_walk_frame]))
-        elif len(until_walk_frame) == 0:
-            from_walk_events.append(np.array([i, from_walk_frame]))
-        else:
-            until_walk_events.append(
-                np.vstack(
-                    [np.ones(len(until_walk_frame), dtype=int) * i, until_walk_frame]
-                )
-            )
-            from_walk_events.append(
-                np.vstack(
-                    [np.ones(len(from_walk_frame), dtype=int) * i, from_walk_frame]
-                )
-            )
-
-    return np.hstack(from_walk_events), np.hstack(until_walk_events)
-
-def remove_run_during_isi(camera_time, camera_fps, ISI_duration):
-    isi_len = camera_fps * ISI_duration
-    during_stim_event = np.vstack(
-        [
-            camera_time[0, :][camera_time[1, :] - isi_len > 0],
-            camera_time[1, :][camera_time[1, :] - isi_len > 0],
-        ]
-    )
-    # during_stim_event = camera_time[np.where([camera_time[1, :] - isi_len > 0])[1]]
-    return during_stim_event
-
-
-def estimating_ephys_timepoints(
-    camera_time, ephys_time, camera_fps, stim_duration, ISI_duration
-):
-    stim_len = camera_fps * stim_duration
-    isi_len = camera_fps * ISI_duration
-    stim_len_oe = np.diff(ephys_time)
-    time_from_stim = np.multiply(
-        (camera_time[1, :] - isi_len) / stim_len,
-        stim_len_oe[camera_time[0, :]],
-    )
-    events = ephys_time[camera_time[0, :]] + time_from_stim
-    return events
-
 
 # based on chatGPT
 def sort_arrays(arr1, *arrays):
@@ -177,6 +92,7 @@ def align_async_signals(thisDir, json_file):
     this_experimenter = analysis_methods.get("experimenter")
     experiment_name = analysis_methods.get("experiment_name")
     stationary_phase_before_motion = analysis_methods.get("stationary_phase_before_motion",True)
+    analyse_behavioural_state_modulation =analysis_methods.get("analyse_behavioural_state_modulation",False)
     sorter_suffix = generate_sorter_suffix(this_sorter)
     result_folder_name = "results" + sorter_suffix
     sorting_folder_name = "sorting" + sorter_suffix
@@ -209,7 +125,7 @@ def align_async_signals(thisDir, json_file):
             np.where(camera_trigger_on_oe.values > pd_on_oe.values[2])
         # print(f"trial id during the first stim: {np.where((camera_trigger_on_oe.values>pd_off_oe.values[1]) & (camera_trigger_on_oe.values<pd_on_oe.values[2]))}")
     stim_directory = oe_folder.resolve().parents[0]
-    database_ext = "database*.pickle"
+    database_ext = "database*"
     tracking_file = find_file(stim_directory, database_ext)
     video_ext = "*.mp4"
     video_file = find_file(stim_directory, video_ext)
@@ -227,87 +143,74 @@ def align_async_signals(thisDir, json_file):
     walk_consecutive_length = int(camera_fps * 0.5)
     event_of_interest = analysis_methods.get("event_of_interest")
 
-    if analysis_methods.get("analyse_stim_evoked_activity") == True:
-        stim_duration = analysis_methods.get("stim_duration")
-        ISI_duration = analysis_methods.get("interval_duration")
-        preStim_duration =analysis_methods.get("prestim_duration")
-        walking_trials_threshold = 50
-        turning_trials_threshold = 0.33
-        time_window_behaviours = analysis_methods.get("analysis_window")
-        #time_window_behaviours = np.array([-5, 5])
-        ##load stimulus meta info
-        if load_raw_trial_info==True:
-            print("load raw stimulus information")
-            trial_ext = "trial*.csv"
-            this_csv = find_file(stim_directory, trial_ext)
-            stim_pd = pd.read_csv(this_csv)
-            meta_info, stim_type = sorting_trial_info(stim_pd,analysis_methods)
-            if experiment_name=='coherence':#RDK is special because isi info is also logged in the trial info
-                meta_info = meta_info[1::2]
-        else:
-            summary_ext = "behavioural_summary.parquet.gzip"
+    stim_duration = analysis_methods.get("stim_duration")
+    ISI_duration = analysis_methods.get("interval_duration")
+    preStim_duration =analysis_methods.get("prestim_duration")
+    walking_trials_threshold = 50
+    turning_trials_threshold = 0.33
+    time_window_behaviours = analysis_methods.get("analysis_window")
+    #time_window_behaviours = np.array([-5, 5])
+    ##load stimulus meta info
+    if load_raw_trial_info==True:
+        print("load raw stimulus information")
+        trial_ext = "trial*.csv"
+        this_csv = find_file(stim_directory, trial_ext)
+        stim_pd = pd.read_csv(this_csv)
+        meta_info, stim_type = sorting_trial_info(stim_pd,analysis_methods)
+        if experiment_name=='coherence':#RDK is special because isi info is also logged in the trial info
+            meta_info = meta_info[1::2]
+    else:
+        summary_ext = "behavioural_summary.parquet.gzip"
+        stimulus_meta_file = find_file(stim_directory, summary_ext)
+        parquet_file_exist=True
+        pickle_file_exist=False
+        if stimulus_meta_file is None:
+            print("behavioural summary parquet file not found, try to find pickle file")
+
+            summary_ext = "behavioural_summary.pickle"
             stimulus_meta_file = find_file(stim_directory, summary_ext)
-            parquet_file_exist=True
-            pickle_file_exist=False
             if stimulus_meta_file is None:
-                print("behavioural summary parquet file not found, try to find pickle file")
-
-                summary_ext = "behavioural_summary.pickle"
-                stimulus_meta_file = find_file(stim_directory, summary_ext)
-                if stimulus_meta_file is None:
-                    parquet_file_exist=False
-                    pickle_file_exist=False
-                    print("both parquet and pickle file not found. Load raw trial information")
-                    trial_ext = "trial*.csv"
-                    this_csv = find_file(stim_directory, trial_ext)
-                    stim_pd = pd.read_csv(this_csv)
-                    meta_info, stim_type = sorting_trial_info(stim_pd,analysis_methods)
-                    if experiment_name=='coherence':#RDK is special because isi info is also logged in the trial info
-                        meta_info = meta_info[1::2]
-                else:
-                    parquet_file_exist=False
-                    pickle_file_exist=True
-            if pickle_file_exist==True:
-                print(np.__version__)
-                print("if there is an error loading pickle file, check numpy version used when creating the pickle file and the current numpy version")
-                meta_info = pd.read_pickle(stimulus_meta_file)
-            elif parquet_file_exist==True:
-                meta_info = pd.read_parquet(stimulus_meta_file)
-            elif this_csv is None:
-                print("behavioural summary file and raw trial file not found")
-                return
+                parquet_file_exist=False
+                pickle_file_exist=False
+                print("both parquet and pickle file not found. Load raw trial information")
+                trial_ext = "trial*.csv"
+                this_csv = find_file(stim_directory, trial_ext)
+                stim_pd = pd.read_csv(this_csv)
+                meta_info, stim_type = sorting_trial_info(stim_pd,analysis_methods)
+                if experiment_name=='coherence':#RDK is special because isi info is also logged in the trial info
+                    meta_info = meta_info[1::2]
             else:
-                print("behavioural summary file not found, but it looks like loading raw trial information is working.")
-            if 'present_trial_duration' in meta_info.columns:
-                meta_info['Duration']=meta_info['present_trial_duration']#create a new column called Duration temporary to procastinate unifying the variable name
-            stim_type=meta_info['stim_type'].unique()
-        num_stim = meta_info.shape[0]
+                parquet_file_exist=False
+                pickle_file_exist=True
+        if pickle_file_exist==True:
+            print(np.__version__)
+            print("if there is an error loading pickle file, check numpy version used when creating the pickle file and the current numpy version")
+            meta_info = pd.read_pickle(stimulus_meta_file)
+        elif parquet_file_exist==True:
+            meta_info = pd.read_parquet(stimulus_meta_file)
+        elif this_csv is None:
+            print("behavioural summary file and raw trial file not found")
+            return
+        else:
+            print("behavioural summary file not found, but it looks like loading raw trial information is working.")
+        if 'present_trial_duration' in meta_info.columns:
+            meta_info['Duration']=meta_info['present_trial_duration']#create a new column called Duration temporary to procastinate unifying the variable name
+        stim_type=meta_info['stim_type'].unique()
+    num_stim = meta_info.shape[0]
 
-        ### changed ISI and Stim signals to 1 and 0 from 2025 April 1st
-        if experiment_name in ['looming',"receding","conflict","sweeping"]:
-            if 'PreMovDuration' in meta_info.columns:
-                if meta_info['PreMovDuration'].unique()==0:
-                    pd_on_oe=pd_on_oe[preStim_duration<pd_on_oe]
-                    pd_off_oe=pd_off_oe[preStim_duration<pd_off_oe]
-                    if pd_off_oe[0]>pd_on_oe[0]:
-                        stim_on_oe = pd_on_oe[:num_stim]
-                        isi_on_oe = pd_off_oe[:num_stim]
-                    else:
-                        stim_on_oe = pd_off_oe[:num_stim]
-                        isi_on_oe = pd_on_oe[:num_stim]
+    ### changed ISI and Stim signals to 1 and 0 from 2025 April 1st
+    if experiment_name in ['looming',"receding","conflict","sweeping"]:
+        if 'PreMovDuration' in meta_info.columns:
+            if meta_info['PreMovDuration'].unique()==0:
+                pd_on_oe=pd_on_oe[preStim_duration<pd_on_oe]
+                pd_off_oe=pd_off_oe[preStim_duration<pd_off_oe]
+                if pd_off_oe[0]>pd_on_oe[0]:
+                    stim_on_oe = pd_on_oe[:num_stim]
+                    isi_on_oe = pd_off_oe[:num_stim]
                 else:
-                    pd_on_oe=pd_on_oe[preStim_duration<pd_on_oe]
-                    pd_off_oe=pd_off_oe[preStim_duration<pd_off_oe]
-                    if 'gregarious_locust' in stim_type:
-                        pd_on_oe=pd_on_oe[1:]
-                        pd_off_oe=pd_off_oe[1:]
-                    if pd_off_oe[0]<pd_on_oe[0] and pd_on_oe[0]-pd_off_oe[0]<0.8: #for some reason in GN25048, pd_off_oe happens before pd_on_oe
-                        stim_on_oe = pd_on_oe[::2]## if bright stimuli represent appearance of the stimulus or the stop of moving stimulus, then stim onset and ISI onset are based on pd_off_oe
-                        isi_on_oe=pd_on_oe[1::2]            
-                    else:
-                        stim_on_oe = pd_off_oe[::2]## if bright stimuli represent appearance of the stimulus or the stop of moving stimulus, then stim onset and ISI onset are based on pd_off_oe
-                        isi_on_oe=pd_off_oe[1::2]            
-            elif stationary_phase_before_motion==True:
+                    stim_on_oe = pd_off_oe[:num_stim]
+                    isi_on_oe = pd_on_oe[:num_stim]
+            else:
                 pd_on_oe=pd_on_oe[preStim_duration<pd_on_oe]
                 pd_off_oe=pd_off_oe[preStim_duration<pd_off_oe]
                 if 'gregarious_locust' in stim_type:
@@ -318,147 +221,88 @@ def align_async_signals(thisDir, json_file):
                     isi_on_oe=pd_on_oe[1::2]            
                 else:
                     stim_on_oe = pd_off_oe[::2]## if bright stimuli represent appearance of the stimulus or the stop of moving stimulus, then stim onset and ISI onset are based on pd_off_oe
-                    isi_on_oe=pd_off_oe[1::2]
+                    isi_on_oe=pd_off_oe[1::2]            
+        elif stationary_phase_before_motion==True:
+            pd_on_oe=pd_on_oe[preStim_duration<pd_on_oe]
+            pd_off_oe=pd_off_oe[preStim_duration<pd_off_oe]
+            if 'gregarious_locust' in stim_type:
+                pd_on_oe=pd_on_oe[1:]
+                pd_off_oe=pd_off_oe[1:]
+            if pd_off_oe[0]<pd_on_oe[0] and pd_on_oe[0]-pd_off_oe[0]<0.8: #for some reason in GN25048, pd_off_oe happens before pd_on_oe
+                stim_on_oe = pd_on_oe[::2]## if bright stimuli represent appearance of the stimulus or the stop of moving stimulus, then stim onset and ISI onset are based on pd_off_oe
+                isi_on_oe=pd_on_oe[1::2]            
             else:
-                pd_on_oe=pd_on_oe[preStim_duration<pd_on_oe]
-                pd_off_oe=pd_off_oe[preStim_duration<pd_off_oe]
-                if pd_off_oe[0]>pd_on_oe[0]:
-                    stim_on_oe = pd_on_oe[:num_stim]
-                    isi_on_oe = pd_off_oe[:num_stim]
-                else:
-                    stim_on_oe = pd_off_oe[:num_stim]
-                    isi_on_oe = pd_on_oe[:num_stim]
+                stim_on_oe = pd_off_oe[::2]## if bright stimuli represent appearance of the stimulus or the stop of moving stimulus, then stim onset and ISI onset are based on pd_off_oe
+                isi_on_oe=pd_off_oe[1::2]
         else:
-            stim_on_oe = pd_on_oe
-            isi_on_oe = pd_off_oe
-
-        if analysis_methods.get("analyse_stim_evoked_activity") == True:
-            if len(stim_on_oe) > num_stim:
-                stim_on_oe=stim_on_oe[preStim_duration<stim_on_oe]### I should move this to line 258 for coherence etc.
-                stim_events_times=stim_on_oe[:num_stim]
-                # stim_events_times = stim_on_oe[
-                #     -num_stim:
-                # ].values  ##this happens when the S button is pressed after openEphys are recorded.
-            elif type(stim_on_oe)==np.ndarray:
-                stim_events_times = stim_on_oe
+            pd_on_oe=pd_on_oe[preStim_duration<pd_on_oe]
+            pd_off_oe=pd_off_oe[preStim_duration<pd_off_oe]
+            if pd_off_oe[0]>pd_on_oe[0]:
+                stim_on_oe = pd_on_oe[:num_stim]
+                isi_on_oe = pd_off_oe[:num_stim]
             else:
-                stim_events_times = stim_on_oe[:].values
-        elif event_of_interest.lower() == "preStim_ISI":
-            stim_events_times = isi_on_oe[1:].values
-        elif event_of_interest.lower() == "postStim_ISI":
-            stim_events_times = isi_on_oe[:-1].values
-        else:
-            (
-                "Not found what properties of stimuli you want to analyse. Double check event of interest"
-            )
-            return None
-        ##build up analysis time window
-        stim_events_tw = np.array(
-            [stim_events_times + time_window_behaviours[0], stim_events_times + time_window_behaviours[1]]
-        ).T
+                stim_on_oe = pd_off_oe[:num_stim]
+                isi_on_oe = pd_on_oe[:num_stim]
     else:
-        print(
-            "detailed analysis about spontaneous activity should be done here"
-        )
-        if event_of_interest.lower().startswith("walk"):
-            if velocity_file is None:
-                print(
-                    "no velocity across frames avaliable. Use behavioural summary for responses from each trial"
-                )
-                csv_ext = "trial*.csv"
-                this_csv = find_file(stim_directory, csv_ext)
-                stim_pd = pd.read_csv(this_csv)
-                num_stim = int(stim_pd.shape[0] / 2)
-                walking_trials_threshold = 50
-                turning_trials_threshold = 0.33
-                classify_walk(
-                    meta_info,
-                    turning_trials_threshold,
-                    walking_trials_threshold,
-                )
+        stim_on_oe = pd_on_oe
+        isi_on_oe = pd_off_oe
+    
+    if event_of_interest.lower() == "preStim_ISI":
+        stim_events_times = isi_on_oe[1:].values
+    elif event_of_interest.lower() == "postStim_ISI":
+        stim_events_times = isi_on_oe[:-1].values
+    else:
+        if len(stim_on_oe) > num_stim:
+            stim_on_oe=stim_on_oe[preStim_duration<stim_on_oe]### I should move this to line 258 for coherence etc.
+            stim_events_times=stim_on_oe[:num_stim]
+        elif type(stim_on_oe)==np.ndarray:
+            stim_events_times = stim_on_oe
+        else:
+            stim_events_times = stim_on_oe[:].values
+
+    ##build up analysis time window
+    stim_events_tw = np.array(
+        [stim_events_times + time_window_behaviours[0], stim_events_times + time_window_behaviours[1]]
+    ).T
+    print(
+        "detailed analysis about spontaneous activity should be done here"
+    )
+
+    if velocity_file is not None and analyse_behavioural_state_modulation==True:
+        #velocity_tbt = np.load(velocity_file)
+        behavioural_trial_type=['walking_trials','stationary_trials','straight_walk_trials','turning_trials']
+        walking_trials,stationary_trials,straight_walk_trials,turning_trials=classify_trial_type(meta_info, 20, 100)
+        if event_of_interest.lower() in behavioural_trial_type:
+            if event_of_interest.lower() == 'walking_trials':
+                metrics_to_classify=walking_trials.index
+            elif event_of_interest.lower() == 'stationary_trials':
+                metrics_to_classify=stationary_trials.index
+            elif event_of_interest.lower() == 'straight_walk_trials':
+                metrics_to_classify=straight_walk_trials.index
+            elif event_of_interest.lower() == 'turning_trials':
+                metrics_to_classify=turning_trials.index
+            if metrics_to_classify.shape[0]>0:
+                event_times_of_interest=stim_events_times[metrics_to_classify]
             else:
-                velocity_tbt = np.load(velocity_file)
-                walk_events_start, walk_events_end = classify_walk(
-                    velocity_tbt[:, 0 : (stim_duration + ISI_duration) * camera_fps],
-                    walk_speed_threshold,
-                    walk_consecutive_length,
-                )
-                # walk_events_start = remove_run_during_isi(
-                #     walk_events_start, camera_fps, ISI_duration
-                # )
-                walk_events_start_tw = np.array(
-                    [
-                        walk_events_start[1, :]
-                        + time_window_behaviours[0] * camera_fps,
-                        walk_events_start[1, :]
-                        + time_window_behaviours[1] * camera_fps,
-                    ]
-                ).T
-                walk_events_end_tw = np.array(
-                    [
-                        walk_events_end[1, :] + time_window_behaviours[0] * camera_fps,
-                        walk_events_end[1, :] + time_window_behaviours[1] * camera_fps,
-                    ]
-                ).T
-                fig1, (ax, ax1) = plt.subplots(
-                    nrows=2, ncols=1, figsize=(18, 7), tight_layout=True
-                )
-                for i in range(0, walk_events_start.shape[1]):
-                    velocity_of_interest = velocity_tbt[
-                        walk_events_start[0, i],
-                        walk_events_start_tw[i, 0] : walk_events_start_tw[i, 1],
-                    ]
-                    ax.plot(
-                        range(0, len(velocity_of_interest)),
-                        velocity_of_interest,
-                        linewidth=7.0,
-                    )
+                print("event of interest does not present in this animal. Analyse the data without behavioural inputs")
+                event_times_of_interest = stim_events_times
+        else:
+            print("only 'walking_trials','stationary_trials','straight_walk_trials','turning_trials' can be used for behavioural trial type . Analyse the data without behavioural inputs")
+            event_times_of_interest = stim_events_times
+    else:
+        event_times_of_interest = stim_events_times
 
-                ax.set_xlabel("Time")
-                ax.set_ylabel("Velocity")
-                ax.set_ylim(0, 300)
-                plot_name = "walk_onset.svg"
-                if analysis_methods.get("save_output") == True:
-                    fig1.savefig(Path(stim_directory) / plot_name)
-                plt.show()
-                if len(camera_trigger_on_oe) == 0:
-                    walk_events_start_oe = estimating_ephys_timepoints(
-                        walk_events_start,
-                        stim_events_times,
-                        camera_fps,
-                        stim_duration,
-                        ISI_duration,
-                    )
-                else:
-                    print(
-                        "work in progress. Here I need to output walk event starts based on oe time"
-                    )
-                walk_events_start_oe_tw = np.array(
-                    [
-                        walk_events_start_oe + time_window_behaviours[0],
-                        walk_events_start_oe + time_window_behaviours[1],
-                    ]
-                ).T
-
-    if event_of_interest.lower().startswith("stim"):
-        event_of_interest = stim_events_times
-        event_of_interest_tw = stim_events_tw
-    elif event_of_interest.lower() == "walk_onset":
-        event_of_interest = walk_events_start_oe
-        event_of_interest_tw = walk_events_start_oe_tw
-        print("Align spikes with the onset of walk events")
-    elif event_of_interest.lower() == "walk_offset":
-        print("Align spikes with the offset of walk events")
-        print("Work in progress")
-        return
 
     ###start loading info from sorted spikes
     ## if use kilosort standalone, then load kilosort folder. Otherwise, load spikeinterface's preprocessed data and its toolkit.
     if analysis_methods.get("motion_corrector")=="kilosort_default" or analysis_methods.get("motion_corrector")=="testing":
-        main_foler_name='kilosort4_ThU13'
+        #main_foler_name='kilosort4_ThU13_ThL11'
         #main_foler_name='kilosort4'
-        merged_units=True
-        folder_suffix="_merged3" if merged_units else ""
+        main_foler_name='kilosort4_motion_corrected'
+        #main_foler_name='kilosort4_ThU18_ThL17_T0_T1500'
+        #main_foler_name='kilosort4_T0_T1500'
+        merged_units=False
+        folder_suffix="_merged" if merged_units else ""
         file_type=".npy"
         ks_path=oe_folder/f"{main_foler_name}{folder_suffix}"/ "shank_0"
         if ks_path.is_dir():
@@ -468,31 +312,6 @@ def align_async_signals(thisDir, json_file):
         spike_clusters=np.load(ks_path/"spike_clusters.npy")
         spike_times=np.load(ks_path/"spike_times.npy")/30000.0#this is the default sampling frequency in openEphys
         cluster_group=pd.read_csv(ks_path/"cluster_group.tsv", sep='\t',header=0)
-        # if oe_folder/f"kilosort4{folder_suffix}"/ "shank0".is_dir():
-        #     ks_path.append(oe_folder/f"kilosort4{folder_suffix}"/ "shank0")
-        # else:
-        #     ks_path.append(oe_folder/f"kilosort4{folder_suffix}")
-        # for root, folders, files in os.walk(oe_folder/f"kilosort4{folder_suffix}"):
-        #     if len(folders)==1:
-        #         ks_path.append(Path(root)/folders[0])
-        #         break
-        #     elif any(file_type in x for x in files):
-        #         ks_path.append(Path(root))
-        #         break
-        #     else:
-        #         continue         
-        # if len(ks_path)==1:
-        #     spike_clusters=np.load(ks_path[0]/"spike_clusters.npy")
-        #     spike_times=np.load(ks_path[0]/"spike_times.npy")/30000.0#this is the default sampling frequency in openEphys
-        #     cluster_group=pd.read_csv(ks_path[0]/"cluster_group.tsv", sep='\t',header=0)
-        # else:
-        #     ## not useful now because in kilosort standalone, not specifying shanks will result in no shank folder
-        #     for this_ks_path in ks_path:
-        #         spike_clusters=np.load(this_ks_path/"spike_clusters.npy")
-        #         spike_times=np.load(this_ks_path/"spike_times.npy")/30000.0#this is the default sampling frequency in openEphys
-        #         cluster_group=pd.read_csv(this_ks_path/"cluster_group.tsv", sep='\t',header=0)
-        #cluster_info=pd.read_csv(r'C:\Users\neuroPC\Documents\Open Ephys\GN25011\kilosort4_shank023_0block_32ntern\cluster_info.tsv', sep='\t',header=0)
-        #mask= np.isin(spike_clusters,cluster_group.loc[cluster_group['group']=='mua']['cluster_id'].values)
         if analysis_methods.get("include_MUA") == True:
             mask= np.isin(spike_clusters,cluster_group.loc[(cluster_group['group'].reset_index(drop=True)=='mua') | (cluster_group['group'].reset_index(drop=True)=='good')].values)
         else:
@@ -556,14 +375,6 @@ def align_async_signals(thisDir, json_file):
     spike_count, cluster_id = get_spike_counts_in_bins(
         spike_time_interest_sorted, cluster_id_interest_sorted, stim_events_tw
     )
-    # work in progress: testing how to use this function
-    # scatter_amp_depth_fr_plot(
-    #     spike_amps=spike_amp_all,
-    #     spike_clusters=cluster_id_interest,
-    #     spike_depths=spike_loc_all,
-    #     spike_times=spike_time_interest,display=True
-    # )
-
     ## go through the peri_event_time_histogram of every cluster
     if "stim_type" in locals():
         print("use stim type generated by sorting trial info")
@@ -578,7 +389,7 @@ def align_async_signals(thisDir, json_file):
                     ax = peri_event_time_histogram(
                         spike_time_interest,
                         cluster_id_interest,
-                        event_of_interest[
+                        event_times_of_interest[
                             (meta_info["stim_type"] == this_stim) & (meta_info["Duration"]==this_duration)
                         ],
                         this_cluster_id,
@@ -610,7 +421,7 @@ def align_async_signals(thisDir, json_file):
             ax = peri_event_time_histogram(
                 spike_time_interest,
                 cluster_id_interest,
-                event_of_interest,
+                event_times_of_interest,
                 this_cluster_id,
                 t_before=abs(time_window_behaviours[0]),
                 t_after=time_window_behaviours[1],
@@ -633,7 +444,12 @@ if __name__ == "__main__":
     #thisDir = r"Y:\GN25029\250729\coherence\session1\2025-07-29_20-16-03"
     #thisDir = r"Y:\GN25029\250729\looming\session3\2025-07-29_18-35-50"
     #thisDir = r"Y:\GN25029\250729\looming\session1\2025-07-29_15-22-54"
-    thisDir = r"Y:\GN25034\250907\looming\session2\2025-09-07_21-18-07"
+    #thisDir = r"Y:\GN25034\250907\looming\session2\2025-09-07_21-18-07"
+    #thisDir = r"Y:\GN25049\251025\looming\session2\2025-10-25_18-23-55"
+    #thisDir = r"Y:\GN25049\251025\looming\session1\2025-10-25_16-06-08"
+    #thisDir = r"Y:\GN25049\251025\looming\session4\2025-10-25_21-53-25"
+    #thisDir = r"Y:\GN25049\251025\looming\session3\2025-10-25_20-08-11"
+    thisDir = r"Y:\GN25034\250907\sweeping\session2\2025-09-07_22-44-33"
     #thisDir = r"Y:\GN25039\250927\looming\session1\2025-09-27_14-44-46"
     #thisDir = r"Y:\GN25040\250928\looming\session1\2025-09-28_15-55-12"
     #thisDir = r"Y:\GN25041\251004\looming\session1\2025-10-04_16-39-59"
@@ -663,6 +479,7 @@ if __name__ == "__main__":
     #thisDir = r"Y:\GN25032\250807\looming\session2\2025-08-07_22-06-12"
     #thisDir = r"Y:\GN25032\250807\looming\session4\2025-08-08_01-19-05"
     #thisDir = r"Y:\GN25029\250729\looming\session2\2025-07-29_17-35-20"
+    thisDir = r"Y:\GN25060\251130\coherence\session1\2025-11-30_14-25-01"
     json_file = "./analysis_methods_dictionary.json"
 
     ##Time the function
