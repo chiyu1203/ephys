@@ -5,6 +5,7 @@ behaviour_methods = {
     "exp_place": "Zball",
     "experiment_name": "coherence",
     "temperature_data_options": "trial",
+    "stim_variable2":'Duration',
     "overwrite_curated_dataset": True,
     "graph_colour_code": ["r", "y", "m", "c", "k", "b", "g", "r"],
     "save_output": True,

@@ -80,6 +80,7 @@ def align_async_signals(thisDir, json_file):
             analysis_methods = json.loads(f.read())
     load_raw_trial_info=analysis_methods.get("load_raw_trial_info",False)
     ## load previous analysis methods
+    stim_variable2 = analysis_methods.get("stim_variable2",'Duration')
     load_previous_methods=analysis_methods.get("load_previous_methods",False)
     if load_previous_methods:
         previous_methods_file=find_file(thisDir, "ephys_analysis_methods_backup.json")
@@ -209,7 +210,7 @@ def align_async_signals(thisDir, json_file):
     num_stim = meta_info.shape[0]
 
     ### changed ISI and Stim signals to 1 and 0 from 2025 April 1st
-    if experiment_name in ['looming',"receding","conflict","sweeping"]:
+    if experiment_name in ['looming',"receding","conflict","sweeping","flashing"]:
         if 'PreMovDuration' in meta_info.columns:
             if meta_info['PreMovDuration'].unique()==0:
                 pd_on_oe=pd_on_oe[preStim_duration<pd_on_oe]
@@ -307,8 +308,8 @@ def align_async_signals(thisDir, json_file):
     ## if use kilosort standalone, then load kilosort folder. Otherwise, load spikeinterface's preprocessed data and its toolkit.
     if analysis_methods.get("motion_corrector")=="kilosort_default" or analysis_methods.get("motion_corrector")=="testing":
         #main_foler_name='kilosort4_ThU13_ThL11'
-        #main_foler_name='kilosort4'
-        main_foler_name='kilosort4_motion_corrected'
+        main_foler_name='kilosort4'
+        #main_foler_name='kilosort4_motion_corrected'
         #main_foler_name='kilosort4_ThU18_ThL17_T0_T1500'
         #main_foler_name='kilosort4_T0_T1500'
         merged_units=False
@@ -392,42 +393,43 @@ def align_async_signals(thisDir, json_file):
         stim_type = analysis_methods.get("stim_type")
     for this_cluster_id in np.unique(cluster_id_interest):
         if analysis_methods.get("analysis_by_stimulus_type") == True:
-            for this_duration in meta_info['Duration'].unique():
+            for this_variable in meta_info[stim_variable2].unique():
                 for this_stim in stim_type:
-                    if np.where((meta_info["stim_type"] == this_stim) & (meta_info["Duration"]==this_duration))[0].shape[0]<2:
+                    if np.where((meta_info["stim_type"] == this_stim) & (meta_info[stim_variable2]==this_variable))[0].shape[0]<2:
                         continue
                     ax = peri_event_time_histogram(
                         spike_time_interest,
                         cluster_id_interest,
                         event_times_of_interest[
-                            (meta_info["stim_type"] == this_stim) & (meta_info["Duration"]==this_duration)
+                            (meta_info["stim_type"] == this_stim) & (meta_info[stim_variable2]==this_variable)
                         ],
                         this_cluster_id,
-                        # t_before=abs(time_window_behaviours[0]),
-                        # t_after=time_window_behaviours[1],
-                        t_before=2,
-                        t_after=2+this_duration,
+                        t_before=abs(time_window_behaviours[0]),
+                        t_after=time_window_behaviours[1],
+                        #t_before=2,
+                        #t_after=2+this_variable,
                         #bin_size=0.025,
                         #smoothing=0.025,
                         include_raster=True,
                         raster_kwargs={"color": "black", "lw": 0.5},
                     )
-                    fix_ylim=False
+                    fix_ylim=True
                     if fix_ylim:
                         ax.set_ylim([0, 250])
                         ax.set_yticks([0,250])
                         ax.set_xticks([])
                         ax.set_xlabel("")
                         ax.set_ylabel("")
-                        jpg_name = f"unit{this_cluster_id}_peth_stim{this_stim}_{this_duration}s_no_raster.png"
-                        #svg_name = f"unit{this_cluster_id}_peth_stim{this_stim}_{this_duration}s_no_raster.svg"
+                        jpg_name = f"unit{this_cluster_id}_peth_stim{this_stim}_{stim_variable2}_{this_variable}_no_raster.png"
+                        #svg_name = f"unit{this_cluster_id}_peth_stim{this_stim}_{stim_variable2}_{this_variable}_no_raster.svg"
                     else:
-                        jpg_name = f"unit{this_cluster_id}_peth_stim{this_stim}_{this_duration}s.png"
-                        svg_name = f"unit{this_cluster_id}_peth_stim{this_stim}_{this_duration}s.svg"
+                        jpg_name = f"unit{this_cluster_id}_peth_stim{this_stim}_{stim_variable2}_{this_variable}.png"
+                        svg_name = f"unit{this_cluster_id}_peth_stim{this_stim}_{stim_variable2}_{this_variable}.svg"
                         ax.figure.savefig(oe_folder / svg_name)
                     ax.figure.savefig(oe_folder / jpg_name)
                     
         else:
+            print("analyse the response by time")
             ax = peri_event_time_histogram(
                 spike_time_interest,
                 cluster_id_interest,
@@ -492,7 +494,10 @@ if __name__ == "__main__":
     #thisDir = r"Y:\GN25060\251130\coherence\session1\2025-11-30_14-25-01"
     #thisDir = r"Y:\GN25049\251025\looming\session5\2025-10-25_23-33-49"
     #thisDir = r"Y:\GN25053\251108\looming\session2\2025-11-08_15-39-42"
-    thisDir = r"Y:\GN25051\251101\looming\session2\2025-11-01_22-39-06"
+    #thisDir = r"Y:\GN25051\251101\looming\session2\2025-11-01_22-39-06"
+    #thisDir = r"Y:\GN25045\251013\looming\session2\2025-10-13_13-31-57"
+    #thisDir = r"Y:\GN25065\251214\flashing\session1\2025-12-14_13-48-09"
+    #thisDir = r"Y:\GN25065\251214\sweeping\session1\2025-12-14_14-14-29"
     #thisDir = r"Y:\GN25060\251130\looming\session1\2025-11-30_16-12-19"
     json_file = "./analysis_methods_dictionary.json"
 

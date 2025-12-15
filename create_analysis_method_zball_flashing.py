@@ -3,9 +3,9 @@ import json
 file_name = "analysis_methods_dictionary.json"
 behaviour_methods = {
     "exp_place": "Zball",
-    "experiment_name": "sweeping",
+    "experiment_name": "flashing",
     "temperature_data_options": "trial",
-    "stim_variable2":'Duration',
+    "stim_variable2":'A1',
     "overwrite_curated_dataset": True,
     "graph_colour_code": ["r", "y", "m", "c", "k", "b", "g", "r"],
     "save_output": True,
@@ -20,22 +20,22 @@ behaviour_methods = {
     "plotting_event_related_trajectory": True,
     "plotting_deceleration_accerleration": False,
     "plotting_position_dependant_fixation": False,
-    "plotting_optomotor_response": True,
+    "plotting_optomotor_response": False,
     "load_experiment_condition_from_database": True,
     "select_animals_by_condition": False,
     "analysis_by_stimulus_type": True,
-    "stationary_phase_before_motion": True,
+    "stationary_phase_before_motion": False,
     "duration_for_optomotor_index": 5,
     "yaw_axis":"z",
     "camera_fps": 100,
     "trackball_radius": 50,
     "monitor_fps": 144,
-    "prestim_duration": 185,
-    "stim_duration": [8],
-    "interval_duration": [10,15,20],
+    "prestim_duration": 205,
+    "stim_duration": 2,
+    "interval_duration": [4,5,6],
     "analysis_window": [
-        -2,
-        8
+        -1,
+        3
     ],
 }  # plue value representing clockwise, counterclockwise is minus, then the rest is coherence leve
 json_file = f"./{file_name}"
