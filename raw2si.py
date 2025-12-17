@@ -191,6 +191,9 @@ def get_preprocessed_recording(oe_folder,analysis_methods):
             elif probe_type == "H10":
                 probe_name = "ASSY-77-H10"
                 connector_type="ASSY-77>Adpt.A64-Om32_2x-sm-cambridgeneurotech>RHD2164"
+            # elif probe_type == "P2":
+            #     probe_name = "ASSY-37-P-2"
+            #     connector_type="ASSY-116>RHD2132"
             else:
                 print("the name of probe not identified. stop the programme")
                 return
@@ -410,35 +413,35 @@ def raw2si(thisDir, json_file):
                 recording_corrected=recording_corrected_dict
             else:
                 recording_corrected=recording_corrected_dict[0]
-            fig_w=plt.figure(figsize=[32,16])
-            r_range=[25,50,100,150]
-            #r_range=[75,200,250,300]
-            fs = recording_corrected.get_sampling_frequency()
-            for i in range(len(r_range)+2):
-                ax=fig_w.add_subplot(2, 6, i+1)
-                if i==5:
-                    rec_w=recording_corrected
-                    ax.title.set_text(f'before whitening')
-                elif i==4:
-                    rec_w = spre.whiten(recording=recording_corrected,int_scale=200,dtype=float)
-                    ax.title.set_text(f'global mode')
-                else:
-                    this_r=r_range[i]
-                    rec_w = spre.whiten(recording=recording_corrected,mode="local",radius_um=this_r,int_scale=200,dtype=float)
-                    ax.title.set_text(f'local mode, r={this_r}um')
+            # fig_w=plt.figure(figsize=[32,16])
+            # r_range=[25,50,100,150]
+            # #r_range=[75,200,250,300]
+            # fs = recording_corrected.get_sampling_frequency()
+            # for i in range(len(r_range)+2):
+            #     ax=fig_w.add_subplot(2, 6, i+1)
+            #     if i==5:
+            #         rec_w=recording_corrected
+            #         ax.title.set_text(f'before whitening')
+            #     elif i==4:
+            #         rec_w = spre.whiten(recording=recording_corrected,int_scale=200,dtype=float)
+            #         ax.title.set_text(f'global mode')
+            #     else:
+            #         this_r=r_range[i]
+            #         rec_w = spre.whiten(recording=recording_corrected,mode="local",radius_um=this_r,int_scale=200,dtype=float)
+            #         ax.title.set_text(f'local mode, r={this_r}um')
 
-                trace_snippet = rec_w.get_traces(
-                    start_frame=int(fs * 500), end_frame=int(fs * 500.1)
-                )
-                n=trace_snippet.shape[0]
-                D_demean = trace_snippet - np.mean(trace_snippet, axis=0)
-                S = D_demean.T@D_demean * (1/n)  # TODO: check
-                sw.plot_traces(rec_w,channel_ids=recording_corrected.channel_ids[:32],time_range=[500, 500.1],mode="auto",ax=ax,add_legend=False)
-                ax=fig_w.add_subplot(2, 6, i+7)
-                img=ax.imshow(S, cmap="Reds")
-                plt.colorbar(img,ax=ax)
-            fig_w.savefig(oe_folder /f'whitening_radius_{r_range[0]}_{r_range[1]}.png')
-            rec_for_sorting = recording_corrected
+            #     trace_snippet = rec_w.get_traces(
+            #         start_frame=int(fs * 500), end_frame=int(fs * 500.1)
+            #     )
+            #     n=trace_snippet.shape[0]
+            #     D_demean = trace_snippet - np.mean(trace_snippet, axis=0)
+            #     S = D_demean.T@D_demean * (1/n)  # TODO: check
+            #     sw.plot_traces(rec_w,channel_ids=recording_corrected.channel_ids[:32],time_range=[500, 500.1],mode="auto",ax=ax,add_legend=False)
+            #     ax=fig_w.add_subplot(2, 6, i+7)
+            #     img=ax.imshow(S, cmap="Reds")
+            #     plt.colorbar(img,ax=ax)
+            # fig_w.savefig(oe_folder /f'whitening_radius_{r_range[0]}_{r_range[1]}.png')
+            # rec_for_sorting = recording_corrected
             
             rec_for_sorting = spre.whiten(
                 recording=recording_corrected,
@@ -456,7 +459,7 @@ def raw2si(thisDir, json_file):
         if this_sorter.startswith("kilosort"):
             #update parameters based on motion correction method
             if motion_corrector =='kilosort_default':
-                if probe_type=='H5':
+                if probe_type=='H5' or probe_type=='H6D':
                     sorter_params.update({"nblocks": 1})
                 else:
                     sorter_params.update({"nblocks": 0})
@@ -479,7 +482,7 @@ def raw2si(thisDir, json_file):
                     sorter_params.update({"dminx": 18.5,"batch_size": 180000,"nearest_templates": 32})
                 elif probe_type=='P2':
                     sorter_params.update({"dminx": 22.5,"batch_size": 180000,"nearest_templates": 16})
-                elif probe_type=='H5':
+                elif probe_type=='H5' or probe_type=='H6D':
                     sorter_params.update({"dminx": 22.5,"batch_size": 180000})
 
             if len(recording_corrected_dict)>1:
@@ -571,7 +574,22 @@ if __name__ == "__main__":
     #thisDir = r"Y:\GN25055\251115\looming\session1\2025-11-15_19-01-54"#noisy channels= ['CH49']
     #thisDir = r"Y:\GN25053\251108\looming\session4\2025-11-08_21-23-22"
     #thisDir = r"Y:\GN25056\251116\gratings\session2\2025-11-16_19-00-27"
-    thisDir = r"Y:\GN25057\251122\looming\session2\2025-11-22_12-39-33"
+    #thisDir = r"Y:\GN25057\251122\looming\session2\2025-11-22_12-39-33"
+    #thisDir = r"Y:\GN25063\251213\flashing\session1\2025-12-13_16-03-57"
+#     ['CH3' 'CH4' 'CH5' 'CH6' 'CH7' 'CH10' 'CH12' 'CH13' 'CH15' 'CH16' 'CH17'
+#  'CH18' 'CH20' 'CH21' 'CH22' 'CH24' 'CH25' 'CH28' 'CH29' 'CH30' 'CH32']
+# channel_labels ['good' 'good' 'noise' 'noise' 'noise' 'noise' 'noise' 'good' 'good'
+#  'noise' 'good' 'noise' 'noise' 'good' 'noise' 'noise' 'dead' 'dead'
+#  'good' 'dead' 'dead' 'dead' 'good' 'dead' 'dead' 'good' 'good' 'dead'
+#  'dead' 'dead' 'good' 'dead']
+    thisDir = r"Y:\GN25063\251213\gratings\session1\2025-12-13_17-21-16"
+#     ['CH1' 'CH3' 'CH4' 'CH5' 'CH6' 'CH7' 'CH9' 'CH10' 'CH11' 'CH12' 'CH13'
+#  'CH15' 'CH16' 'CH17' 'CH18' 'CH19' 'CH20' 'CH21' 'CH22' 'CH24' 'CH25'
+#  'CH28' 'CH29' 'CH30' 'CH31' 'CH32']
+# channel_labels ['noise' 'good' 'noise' 'noise' 'noise' 'noise' 'noise' 'good' 'noise'
+#  'noise' 'noise' 'noise' 'noise' 'good' 'noise' 'noise' 'dead' 'dead'
+#  'dead' 'dead' 'dead' 'dead' 'good' 'dead' 'dead' 'good' 'good' 'dead'
+#  'dead' 'dead' 'dead' 'dead']
     #thisDir = r"Y:\GN25054\251109\sweeping\session2\2025-11-09_20-11-37"
     #thisDir = r"Y:\GN25040\250928\looming\session2\2025-09-28_18-23-15"
     #thisDir = r"Y:\GN25039\250927\looming\session3\2025-09-27_18-43-31"
