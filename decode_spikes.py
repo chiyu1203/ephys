@@ -125,15 +125,15 @@ def align_async_signals(thisDir, json_file):
         ]
         pd_on_oe = recording.events.timestamp[
             (recording.events.line == 1) & (recording.events.state == 1)
-        ]
+        ].values
         pd_off_oe = recording.events.timestamp[
             (recording.events.line == 1) & (recording.events.state == 0)
-        ]
+        ].values
         np.save(oe_folder/"pd_on.npy",pd_on_oe)
         np.save(oe_folder/"pd_off.npy",pd_off_oe)
         if len(camera_trigger_on_oe)>0:
-            np.where(camera_trigger_on_oe.values > pd_off_oe.values[1])
-            np.where(camera_trigger_on_oe.values > pd_on_oe.values[2])
+            np.where(camera_trigger_on_oe.values > pd_off_oe)
+            np.where(camera_trigger_on_oe.values > pd_on_oe)
         # print(f"trial id during the first stim: {np.where((camera_trigger_on_oe.values>pd_off_oe.values[1]) & (camera_trigger_on_oe.values<pd_on_oe.values[2]))}")
     stim_directory = oe_folder.resolve().parents[0]
     database_ext = "database*"
@@ -308,8 +308,8 @@ def align_async_signals(thisDir, json_file):
     ## if use kilosort standalone, then load kilosort folder. Otherwise, load spikeinterface's preprocessed data and its toolkit.
     if analysis_methods.get("motion_corrector")=="kilosort_default" or analysis_methods.get("motion_corrector")=="testing":
         #main_foler_name='kilosort4_ThU13_ThL11'
-        main_foler_name='kilosort4'
-        #main_foler_name='kilosort4_motion_corrected'
+        #main_foler_name='kilosort4'
+        main_foler_name='kilosort4_motion_corrected'
         #main_foler_name='kilosort4_ThU18_ThL17_T0_T1500'
         #main_foler_name='kilosort4_T0_T1500'
         merged_units=False
@@ -413,7 +413,7 @@ def align_async_signals(thisDir, json_file):
                         include_raster=True,
                         raster_kwargs={"color": "black", "lw": 0.5},
                     )
-                    fix_ylim=True
+                    fix_ylim=False
                     if fix_ylim:
                         ax.set_ylim([0, 250])
                         ax.set_yticks([0,250])
@@ -422,11 +422,12 @@ def align_async_signals(thisDir, json_file):
                         ax.set_ylabel("")
                         jpg_name = f"unit{this_cluster_id}_peth_stim{this_stim}_{stim_variable2}_{this_variable}_no_raster.png"
                         #svg_name = f"unit{this_cluster_id}_peth_stim{this_stim}_{stim_variable2}_{this_variable}_no_raster.svg"
+                        ax.figure.savefig(oe_folder / jpg_name)
                     else:
-                        jpg_name = f"unit{this_cluster_id}_peth_stim{this_stim}_{stim_variable2}_{this_variable}.png"
+                        #jpg_name = f"unit{this_cluster_id}_peth_stim{this_stim}_{stim_variable2}_{this_variable}.png"
                         svg_name = f"unit{this_cluster_id}_peth_stim{this_stim}_{stim_variable2}_{this_variable}.svg"
                         ax.figure.savefig(oe_folder / svg_name)
-                    ax.figure.savefig(oe_folder / jpg_name)
+
                     
         else:
             print("analyse the response by time")
@@ -497,6 +498,10 @@ if __name__ == "__main__":
     #thisDir = r"Y:\GN25051\251101\looming\session2\2025-11-01_22-39-06"
     #thisDir = r"Y:\GN25045\251013\looming\session2\2025-10-13_13-31-57"
     #thisDir = r"Y:\GN25065\251214\flashing\session1\2025-12-14_13-48-09"
+    #thisDir = r"Y:\GN25063\251213\flashing\session1\2025-12-13_16-03-57"
+    #thisDir = r"Y:\GN25068\251221\flashing\session1\2025-12-21_14-44-50"
+    #thisDir = r"Y:\GN25067\251220\flashing\session1\2025-12-20_14-36-54"
+    thisDir = r"Y:\GN25066\251214\sweeping\session1\2025-12-14_20-35-57"
     #thisDir = r"Y:\GN25065\251214\sweeping\session1\2025-12-14_14-14-29"
     #thisDir = r"Y:\GN25060\251130\looming\session1\2025-11-30_16-12-19"
     json_file = "./analysis_methods_dictionary.json"
