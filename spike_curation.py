@@ -259,7 +259,7 @@ def si2phy(thisDir, json_file):
     phy_folder_name = "phy" + sorter_suffix
     report_folder_name = "report" + sorter_suffix
     remove_excess_spikes = True
-
+    postprocess_with_unwhitening_recording=analysis_methods.get("postprocess_with_unwhitening_recording",False)
     load_previous_methods=analysis_methods.get("load_previous_methods",False)
     if load_previous_methods:
         previous_methods_file=find_file(oe_folder / sorting_folder_name, "analysis_methods_dictionary_backup.json")
@@ -336,24 +336,30 @@ def si2phy(thisDir, json_file):
         analysis_methods.update({"load_existing_motion_info": True})
         recording_saved=spre.astype(recording_saved,np.float32)
         recording_corrected_dict=motion_correction_shankbyshank(recording_saved,oe_folder,analysis_methods)
-        if len(recording_corrected_dict)>1:
+        if len(recording_corrected_dict)>1 and postprocess_with_unwhitening_recording==True:
+            recording_for_analysis=si.aggregate_channels(recording_corrected_dict)
+        elif len(recording_corrected_dict)==1:
+            recording_for_analysis=recording_corrected_dict[0]
+        elif postprocess_with_unwhitening_recording==False and len(recording_corrected_dict)>1:
+            recording_corrected_dict = spre.whiten(recording=recording_corrected_dict,mode="local",radius_um=150)
             recording_for_analysis=si.aggregate_channels(recording_corrected_dict)
         else:
-            recording_for_analysis=recording_corrected_dict[0]
+            recording_for_analysis = spre.whiten(recording=recording_corrected_dict[0],mode="local",radius_um=150)
         if remove_excess_spikes:
             sorting_spikes=scur.remove_duplicated_spikes(sorting_spikes,censored_period_ms=0.3,method="keep_first_iterative")
             sorting_spikes = scur.remove_excess_spikes(
                 sorting_spikes, recording_for_analysis
             )
-            print(f"find redundant units: {scur.find_redundant_units(sorting_spikes)}")
-            #sorting_spikes= scur.remove_redundant_units(sorting_spikes,align=False) this is used in the Guided Spikeinterface Hands-on but not sure if I should use it 
+            print(f"find redundant units: {scur.find_redundant_units(sorting_spikes)}") #sorting_spikes= scur.remove_redundant_units(sorting_spikes,align=False) remove redundant on spikeinterface-gui
         sorting_analyzer = si.create_sorting_analyzer(
             sorting=sorting_spikes,
             recording=recording_for_analysis,
-            sparse=False,  # default
+            sparse=True,  # default
             format="memory",  # default
         )
         calculate_analyzer_extension(sorting_analyzer)
+        if analysis_methods.get("save_analyser_to_disc")==True:
+            sorting_analyzer.save_as(folder=oe_folder / analyser_folder_name,format="zarr")
         if analysis_methods.get("export_to_phy") == True:
             if Path(oe_folder / phy_folder_name).exists() and analysis_methods.get("overwrite_existing_phy") == False:
                 _ = se.read_phy(
@@ -364,7 +370,7 @@ def si2phy(thisDir, json_file):
                     output_folder=oe_folder / phy_folder_name,
                     compute_amplitudes=True,
                     compute_pc_features=True,
-                    copy_binary=True,
+                    copy_binary=False,
                     remove_if_exists=True,
                 )
                 print(f"postprocessing is done. Export the files to phy to do manual curation")
@@ -385,10 +391,7 @@ def si2phy(thisDir, json_file):
             print(f"potential good units: {curated_unit_ids}, they are defined by some fixed threshold")
         ### the following information should be calculated in calculate_analyzer_extension already
             # print(sqm.get_quality_metric_list())
-            # sqm.compute_quality_metrics(sorting_analyzer,metric_names=["isolation_distance","d_prime","snr","sd_ratio"])
-
-
-        
+            # sqm.compute_quality_metrics(sorting_analyzer,metric_names=["isolation_distance","d_prime","snr","sd_ratio"])   
     else:
         return print(
             f"{sorting_folder_name} is not found. Noting can be done here without some putative spikes..."
@@ -469,7 +472,8 @@ def si2phy(thisDir, json_file):
 
 
 if __name__ == "__main__":
-    thisDir = r"Y:\GN25019\250524\2025-05-24_15-11-49"
+    #thisDir = r"Y:\GN25019\250524\2025-05-24_15-11-49"
+    thisDir = r"Y:\GN25060\251130\coherence\session1\2025-11-30_14-25-01"
     json_file = "./analysis_methods_dictionary.json"
     ##Time the function
     tic = time.perf_counter()
