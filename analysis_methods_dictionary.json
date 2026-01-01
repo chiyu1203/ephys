@@ -1,7 +1,7 @@
 {
     "experimenter": "chiyu",
-    "probe_type": "H6D",
-    "motion_corrector": "dredge",
+    "probe_type": "H10",
+    "motion_corrector": "skip",
     "sorter_name": "spykingcircus2",
     "load_previous_methods": false,
     "overwrite_curated_dataset": true,

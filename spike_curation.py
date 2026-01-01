@@ -461,7 +461,7 @@ def si2phy(thisDir, json_file):
     sw.plot_quality_metrics(sorting_analyzer, include_metrics=["isi_violations_ratio","snr","rp_contamination","firing_rate","sd_ratio"])
     ax = sw.plot_unit_templates(sorting_analyzer, backend="matplotlib")
     fig_name = f"preview_unit_template.png"
-    fig_dir = oe_folder / fig_name
+    fig_dir = oe_folder / sorting_folder_name/ fig_name
     ax.figure.savefig(fig_dir)
 
     if analysis_methods.get("export_report") == True:

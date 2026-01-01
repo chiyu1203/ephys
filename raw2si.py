@@ -39,12 +39,20 @@ This pipeline uses spikeinterface as a backbone. This file includes preprocessin
 """
 
 def generate_sorter_suffix(this_sorter):
-    if this_sorter.lower() == "spykingcircus2":
+    if this_sorter.lower() in ["spykingcircus2","sc2"]:
         sorter_suffix = "_SC2"
-    elif this_sorter.lower() == "kilosort3":
+    elif this_sorter.lower() in ["tridesclous2","tc2"]:
+        sorter_suffix = "_TC2"
+    elif this_sorter.lower() in ["mountainsort5","ms5"]:
+        sorter_suffix = "_MS5"
+    elif this_sorter.lower() in ["herdingspikes","hs2"]:
+        sorter_suffix = "_HS2"
+    elif this_sorter.lower() in ["kilosort3","ks3"]:
         sorter_suffix = "_KS3"
-    elif this_sorter.lower() == "kilosort4":
+    elif this_sorter.lower() in ["kilosort4","ks4"]:
         sorter_suffix = "_KS4"
+    else:
+        print("sorter not identified. No suffix will be added")
     return sorter_suffix
 def motion_correction_shankbyshank(recording_saved,oe_folder,analysis_methods):
     motion_corrector=analysis_methods.get("motion_corrector")
@@ -509,9 +517,13 @@ def raw2si(thisDir, json_file):
         else:
             ### add some lines here to update the parameters based on the sorter type
             #e.g. sorter_params.update({"projection_threshold": [9, 9]})
-            sorter_params.update({"apply_motion_correction": False,"apply_preprocessing": False})
-            #sorter_params['general'].update({"radius_um":150})
-            sorter_params['cache_preprocessing'].update({"mode": "no-cache"})
+            if this_sorter.lower() in ["spykingcircus2","sc2"]:
+                sorter_params.update({"apply_motion_correction": False,"apply_preprocessing": False})
+                #sorter_params['general'].update({"radius_um":150})
+                sorter_params['cache_preprocessing'].update({"mode": "no-cache"})
+            elif this_sorter.lower() in ["tridesclous2","tc2"]:
+                sorter_params.update({"apply_motion_correction": False,"apply_preprocessing": False})
+
             if len(recording_corrected_dict)>1:#it sounds like skipping motion correction will lead here with only one dict. Note: correct motion correction will remove channels
                 rec_for_sorting=si.aggregate_channels(rec_for_sorting)
                 sorting_spikes = ss.run_sorter_by_property(
@@ -520,17 +532,15 @@ def raw2si(thisDir, json_file):
                 remove_existing_folder=True,
                 grouping_property='group',
                 folder=oe_folder / result_folder_name,
-                verbose=True,
                 **sorter_params
                 )
             else:
-
                 sorting_spikes = ss.run_sorter(
                     sorter_name=this_sorter,
                     recording=rec_for_sorting,
                     remove_existing_folder=True,
                     folder=oe_folder / result_folder_name,
-                    verbose=True,**sorter_params,
+                    **sorter_params
                 )
         ##this will return a sorting object
     ############################# spike sorting preview and saving ##########################
@@ -576,13 +586,15 @@ if __name__ == "__main__":
     #thisDir = r"Y:\GN25056\251116\gratings\session2\2025-11-16_19-00-27"
     #thisDir = r"Y:\GN25057\251122\looming\session2\2025-11-22_12-39-33"
     #thisDir = r"Y:\GN25063\251213\flashing\session1\2025-12-13_16-03-57"
+    #thisDir = r"Y:\GN25057\251122\looming\session2\2025-11-22_12-39-33"
+    #thisDir = r"Y:\GN25049\251025\looming\session4\2025-10-25_21-53-25"
 #     ['CH3' 'CH4' 'CH5' 'CH6' 'CH7' 'CH10' 'CH12' 'CH13' 'CH15' 'CH16' 'CH17'
 #  'CH18' 'CH20' 'CH21' 'CH22' 'CH24' 'CH25' 'CH28' 'CH29' 'CH30' 'CH32']
 # channel_labels ['good' 'good' 'noise' 'noise' 'noise' 'noise' 'noise' 'good' 'good'
 #  'noise' 'good' 'noise' 'noise' 'good' 'noise' 'noise' 'dead' 'dead'
 #  'good' 'dead' 'dead' 'dead' 'good' 'dead' 'dead' 'good' 'good' 'dead'
 #  'dead' 'dead' 'good' 'dead']
-    thisDir = r"Y:\GN25063\251213\gratings\session1\2025-12-13_17-21-16"
+    #thisDir = r"Y:\GN25063\251213\gratings\session1\2025-12-13_17-21-16"
 #     ['CH1' 'CH3' 'CH4' 'CH5' 'CH6' 'CH7' 'CH9' 'CH10' 'CH11' 'CH12' 'CH13'
 #  'CH15' 'CH16' 'CH17' 'CH18' 'CH19' 'CH20' 'CH21' 'CH22' 'CH24' 'CH25'
 #  'CH28' 'CH29' 'CH30' 'CH31' 'CH32']
@@ -594,6 +606,8 @@ if __name__ == "__main__":
     #thisDir = r"Y:\GN25040\250928\looming\session2\2025-09-28_18-23-15"
     #thisDir = r"Y:\GN25039\250927\looming\session3\2025-09-27_18-43-31"
     #thisDir = r"Y:\GN25037\250922\looming\session2\2025-09-22_15-59-41"
+    #thisDir = r"Y:\GN25060\251130\coherence\session1\2025-11-30_14-25-01"
+    thisDir = r"Y:\GN25070\251228\2025-12-28_13-34-35"
     json_file = "./analysis_methods_dictionary.json"
     ##Time the function
     tic = time.perf_counter()

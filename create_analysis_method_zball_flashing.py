@@ -30,7 +30,7 @@ behaviour_methods = {
     "camera_fps": 100,
     "trackball_radius": 50,
     "monitor_fps": 144,
-    "prestim_duration": 205,
+    "prestim_duration": 200,
     "stim_duration": 2,
     "interval_duration": [4,5,6],
     "analysis_window": [
