@@ -69,35 +69,54 @@ We use probes from CambridgeNeurotech. The mapping can be found via probeinterfa
 
 1. Turn on air conditioning and PC to heat up the room in the morning [Optional] Use dehumilifier to reduce the humidity overnight.
 
-2. Prepare locust saline, dyes, tin foil (to wrap the dye), parafilm and a beaker with trypsin for electrode, a beaker for locust saline, 1 pipettes (for loading dye) and 1 pipetteman, distill water and isopropyl alcohol. Place those reagents on ice in a box except for locust saline. Then rinse the probe with isopropyl alcohol to clear the remaining dye (followed by rinsing with distilled water).
+2. Prepare locust saline, dyes, tin foil (to wrap the dye), wax, parafilm and a beaker with trypsin for electrode, a beaker for locust saline, 1 pipettes (for loading dye) and 1 pipetteman, distill water and isopropyl alcohol. Place those reagents on ice in a box except for locust saline. Then rinse the probe with isopropyl alcohol to clear the remaining dye (followed by rinsing with distilled water).
 
-3. place the locust on ice for 5 mins and then dissect the locust in the tube-holder. Make an insertion site on the exoskeleton. The site should be in between the antenna (and somewhere ventral to the antenna). Then slice it (either 1. in between the antenna if you want to preserve them or 2. cut off the antenna nerve and then remove most of the exoskeleton) all the way to black part (save the black part).
+3. place the locust on ice for 5 mins and then fix the locust with wax on the customised headbar. Make an insertion site on the exoskeleton. The site should be in between the antenna (and somewhere ventral to the antenna). Then slide it either in between the antenna if you want to preserve them or cut off the antenna nerve to remove the antenna.
 
-4. Remove airsacs, cuticle, and fat body until you can see the brain. [Optional] cut off the gut: to do that, it is actually better to cut the face all the way until mouth so that there are space to find the gut (have not decided whether I should remove the gut or not). Install one or two metal bars (coated with wax) to stablise the brain (wax get removed easily if the coating was not done properly. Or the problem is due to the wax). Fix the metal tube with wax (the ventral part of the head; for the dorsal part, just use insersion site to stablise them) and then remove the neural sheet.
+4. Remove airsacs, cuticle, and fat body until you can see the brain. [Optional] cut off the gut: to do that, it is actually better to cut the face all the way until mouth so that there are space to find the gut (have not decided whether I should remove the gut or not). Install one or two metal bars to stablise the brain. Insert the reference pin. Fix the wound with wax (the ventral part of the head; for the dorsal part, just use insersion site to stablise them) and then remove the neural sheath.
   
 Note: The downside of removing the gut is that the head would become a big dry hole so I was not sure if putting the ground pin at the dorsal side of the head would work. One idea is to stuff moist kimwipe beneath the brain. Or maybe buy dura-gel would be a good idea. However, keep in mind during the surgery that if the brain does not move too much due to animal's breath, it should be possible to do the recording without removing the gut
 
-5. When removing the neural sheet, focus on dorsal to the central complex and ripe the neural sheet along DV axis (with two fine forceps). This is because the probe is inserted along along DV axis. And place parafilm on the brain
+5. When inserting probe from drosal side, trying removing the neural sheath from the dorsal side of the central complex and ripe the neural sheet along DV axis. This is because the probe is inserted along along DV axis. When inserting probe from anterior side, try removing the neural sheath toward the ipsilateral side (the recording site) so that tissue there is not pulled too much
 
-6. glue the head with the headstage and insert the ground wire into the dorsal side of the head and then tape the ground pin with the head-fix bar
+6. Place the locust on the airball and then prepare to stain the electrode. (Remember to connect the SPL wire with the intan chip before putting them on the stereotaxis)
 
-7. Place the locust on the airball and then prepare to stain the electrode. (Remember to connect the SPL wire with the intan chip before putting them on the stereotaxis)
+7. turn on LinLab2, micromanipulators(AP axis = x, + means anterior; LM axis = y, + means lateral, DV axis = z, + mean ventral), calibrate monitor colour with Calibrate Display Color app. 
 
-8. Once the probe is in place (Remember to get the ground wire stick well to the metal bar. Otherwise, it will block field of view of the camera), turn on LinLab2, micromanipulators and place the microscope inside the rig to identify potential location (AP axis = x, + means anterior; LM axis = y, + means lateral, DV axis = z, + mean ventral)
+8. Once the probe is around the potential location. Connect it the reference wire (Remember to get the ground wire stick well to the metal bar. Otherwise, it will block field of view of the camera).
 
 9. Make sure the brain is dry enough so that the dye does not diffuse when touching the surface of the brain. Once the probe touch the surface of the target area, rezero LinLab.
 
-11. Start to lower the probe with creeper function in LinLab, every 50 um (1um/s). Use Stimulus_toolkit to search for visual related neurons.
+11. Start to lower the probe with creeper function in LinLab, for at least 350 um (1um/s), so that all the channels are inside the tissue. Use Stimulus_toolkits and looming_toolkits to search for visual related neurons.
 
-12. Once a good spot is found, remove the microscope and position the third monitor. Turn off and unplug the micromanipulator and LinLab to remove additional electrical noise.
+12. Once a good spot is found, remove or turn off the microscope and check the sound of spikes. When everything is ready, position the central monitor and turn off  micromanipulator to remove additional electrical noise.
 
-13. The procedure of the recording is (1) start bonsai workflow (2) start recording on OpenEphys (3) Press **C** to start the camera and then **R** to start record film (4) start the stimulus with keypress **S**
+13. The procedure of the recording without using fictrac: Passive viewing experiment is (1) start bonsai workflow (2) start recording on OpenEphys (3) start the stimulus with keypress **S**. In the case of spontanous experiment: (0) connect OpenEphys TTL channel 2 to Basler camera's TTL input (see closed loop experiment for details) (1) start recording on OpenEphys  (2)  start bonsai to activate the camera
 
 14. get PFA, PBS and trypsin ready when the recording is finishing or when pulling out of the electrode back (no need to dilute PFA but trypsin is stored in 10x)
 
-15. Once the recording is done, try to pull the electrode back (2um/s) (if the brian is too dry, trying saline-soaked kimiwipe to keep the brain moist before pulling the probe out)
+15. Once the recording is done, try to pull the electrode back (1um/s). If the brian is too dry, trying adding saline. If the probe was tangled by hemolymph too much, then added protease to remove it (but do add saline right afterward so that the brain tissue can be more or less intact).  
 
 16. Add PBS into dissection stage and then move the head to the stage. Note: it is actually fine to just cut off the labula complex and save dissection time. Finally place the brain into the 4% PFA and store it at the cold room overnight.
+
+
+# Closed loop experiment (with fictrac)
+
+1. open comment prompt and move to C:\src\fictrac\bin\Release> to standby with fictrac.exe config_zball_camera1_9618_176x176_144Hz.txt
+
+2. open bonsai workflow closed_loop_rotation_2_target.bonsai to standby
+
+3. connect OpenEphys TTL channel 2 to Basler camera's TTL input (red cable of OpenEphys connecting to purple cable of Basler camera)
+
+4. Start recording on OpenEphys GUI (the following sequence is opposite as recording session without using fictrac. This sequence is meant to ensure all the camera sync pulse is captured by openEphys. At the exponse of recording the transition of screen when Bonsai is turned on and off)
+
+5. type config_zball_camera1_9618_176x176_144Hz.txt on comment prompt
+
+6. start bonsai workflow closed_loop_rotation_2_target.bonsai and press S to let fictrac data flow in.
+
+7. After the recording session, first turn off Bonsai workflow. Then turned off 
+
+8. Stop recording on OpenEphys GUI
 
 # Multicamera filmming
 
@@ -105,14 +124,11 @@ Note: The downside of removing the gut is that the head would become a big dry h
 
 2. Use Unity based visual paradigm: Open pylon viewer and turn on camera 1557 so that we can load feature into the camera (somehow fictrac automatically use this camera so we load a particular feature file:432x480_hw in this camera for fictrac) and then close Pylon Viewer.
 
-2-1. turn on Bonsai workflow multicamera_hw, and use the same steps to start the arduino and press **R** for recording. Then run fictrac and then run python_script fictrac\VR_array\socket_zmq_republisher.py. And then start OpenEphys recording >>> connect the barcode arduino >>> run Unity files (Here is a problem with which monitors Unity to target. Belows is the details). 
+2-1. turn on Bonsai workflow multicamera_hw, and use the same steps to start the arduino with **C**  and press **R** for recording. Then run fictrac and then run python_script fictrac\VR_array\socket_zmq_republisher.py. And then start OpenEphys recording >>> connect the barcode arduino >>> run Unity files (Here is a problem with which monitors Unity to target. Belows is the details).
 
 Press **Esc** to stop the Unity file (this seems to take around 10 mins to save and compress the data; Unity is buggy on this pc so needs to use task manager to shut down this software). Then turn off fictrac and then turn off bonsai workflow.
 
-In addition, I shall not think about running unity and ephys before I add this feature 
-
->when running Unity programme on Ephys setup. One big problem is that stimuli are presented when the monitors are closed up so ~~either I editted the unity programme to make the control scence to present at the second monitors and VR scene at the main monitors~~ not easy. I shall completely remove the control scence and directly load parameters in the Swarm scene. A quick way to shut down the second monitor is just to unplug it.
->how to implement stimulus alignment with Ephys without using sync pulse is not clear.
+>When running Unity programme on Ephys setup. After pressing the record button on OpenEphys and bonsai (to acquire video data), connect the sivler USB to activate the barcode arduino. Then use barcode sequence to align ephys (TTL channel 3) with video data
 
 
 # no-Multicamera filmming
