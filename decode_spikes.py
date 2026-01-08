@@ -1,5 +1,4 @@
 import time, os, json, warnings, sys
-from open_ephys.analysis import Session
 import spikeinterface.core as si
 import spikeinterface.extractors as se
 import spikeinterface.qualitymetrics as sqm
@@ -113,28 +112,31 @@ def align_async_signals(thisDir, json_file):
     stim_directory = oe_folder.resolve().parents[0]
     pd_ext='pd_*.npy'
     pd_files = find_file(oe_folder, pd_ext)
+    pd_ext='pd.npy'
+    one_pd_file = find_file(oe_folder, pd_ext)
     if pd_files is not None:
         pd_on_oe=np.load(pd_files[1])
         pd_off_oe=np.load(pd_files[0])
+    elif one_pd_file is not None:
+        pd_on_oe=np.load(one_pd_file)[0]
+        pd_off_oe=np.load(one_pd_file)[1]
     else:
     ##load adc events from openEphys
-        session = Session(oe_folder)
-        recording = session.recordnodes[0].recordings[0]
-        camera_trigger_on_oe = recording.events.timestamp[
-            (recording.events.line == 2) & (recording.events.state == 1)
-        ]
-        pd_on_oe = recording.events.timestamp[
-            (recording.events.line == 1) & (recording.events.state == 1)
-        ].values
-        pd_off_oe = recording.events.timestamp[
-            (recording.events.line == 1) & (recording.events.state == 0)
-        ].values
-        np.save(oe_folder/"pd_on.npy",pd_on_oe)
-        np.save(oe_folder/"pd_off.npy",pd_off_oe)
-        if len(camera_trigger_on_oe)>0:
-            np.where(camera_trigger_on_oe.values > pd_off_oe)
-            np.where(camera_trigger_on_oe.values > pd_on_oe)
-        # print(f"trial id during the first stim: {np.where((camera_trigger_on_oe.values>pd_off_oe.values[1]) & (camera_trigger_on_oe.values<pd_on_oe.values[2]))}")
+        event = se.read_openephys_event(oe_folder)
+        evts=event.get_events(channel_id=event.channel_ids[0])
+        pd_data=evts[evts['label']=='1']
+        camera_data=evts[evts['label']=='2']
+        barcode_data=evts[evts['label']=='3']
+        if pd_data.shape[0]>1:
+            pd_on=pd_data['time']
+            pd_off=pd_data['time']+pd_data['duration']
+            np.save(oe_folder/"pd.npy",np.vstack((pd_on,pd_off)))
+        if camera_data.shape[0]>1:
+            np.save(oe_folder/"camera_pulse.npy",camera_data['time'])
+        if barcode_data.shape[0]>1:
+            barcode_on=barcode_data['time']
+            barcode_off=barcode_data['time']+barcode_data['duration']
+            np.save(oe_folder/"barcode.npy",np.vstack((barcode_on,barcode_off)))
     stim_directory = oe_folder.resolve().parents[0]
     database_ext = "database*"
     tracking_file = find_file(stim_directory, database_ext)

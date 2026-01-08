@@ -4,11 +4,10 @@ from probeinterface.plotting import plot_probe
 import spikeinterface.core as si
 import spikeinterface.extractors as se
 import spikeinterface.preprocessing as spre
-import spikeinterface.postprocessing as spost
+#import spikeinterface.postprocessing as spost
 import spikeinterface.sorters as ss
-import spikeinterface.qualitymetrics as sq
-import spikeinterface.exporters as sep
-from open_ephys.analysis import Session
+#import spikeinterface.qualitymetrics as sq
+#import spikeinterface.exporters as sep
 from estimate_drift_motion import AP_band_drift_estimation, LFP_band_drift_estimation
 from spikeinterface.sortingcomponents.motion import (
     correct_motion_on_peaks,
@@ -21,7 +20,7 @@ import numpy as np
 from pathlib import Path
 import numcodecs
 warnings.simplefilter("ignore")
-import spikeinterface.curation as scur
+#import spikeinterface.curation as scur
 n_cpus = os.cpu_count()
 n_jobs = n_cpus - 4
 
@@ -141,24 +140,20 @@ def get_preprocessed_recording(oe_folder,analysis_methods):
     # To show the start of recording time
     # raw_rec.get_times()[0]
         event = se.read_openephys_event(oe_folder)
-        session = Session(oe_folder)
-        recording = session.recordnodes[0].recordings[0]
-        # camera_trigger_on_oe = recording.events.timestamp[
-        #     (recording.events.line == 2) & (recording.events.state == 1)
-        # ]
-        pd_on_oe = recording.events.timestamp[
-            (recording.events.line == 1) & (recording.events.state == 1)
-        ]
-        pd_off_oe = recording.events.timestamp[
-            (recording.events.line == 1) & (recording.events.state == 0)
-        ]
-        np.save(oe_folder/"pd_on.npy",pd_on_oe)
-        np.save(oe_folder/"pd_off.npy",pd_off_oe)
-    # event_channel_ids=channel_ids
-    # events = event.get_events(channel_id=channel_ids[1], segment_index=0)# a complete record of events including [('time', '<f8'), ('duration', '<f8'), ('label', '<U100')]
-        events_times = event.get_event_times(
-            channel_id=event.channel_ids[1], segment_index=0
-        )  # this record ON phase of sync pulse
+        evts=event.get_events(channel_id=event.channel_ids[0])
+        pd_data=evts[evts['label']=='1']
+        camera_data=evts[evts['label']=='2']
+        barcode_data=evts[evts['label']=='3']
+        if pd_data.shape[0]>1:
+            pd_on=pd_data['time']
+            pd_off=pd_data['time']+pd_data['duration']
+            np.save(oe_folder/"pd.npy",np.vstack((pd_on,pd_off)))
+        if camera_data.shape[0]>1:
+            np.save(oe_folder/"camera_pulse.npy",camera_data['time'])
+        if barcode_data.shape[0]>1:
+            barcode_on=barcode_data['time']
+            barcode_off=barcode_data['time']+barcode_data['duration']
+            np.save(oe_folder/"barcode.npy",np.vstack((barcode_on,barcode_off)))
         fs = raw_rec.get_sampling_frequency()
         if analysis_methods.get("load_raw_traces") == True:
             trace_snippet = raw_rec.get_traces(
@@ -607,7 +602,8 @@ if __name__ == "__main__":
     #thisDir = r"Y:\GN25039\250927\looming\session3\2025-09-27_18-43-31"
     #thisDir = r"Y:\GN25037\250922\looming\session2\2025-09-22_15-59-41"
     #thisDir = r"Y:\GN25060\251130\coherence\session1\2025-11-30_14-25-01"
-    thisDir = r"Y:\GN25070\251228\2025-12-28_13-34-35"
+    #thisDir = r"Y:\GN25070\251228\2025-12-28_13-34-35"
+    thisDir = r"C:\Users\neuroPC\Documents\Open Ephys\2026-01-08_16-32-46"
     json_file = "./analysis_methods_dictionary.json"
     ##Time the function
     tic = time.perf_counter()

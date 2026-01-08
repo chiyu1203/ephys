@@ -12,12 +12,12 @@ conda activate ephys
 Then installing spikeinterface ibllib and other dependencies. Then installing other dependencies. (open ephys python tool is for loading timestamp; zarr and numcodesc for compressing data; ipympl is for interactive plots on Jupyter notebook. Pyside 6 is for spikeinterface-gui )
 
 ````
-pip install ibllib spikeinterface[full,widgets] open-ephys-python-tools zarr docker cuda-python numcodecs hdbscan ipympl spikeinterface-gui PySide6
+pip install ibllib spikeinterface[full,widgets] zarr docker cuda-python numcodecs hdbscan ipympl spikeinterface-gui PySide6
 ````
 
 [optional] ibllib has many plotting functions You can either install it via pip or to install it from source. Below is the version I forked from the source
 
-Note: ibllib use scipy 1.12 but installing one of these packages **open-ephys-python-tools zarr docker cuda-python numcodecs hdbscan** 
+Note: ibllib use scipy 1.12 but installing one of these packages **zarr docker cuda-python numcodecs hdbscan** 
 needs scipy 1.13 so I hopes there is no conflict between them 
 
 ````
@@ -102,13 +102,15 @@ Note: The downside of removing the gut is that the head would become a big dry h
 
 # Closed loop experiment (with fictrac)
 
+0. Open pylon view and load the feature file of basler camera. Note: fictrac has a preference over some series number so to make 9618 as default camera for fictrac, we need to unplug other cameras except 9675 (in the case of 9675, unplug every cameras). 
+
 1. open comment prompt and move to C:\src\fictrac\bin\Release> to standby with fictrac.exe config_zball_camera1_9618_176x176_144Hz.txt
 
 2. open bonsai workflow closed_loop_rotation_2_target.bonsai to standby
 
 3. connect OpenEphys TTL channel 2 to Basler camera's TTL input (red cable of OpenEphys connecting to purple cable of Basler camera)
 
-4. Start recording on OpenEphys GUI (the following sequence is opposite as recording session without using fictrac. This sequence is meant to ensure all the camera sync pulse is captured by openEphys. At the exponse of recording the transition of screen when Bonsai is turned on and off)
+4. Start recording on OpenEphys GUI (the following sequence is opposite as recording session without using fictrac. This sequence is meant to ensure all the camera sync pulse is captured by openEphys. At the expanse of recording the transition of screen when Bonsai is turned on and off). Notably, even with this preparation, the number of sync pulse collected by OpenEphys is different from the data saved in fictrac. For example, in a roughly one-hour recording, 5111564 data points are saved by fictrac. 511604 data points saved by OpenEphys. The data loss is 0.007623 % The difference is negligable but it means the mapping between the two is not exactly 1 to 1
 
 5. type config_zball_camera1_9618_176x176_144Hz.txt on comment prompt
 
@@ -149,13 +151,28 @@ Therefore, each project (or each experiment) has its own json file. Below explai
     
     "motion_corrector": "testing", # either choose a algorithm to correct drift/motion or using "testing" to go through each method 
     
-    "sorter_name": "kilosort4", # currently only supports kilosort 3 and 4 and default sorters
+    "sorter_name": "kilosort4",
+    
+    "load_previous_methods": false,
     
     "analyse_good_channels_only": true, # whether to remove bad and noisy channels from analysis
+
+    "remove_dead_channels": true,
+
+    "interpolate_noisy_channels": false,
+
+    "plot_traces": false,
     
     "load_raw_traces": false,
+
+    "tmin_tmax": [
+        0.0,
+        -1.0
+    ],
     
-    "analyse_entire_recording": true, # whether to chop the recording into a portion for analysis
+    "skip_motion_correction": true,
+
+    "load_existing_motion_info": false
     
     "save_prepocessed_file": false, # whether to compress and save dataset after it goes through bandpass filter, common median reference, remove bad channels, and slice into a portion
     
@@ -171,9 +188,7 @@ Therefore, each project (or each experiment) has its own json file. Below explai
     
     "load_analyser_from_disc": false,
     
-    "extract_waveform_sparse": false,
-    
-    "extract_waveform_sparse_explicit": false,
+    "postprocess_with_unwhitening_recording": true,
     
     "export_to_phy": true,
     
@@ -183,7 +198,9 @@ Therefore, each project (or each experiment) has its own json file. Below explai
     
     "export_report": false,
 
-# The following is used in decode_spikes.py    
+# The following is used in decode_spikes.py
+
+    "load_raw_trial_info": false,
 
     "include_MUA": true, # whether to include MUA when using the script decode_spikes.py
     
