@@ -118,7 +118,7 @@ def get_preprocessed_recording(oe_folder,analysis_methods):
         and (oe_folder / "preprocessed_compressed.zarr").is_dir()
     ):
         recording_saved = si.read_zarr(oe_folder / "preprocessed_compressed.zarr")
-        print(recording_saved.get_property_keys())
+        print('load preprocessed compresssed file')
         fs = recording_saved.get_sampling_frequency()
     elif (
         analysis_methods.get("load_prepocessed_file") == True
@@ -452,6 +452,7 @@ def raw2si(thisDir, json_file):
                 radius_um=150,
                 #int_scale=200,#this can be added to replicate kilosort behaviour
             )
+            print("whitening is done")
             #sw.plot_traces({f"r100":rec_r100_s200},  mode="auto",time_range=[10, 10.1], backend="ipywidgets")
         ############################# spike sorting ##########################
         #print(f'theses sorters are installed in this PC {ss.installed_sorters()}')
@@ -603,7 +604,8 @@ if __name__ == "__main__":
     #thisDir = r"Y:\GN25037\250922\looming\session2\2025-09-22_15-59-41"
     #thisDir = r"Y:\GN25060\251130\coherence\session1\2025-11-30_14-25-01"
     #thisDir = r"Y:\GN25070\251228\2025-12-28_13-34-35"
-    thisDir = r"C:\Users\neuroPC\Documents\Open Ephys\2026-01-08_16-32-46"
+    #thisDir = r"C:\Users\neuroPC\Documents\Open Ephys\2026-01-08_16-32-46"
+    thisDir = r"Y:/GN25070/251228/looming/sessoin1/2025-12-28_13-48-28"
     json_file = "./analysis_methods_dictionary.json"
     ##Time the function
     tic = time.perf_counter()

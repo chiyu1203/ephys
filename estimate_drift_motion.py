@@ -57,12 +57,13 @@ def AP_band_drift_estimation(group,recording_saved,oe_folder,analysis_methods,wi
         if motion_corrector in motion_corrector_tuple:
             test_folder = motion_folder / motion_corrector
             motion_corrector_params = spre.get_motion_parameters_preset(motion_corrector)
-            print(motion_corrector_params)
+            print(f"start doing motion correction or loading existing motion correction file with this corrector {motion_corrector}")
             motion_corrector_params['estimate_motion_kwargs'].update({"win_step_um":win_step_um,"win_scale_um":win_scale_um})
             detection_threshold=8.0
             motion_corrector_params['detect_kwargs'].update({'detect_threshold': detection_threshold})
             # dredge_preset_params = spre.get_motion_parameters_preset("dredge")
             if test_folder.is_dir() and load_existing_motion_info:
+                print("load existing motion info from folder", test_folder)
                 motion_info = spre.load_motion_info(test_folder)
                 recording_corrected = interpolate_motion(
                     recording=recording_saved,
@@ -87,6 +88,7 @@ def AP_band_drift_estimation(group,recording_saved,oe_folder,analysis_methods,wi
                     detect_kwargs=motion_corrector_params['detect_kwargs'],
                     estimate_motion_kwargs=motion_corrector_params['estimate_motion_kwargs']
                 )
+                print(f"can not find folder {test_folder}, so create one when correcting motion")
             else:
                 motion_info=[]
                 recording_corrected, _, motion_info = spre.correct_motion(
@@ -98,7 +100,7 @@ def AP_band_drift_estimation(group,recording_saved,oe_folder,analysis_methods,wi
                     output_motion_info=False,
                     detect_kwargs=motion_corrector_params['detect_kwargs'],
                     estimate_motion_kwargs=motion_corrector_params['estimate_motion_kwargs'])#interpolate_motion_kwargs={'border_mode' : 'force_extrapolate'},
-                print('recording is corrected but output_motion and info are not generated')
+                print('recording is corrected but because overwrite_curated_dataset is false, output_motion and info are not generated')
             fig = plt.figure(figsize=(14, 8))
             sw.plot_motion_info(
                 motion_info,
