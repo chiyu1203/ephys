@@ -177,6 +177,12 @@ def get_preprocessed_recording(oe_folder,analysis_methods):
             probe_name= "ASSY-77-H10"
             stacked_probes = pi.read_probeinterface("H10_RHD2164_rev_openEphys_mapping.json")
             probe = stacked_probes.probes[0]
+        elif probe_type == "H10_32ch":
+            probe_name= "ASSY-77-H10"
+            stacked_probes = pi.read_prb("H10_RHD2164_32channels.prb")
+            #stacked_probes = pi.read_probeinterface("H10_RHD2164_32channels.json")
+            #did not use this function because the error is yet fix in the json file. ValueError: The given Probe either has 'device_channel_indices' that does not match channel count
+            probe = stacked_probes.probes[0]
         elif probe_type == "P2":
             probe_name= "ASSY-37-P-2"
             stacked_probes = pi.read_probeinterface("P2_RHD2132_openEphys_mapping.json")
@@ -605,7 +611,8 @@ if __name__ == "__main__":
     #thisDir = r"Y:\GN25060\251130\coherence\session1\2025-11-30_14-25-01"
     #thisDir = r"Y:\GN25070\251228\2025-12-28_13-34-35"
     #thisDir = r"C:\Users\neuroPC\Documents\Open Ephys\2026-01-08_16-32-46"
-    thisDir = r"Y:/GN25070/251228/looming/sessoin1/2025-12-28_13-48-28"
+    #thisDir = r"Y:/GN25070/251228/looming/sessoin1/2025-12-28_13-48-28"
+    thisDir = r"C:\Users\neuroPC\Documents\Open Ephys\2026-01-18_15-25-15"
     json_file = "./analysis_methods_dictionary.json"
     ##Time the function
     tic = time.perf_counter()
