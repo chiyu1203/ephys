@@ -221,11 +221,14 @@ def get_preprocessed_recording(oe_folder,analysis_methods):
 
         #As we do not analyse LFP data, there was no need to correct motion based on LFP band. However, this estimation can be good to validate the result from spike-band based motion estimation
         # https://spikeinterface.readthedocs.io/en/latest/how_to/drift_with_lfp.html
-        lfp_drift_estimation=False
+        lfp_drift_estimation=True
         if lfp_drift_estimation:
             raw_rec_dict = raw_rec.split_by(property='group', outputs='dict')
             for group, rec_per_shank in raw_rec_dict.items():
-                LFP_band_drift_estimation(group,rec_per_shank,oe_folder)
+                if probe_type in ["H10_rev", "H10"] and group==1:
+                    print("this probe has a broken shank")
+                    continue
+                motion_lfp=LFP_band_drift_estimation(group,rec_per_shank,oe_folder)
         elif plot_traces:
             raw_rec_dict = raw_rec.split_by(property='group', outputs='dict')
             fig0=plt.figure(figsize=[64,48])
@@ -612,7 +615,11 @@ if __name__ == "__main__":
     #thisDir = r"Y:\GN25070\251228\2025-12-28_13-34-35"
     #thisDir = r"C:\Users\neuroPC\Documents\Open Ephys\2026-01-08_16-32-46"
     #thisDir = r"Y:/GN25070/251228/looming/sessoin1/2025-12-28_13-48-28"
-    thisDir = r"C:\Users\neuroPC\Documents\Open Ephys\2026-01-18_15-25-15"
+    #thisDir = r"C:\Users\neuroPC\Documents\Open Ephys\2026-01-18_15-25-15"
+    #thisDir = r"Y:\GN26006\260118\2026-01-18_13-46-33"
+    thisDir = r"Y:\GN26005\260117\2026-01-17_15-35-48"
+    #thisDir = r"Y:\GN26005\260117\looming\session1\2026-01-17_16-03-04"
+    #thisDir = r"Y:\GN26006\260118\looming\session1\2026-01-18_14-14-20"
     json_file = "./analysis_methods_dictionary.json"
     ##Time the function
     tic = time.perf_counter()

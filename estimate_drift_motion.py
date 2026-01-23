@@ -21,13 +21,20 @@ def LFP_band_drift_estimation(group,raw_rec,oe_folder):
     lfprec = spre.bandpass_filter(raw_rec,freq_min=0.5,freq_max=250,margin_ms=1500.,filter_order=3,dtype="float32",add_reflect_padding=True)
     lfprec = spre.common_reference(lfprec,reference="global", operator="median")
     lfprec = spre.resample(lfprec, resample_rate=250, margin_ms=1000)
+    #lfprec = spre.directional_derivative(lfprec, order=2, edge_order=1)# seems to introduce larger estimate of motion
     lfprec = spre.average_across_direction(lfprec)
     fig0=plt.figure()
-    ax=fig0.add_subplot(121)
-    sw.plot_traces(lfprec, backend="matplotlib", mode="auto",ax=ax,time_range=(0, 1))
+    ax=fig0.add_subplot(221)
+    sw.plot_traces(lfprec, backend="matplotlib", mode="auto",ax=ax,time_range=(0, 5))
+    ax=fig0.add_subplot(222)
+    sw.plot_traces(lfprec, backend="matplotlib", mode="auto",ax=ax)
     #sw.plot_traces(lfprec, backend="matplotlib", mode="auto", ax=ax, clim=(-0.05, 0.05),time_range=(0, 20))
     motion_lfp = estimate_motion(lfprec, method='dredge_lfp', rigid=True, progress_bar=True)
-    ax=fig0.add_subplot(122)
+    ax=fig0.add_subplot(223)
+    sw.plot_motion(motion_lfp, mode='line', ax=ax)
+    ax.set_xlim(0, 5)
+    ax.set_ylim(-100, 100)
+    ax=fig0.add_subplot(224)
     sw.plot_motion(motion_lfp, mode='line', ax=ax)
     motion_folder = oe_folder / f"lfp_motion_shank{group}"
     if Path(motion_folder).is_dir():
@@ -35,7 +42,6 @@ def LFP_band_drift_estimation(group,raw_rec,oe_folder):
     else:
         motion_folder.mkdir(parents=True, exist_ok=True)
     fig0.savefig(motion_folder / "dredge_lfp.png")
-    plt.show()
     return motion_lfp
 
 
