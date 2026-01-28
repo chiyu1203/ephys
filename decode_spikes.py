@@ -275,18 +275,31 @@ def align_async_signals(thisDir, json_file):
         x_all,y_all,yaw_angular_velocity=preprocess_tracking_data(tracking_df,filtering_method,yaw_axis,smooth_window_length)
         travel_distance_fbf = euclidean_distance(x_all,y_all)
         walk_states,turn_states=identify_behavioural_states(travel_distance_fbf,yaw_angular_velocity,filtering_method,camera_fps,consecutive_duration=[0.25,0.25],smooth_window_length=smooth_window_length,skip_smoothing=False)
+        if walk_states[0]==1:
+            s2w_index=np.where(np.diff(walk_states))[0][1::2]
+            w2s_index=np.where(np.diff(walk_states))[0][::2]
+        else:
+            s2w_index=np.where(np.diff(walk_states))[0][::2]
+            w2s_index=np.where(np.diff(walk_states))[0][1::2]
+        if turn_states[0]==1:
+            n2t_index=np.where(np.diff(turn_states))[0][1::2]
+        else:
+            n2t_index=np.where(np.diff(turn_states))[0][::2]
     if event_of_interest.lower() == "preStim_ISI":
         events_time = isi_on_oe[1:].values
     elif event_of_interest.lower() == "postStim_ISI":
         events_time = isi_on_oe[:-1].values
     elif event_of_interest.lower() == "walk_onset":
-        events_time = isi_on_oe[1:].values
+        events_time = s2w_index
     elif event_of_interest.lower() == "stop_onset":
-        events_time = isi_on_oe[1:].values
+        events_time = w2s_index
     elif event_of_interest.lower() == "turn_onset":
-        events_time = isi_on_oe[1:].values
+        events_time = n2t_index
     elif event_of_interest.lower() == "straight_onset":
-        events_time = isi_on_oe[1:].values
+        walk_straight_index=np.where((turn_states[1:] == 0) & (walk_states == 1))[0]
+        walk_straight_states=np.zeros(len(walk_states))
+        walk_straight_states[walk_straight_index]=1
+        events_time = np.where(np.diff(walk_straight_states))[0][::2]
     else:
         if len(stim_on_oe) > num_stim:
             stim_on_oe=stim_on_oe[preStim_duration<stim_on_oe]### I should move this to line 258 for coherence etc.
