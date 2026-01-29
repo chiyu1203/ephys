@@ -5,13 +5,19 @@ import spikeinterface.qualitymetrics as sqm
 import spikeinterface.widgets as sw
 import spikeinterface.curation as sc
 from datetime import datetime
-from scipy.signal import medfilt
+from scipy.signal import medfilt,convolve, gaussian
 # use elepant or open scope to faciliate data analysis https://elephant.readthedocs.io/en/latest/index.html
 # For kilosort/phy output files we can use the read_phy
 # most formats will have a read_xx that can used.
 import matplotlib.pyplot as plt
 from spikeinterface.widgets import plot_sorting_summary
-import math
+import numpy as np
+from pathlib import Path
+import pandas as pd
+import pynapple as nap
+import seaborn as sns
+custom_params = {"axes.spines.right": False, "axes.spines.top": False}
+sns.set_theme(style="ticks", palette="colorblind", font_scale=1.5, rc=custom_params)
 from brainbox.population.decode import get_spike_counts_in_bins
 from brainbox.plot import peri_event_time_histogram, driftmap_color, driftmap
 from brainbox.ephys_plots import (
@@ -21,9 +27,6 @@ from brainbox.ephys_plots import (
     scatter_amp_depth_fr_plot,
     probe_rms_plot,
 )
-import numpy as np
-from pathlib import Path
-import pandas as pd
 from spike_curation import (
     calculate_analyzer_extension,
     get_preprocessed_recording,
@@ -31,7 +34,6 @@ from spike_curation import (
     generate_sorter_suffix,
     MplColorHelper,
 )
-
 warnings.simplefilter("ignore")
 current_working_directory = Path.cwd()
 parent_dir = current_working_directory.resolve().parents[0]
@@ -70,6 +72,115 @@ def sort_arrays(arr1, *arrays):
     ]
 
     return sorted_arr1, *sorted_arrays
+
+def calculate_peths_details(
+    spike_times, spike_clusters, cluster_ids, align_times, pre_time=0.2,
+    post_time=0.5, bin_size=0.025, smoothing=0.025, return_fr=True):
+    ## this is a function from calculate_peths singlecell.py in brainbox library
+    n_offset = 5 * int(np.ceil(smoothing / bin_size))  # get rid of boundary effects for smoothing
+    n_bins_pre = int(np.ceil(pre_time / bin_size)) + n_offset
+    n_bins_post = int(np.ceil(post_time / bin_size)) + n_offset
+    n_bins = n_bins_pre + n_bins_post
+    binned_spikes = np.zeros(shape=(len(align_times), len(cluster_ids), n_bins))
+
+    # build gaussian kernel if requested
+    if smoothing > 0:
+        w = n_bins - 1 if n_bins % 2 == 0 else n_bins
+        window = gaussian(w, std=smoothing / bin_size)
+        # half (causal) gaussian filter
+        # window[int(np.ceil(w/2)):] = 0
+        window /= np.sum(window)
+        binned_spikes_conv = np.copy(binned_spikes)
+
+    #ids = np.unique(cluster_ids)
+    ids = cluster_ids
+
+    # # filter spikes outside of the loop
+    idxs = np.bitwise_and(spike_times >= np.min(align_times) - (n_bins_pre + 1) * bin_size,
+                          spike_times <= np.max(align_times) + (n_bins_post + 1) * bin_size)
+    idxs = np.bitwise_and(idxs, np.isin(spike_clusters, cluster_ids))
+    spike_times = spike_times[idxs]
+    spike_clusters = spike_clusters[idxs]
+
+    # compute floating tscale
+    tscale = np.arange(-n_bins_pre, n_bins_post + 1) * bin_size
+    # bin spikes
+    if len(cluster_ids)>1:
+        for i, t_0 in enumerate(align_times):
+            # define bin edges
+            ts = tscale + t_0
+            # filter spikes
+            idxs = np.bitwise_and(spike_times >= ts[0], spike_times <= ts[-1])
+            i_spikes = spike_times[idxs]
+            i_clusters = spike_clusters[idxs]
+
+            # bin spikes similar to bincount2D: x = spike times, y = spike clusters
+            xscale = ts
+            xind = (np.floor((i_spikes - np.min(ts)) / bin_size)).astype(np.int64)
+            yscale, yind = np.unique(i_clusters, return_inverse=True)
+            nx, ny = [xscale.size, yscale.size]
+            ind2d = np.ravel_multi_index(np.c_[yind, xind].transpose(), dims=(ny, nx))
+            r = np.bincount(ind2d, minlength=nx * ny, weights=None).reshape(ny, nx)
+
+            # store (ts represent bin edges, so there are one fewer bins)
+            bs_idxs = np.isin(ids, yscale)
+            binned_spikes[i, bs_idxs, :] = r[:, :-1]
+
+            # smooth
+            if smoothing > 0:
+                idxs = np.where(bs_idxs)[0]
+                for j in range(r.shape[0]):
+                    binned_spikes_conv[i, idxs[j], :] = convolve(
+                        r[j, :], window, mode='same', method='auto')[:-1]
+    else:
+        for i, t_0 in enumerate(align_times):
+            # define bin edges
+            ts = tscale + t_0
+            # filter spikes
+            idxs = np.bitwise_and(spike_times >= ts[0], spike_times <= ts[-1])
+            i_spikes = spike_times[idxs]
+            i_clusters = spike_clusters[idxs]
+
+            # bin spikes similar to bincount2D: x = spike times, y = spike clusters
+            xscale = ts
+            xind = (np.floor((i_spikes - np.min(ts)) / bin_size)).astype(np.int64)
+            yscale, yind = np.unique(i_clusters, return_inverse=True)
+            nx, ny = [xscale.size, yscale.size]
+            ind2d = np.ravel_multi_index(np.c_[yind, xind].transpose(), dims=(ny, nx))
+            r = np.bincount(ind2d, minlength=nx * ny, weights=None).reshape(ny, nx)
+
+            # store (ts represent bin edges, so there are one fewer bins)
+            bs_idxs = np.isin(ids, yscale)
+            binned_spikes[i, bs_idxs, :] = r[:, :-1]
+
+            # smooth
+            if smoothing > 0:
+                idxs = np.where(bs_idxs)[0]
+                for j in range(r.shape[0]):
+                    binned_spikes_conv[i, idxs[j], :] = convolve(
+                        r[j, :], window, mode='same', method='auto')[:-1]
+    # average
+    if smoothing > 0:
+        binned_spikes_ = np.copy(binned_spikes_conv)
+    else:
+        binned_spikes_ = np.copy(binned_spikes)
+    if return_fr:
+        binned_spikes_ /= bin_size
+
+    peth_means = np.mean(binned_spikes_, axis=0)
+    peth_stds = np.std(binned_spikes_, axis=0)
+
+    if smoothing > 0:
+        peth_means = peth_means[:, n_offset:-n_offset]
+        peth_stds = peth_stds[:, n_offset:-n_offset]
+        binned_spikes = binned_spikes[:, :, n_offset:-n_offset]
+        tscale = tscale[n_offset:-n_offset]
+
+    # package output
+    tscale = (tscale[:-1] + tscale[1:]) / 2
+    #peths = Bunch({'means': peth_means, 'stds': peth_stds, 'tscale': tscale, 'cscale': ids})
+    return peth_means, peth_stds, tscale,ids
+
 
 
 def align_async_signals(thisDir, json_file):
@@ -290,16 +401,16 @@ def align_async_signals(thisDir, json_file):
     elif event_of_interest.lower() == "postStim_ISI":
         events_time = isi_on_oe[:-1].values
     elif event_of_interest.lower() == "walk_onset":
-        events_time = s2w_index
+        events_time = oe_camera_time[s2w_index]
     elif event_of_interest.lower() == "stop_onset":
-        events_time = w2s_index
+        events_time = oe_camera_time[w2s_index]
     elif event_of_interest.lower() == "turn_onset":
-        events_time = n2t_index
+        events_time = oe_camera_time[n2t_index]
     elif event_of_interest.lower() == "straight_onset":
         walk_straight_index=np.where((turn_states[1:] == 0) & (walk_states == 1))[0]
         walk_straight_states=np.zeros(len(walk_states))
         walk_straight_states[walk_straight_index]=1
-        events_time = np.where(np.diff(walk_straight_states))[0][::2]
+        events_time = oe_camera_time[np.where(np.diff(walk_straight_states))[0][::2]]
     else:
         if len(stim_on_oe) > num_stim:
             stim_on_oe=stim_on_oe[preStim_duration<stim_on_oe]### I should move this to line 258 for coherence etc.
@@ -421,13 +532,18 @@ def align_async_signals(thisDir, json_file):
     spike_count, cluster_id = get_spike_counts_in_bins(
         spike_time_interest_sorted, cluster_id_interest_sorted, events_time_tw
     )
+
     ## go through the peri_event_time_histogram of every cluster
     if "stim_type" in locals():
         print("use stim type generated by sorting trial info")
     else:
         stim_type = analysis_methods.get("stim_type")
+    ## it might be useful to calulcate all the clusters together but right now it does not look necessary
+    # peth_means, peth_stds, tscale,ids=calculate_peths_details(
+    # spike_time_interest,cluster_id_interest, np.unique(cluster_id_interest), events_time, pre_time=abs(time_window[0]),
+    # post_time=time_window[1], bin_size=0.025, smoothing=0.025, return_fr=True)
     for this_cluster_id in np.unique(cluster_id_interest):
-        if analysis_methods.get("analysis_by_stimulus_type") == True:
+        if analysis_methods.get("analysis_by_stimulus_type") == True and trial_file is not None:
             for this_variable in meta_info[stim_variable2].unique():
                 for this_stim in stim_type:
                     if np.where((meta_info["stim_type"] == this_stim) & (meta_info[stim_variable2]==this_variable))[0].shape[0]<2:
@@ -435,7 +551,7 @@ def align_async_signals(thisDir, json_file):
                     ax = peri_event_time_histogram(
                         spike_time_interest,
                         cluster_id_interest,
-                        events_time_tw[
+                        events_time[
                             (meta_info["stim_type"] == this_stim) & (meta_info[stim_variable2]==this_variable)
                         ],
                         this_cluster_id,
@@ -457,23 +573,64 @@ def align_async_signals(thisDir, json_file):
                     else:
                         #jpg_name = f"unit{this_cluster_id}_peth_stim{this_stim}_{stim_variable2}_{this_variable}.png"
                         svg_name = f"unit{this_cluster_id}_peth_stim{this_stim}_{stim_variable2}_{this_variable}.svg"
-                        ax.figure.savefig(oe_folder / svg_name)
-
-                    
+                        ax.figure.savefig(oe_folder / svg_name)     
         else:
-            print("analyse the response by time")
-            ax = peri_event_time_histogram(
-                spike_time_interest,
-                cluster_id_interest,
-                events_time_tw,
-                this_cluster_id,
-                t_before=abs(time_window[0]),
-                t_after=time_window[1],
-                bin_size=0.025,
-                smoothing=0.025,
-                include_raster=False,
-                raster_kwargs={"color": "black", "lw": 1},
-            )
+            # print("analyse the response by time")
+            # ax = peri_event_time_histogram(
+            #     spike_time_interest,
+            #     cluster_id_interest,
+            #     events_time,
+            #     this_cluster_id,
+            #     t_before=abs(time_window[0]),
+            #     t_after=time_window[1],
+            #     bin_size=0.025,
+            #     smoothing=0.025,
+            #     include_raster=True,
+            #     raster_kwargs={"color": "black", "lw": 1},
+            # )
+            # png_name = f"unit{this_cluster_id}_peth_{event_of_interest}.png"
+            # ax.figure.savefig(oe_folder / png_name)
+            these_spikes=spike_time_interest[np.where(cluster_id_interest==this_cluster_id)[0]]
+            these_ids=np.ones(these_spikes.shape[0],dtype=int)*this_cluster_id
+            tspikes=nap.Tsd(
+            t=these_spikes, 
+            d=these_ids, time_units="s")           
+            
+            peth = nap.compute_perievent(
+            timestamps=tspikes,
+            tref=nap.Ts(t=events_time, time_units="s"), 
+            minmax=(time_window[0], time_window[1]), 
+            time_unit="s")
+            print(peth)
+
+            peth_means, peth_stds, tscale,_=calculate_peths_details(
+                these_spikes,these_ids, [this_cluster_id], events_time, pre_time=abs(time_window[0]),
+                post_time=time_window[1], bin_size=0.025, smoothing=0.025, return_fr=True)
+
+
+            fig2, (ax1,ax2) = plt.subplots(nrows=2, figsize=(12, 8), sharex=True)
+            #ax1.plot(np.mean(peth.count(0.05), 1) / 0.05, linewidth=3, color="red")
+            mean=peth_means[0,:]
+            bars=peth_stds[0,:]
+            ax1.plot(tscale,mean, linewidth=3, color="blue")
+            negative_std=mean - bars
+            if np.any(negative_std<0):            
+                ax1.fill_between(tscale,0, mean + bars, color= 'blue', alpha= 0.5)
+            else:
+                ax1.fill_between(tscale,negative_std, mean + bars,color= 'blue', alpha= 0.5)
+            ax1.set(ylabel="Rate (spikes/sec)",xlim=(time_window[0], time_window[1]))
+            ax1.axvline(0.0,color="black")
+            ax2.plot(peth.to_tsd(), "|", markersize=1, color="black", mew=1)
+            ax2.set(ylabel="Event #",xlabel=f"Time from {event_of_interest} (s)",xlim=(time_window[0], time_window[1]))
+            fix_ylim=False
+            if fix_ylim:
+                ax1.set_ylim([0, 250])
+                ax1.set_yticks([0,250])
+            cleanup_xticks=False
+            if cleanup_xticks:
+                ax2.set_xticks([time_window[0],round(time_window[0]/2),0,round(time_window[1]/2),time_window[1]])
+            png_name = f"unit{this_cluster_id}_{event_of_interest}_peth.png"
+            fig2.savefig(oe_folder / png_name)
     json_string = json.dumps(analysis_methods, indent=1)
     with open(Path(thisDir) / "ephys_analysis_methods_backup.json", "w") as f:
         f.write(json_string)
