@@ -9,10 +9,10 @@ Open the anaconda prompt and create a virtual environment via conda. Note: both 
 conda create --name ephys python=3.12
 conda activate ephys
 ````
-Then installing spikeinterface ibllib and other dependencies. Then installing other dependencies. (open ephys python tool is for loading timestamp; zarr and numcodesc for compressing data; ipympl is for interactive plots on Jupyter notebook. Pyside 6 is for spikeinterface-gui )
+Then installing spikeinterface and other dependencies. Then installing other dependencies. (open ephys python tool is for loading timestamp; zarr and numcodesc for compressing data; ipympl is for interactive plots on Jupyter notebook. Pyside 6 is for spikeinterface-gui )
 
 ````
-pip install ibllib spikeinterface[full,widgets] zarr docker cuda-python numcodecs hdbscan ipympl spikeinterface-gui PySide6
+pip install spikeinterface[full,widgets] zarr docker cuda-python numcodecs hdbscan ipympl spikeinterface-gui PySide6 pynapple
 ````
 
 [optional] ibllib has many plotting functions You can either install it via pip or to install it from source. Below is the version I forked from the source
