@@ -44,7 +44,7 @@ from useful_tools import find_file
 from data_cleaning import sorting_trial_info, load_fictrac_data_file,euclidean_distance
 
 sys.path.insert(0, str(parent_dir) + "\\bonfic")
-from analyse_stimulus_evoked_response import classify_trial_type,preprocess_tracking_data,identify_behavioural_states
+from analyse_stimulus_evoked_response import classify_trial_type,preprocess_tracking_data,identify_behavioural_states,generate_index_points
 n_cpus = os.cpu_count()
 n_jobs = n_cpus - 4
 global_job_kwargs = dict(n_jobs=n_jobs, chunk_duration="1s", progress_bar=True)
@@ -357,32 +357,73 @@ def align_async_signals(thisDir, json_file):
     if 'tracking_df' in locals():
         x_all,y_all,yaw_angular_velocity=preprocess_tracking_data(tracking_df,filtering_method,yaw_axis,smooth_window_length)
         travel_distance_fbf = euclidean_distance(x_all,y_all)
-        walk_states,turn_states=identify_behavioural_states(travel_distance_fbf,yaw_angular_velocity,filtering_method,camera_fps,consecutive_duration=[0.25,0.25],smooth_window_length=smooth_window_length,skip_smoothing=False)
-        if walk_states[0]==1:
+        walk_states,turn_states,turn_cw,turn_ccw=identify_behavioural_states(travel_distance_fbf,yaw_angular_velocity,filtering_method,camera_fps,consecutive_duration=[2,0.5],smooth_window_length=smooth_window_length,skip_smoothing=False)
+        if walk_states[0]==1:#identify transition onset depends on whether the first frame is run or stationary already
             s2w_index=np.where(np.diff(walk_states))[0][1::2]
             w2s_index=np.where(np.diff(walk_states))[0][::2]
         else:
             s2w_index=np.where(np.diff(walk_states))[0][::2]
             w2s_index=np.where(np.diff(walk_states))[0][1::2]
+        w2s_index=w2s_index[w2s_index+time_window[1]*camera_fps<travel_distance_fbf.shape[0]]#remove events passing the end of recording
+        s2w_index=s2w_index[s2w_index+time_window[1]*camera_fps<travel_distance_fbf.shape[0]]
+        w2s_index=w2s_index[w2s_index-abs(time_window[0]*camera_fps)>0]#remove events starting before the start of recording
+        s2w_index=s2w_index[s2w_index-abs(time_window[0]*camera_fps)>0]
         if turn_states[0]==1:
             n2t_index=np.where(np.diff(turn_states))[0][1::2]
         else:
             n2t_index=np.where(np.diff(turn_states))[0][::2]
+        n2t_index=n2t_index[n2t_index+time_window[1]*camera_fps<travel_distance_fbf.shape[0]]
+        n2t_index=n2t_index[n2t_index-abs(time_window[0]*camera_fps)>0]
+
     if event_of_interest.lower() == "preStim_ISI":
         events_time = isi_on_oe[1:].values
     elif event_of_interest.lower() == "postStim_ISI":
         events_time = isi_on_oe[:-1].values
     elif event_of_interest.lower() == "walk_onset":
         events_time = oe_camera_time[s2w_index]
+        transition_index=s2w_index
     elif event_of_interest.lower() == "stop_onset":
         events_time = oe_camera_time[w2s_index]
+        transition_index=w2s_index
     elif event_of_interest.lower() == "turn_onset":
         events_time = oe_camera_time[n2t_index]
-    elif event_of_interest.lower() == "straight_onset":
+        transition_index=n2t_index
+    elif event_of_interest.lower() == "walk_straight_onset":
         walk_straight_index=np.where((turn_states[1:] == 0) & (walk_states == 1))[0]
         walk_straight_states=np.zeros(len(walk_states))
         walk_straight_states[walk_straight_index]=1
-        events_time = oe_camera_time[np.where(np.diff(walk_straight_states))[0][::2]]
+        if walk_straight_states[0]==1:
+            s2w_index=np.where(np.diff(walk_states))[0][1::2]
+        else:
+            s2w_index=np.where(np.diff(walk_straight_states))[0][::2]
+        s2w_index=s2w_index[s2w_index+time_window[1]*camera_fps<travel_distance_fbf.shape[0]]
+        s2w_index=s2w_index[s2w_index-abs(time_window[0]*camera_fps)>0]
+        events_time = oe_camera_time[s2w_index]
+        transition_index=s2w_index
+    elif event_of_interest.lower() == "turn_ccw_onset":
+        turn_index=np.where((turn_ccw[1:] == 1) & (walk_states == 1))[0]
+        turn_states=np.zeros(len(walk_states))
+        turn_states[turn_index]=1
+        if turn_states[0]==1:
+            n2t_index=np.where(np.diff(turn_states))[0][1::2]
+        else:
+            n2t_index=np.where(np.diff(turn_states))[0][::2]
+        n2t_index=n2t_index[n2t_index+time_window[1]*camera_fps<travel_distance_fbf.shape[0]]
+        n2t_index=n2t_index[n2t_index-abs(time_window[0]*camera_fps)>0]
+        events_time = oe_camera_time[n2t_index]
+        transition_index=n2t_index
+    elif event_of_interest.lower() == "turn_cw_onset":
+        turn_index=np.where((turn_cw[1:] == 1) & (walk_states == 1))[0]
+        turn_states=np.zeros(len(walk_states))
+        turn_states[turn_index]=1
+        if turn_states[0]==1:
+            n2t_index=np.where(np.diff(turn_states))[0][1::2]
+        else:
+            n2t_index=np.where(np.diff(turn_states))[0][::2]
+        n2t_index=n2t_index[n2t_index+time_window[1]*camera_fps<travel_distance_fbf.shape[0]]
+        n2t_index=n2t_index[n2t_index-abs(time_window[0]*camera_fps)>0]
+        events_time = oe_camera_time[n2t_index]
+        transition_index=n2t_index
     else:
         if len(stim_on_oe) > num_stim:
             stim_on_oe=stim_on_oe[preStim_duration<stim_on_oe]### I should move this to line 258 for coherence etc.
@@ -396,6 +437,81 @@ def align_async_signals(thisDir, json_file):
     events_time_tw = np.array(
         [events_time + time_window[0], events_time + time_window[1]]
     ).T
+    if 'transition_index' in locals():
+        if transition_index.shape[0]>0:
+            index_points = generate_index_points(transition_index, time_window, camera_fps)
+            # if event_of_interest.lower().startswith('walk') or event_of_interest.lower().startswith('stop'):      
+            time_locked_behaviour=travel_distance_fbf[index_points]*camera_fps
+            # elif event_of_interest.lower().startswith('turn'):
+            time_locked_behaviour2=yaw_angular_velocity[index_points]
+        else:
+            print('no transition detected')
+            return
+        time_points = np.arange(time_locked_behaviour.shape[1])
+        time_points_b = np.tile(time_points, (time_locked_behaviour.shape[0], 1))
+        fig, (axes,axes2) = plt.subplots(
+            nrows=2, ncols=1, figsize=(9, 4.5), tight_layout=True,sharex=True
+        )#change fig size to 11,5.5 or something lower value for bigger legend
+        mean=np.mean(time_locked_behaviour, axis=0)
+        frame_index=np.mean(time_points_b, axis=0)
+        bars=np.std(time_locked_behaviour, axis=0)
+        axes.plot(
+            frame_index,
+            mean,
+            color='red',
+            linewidth=4
+        )
+        axes.plot(
+            np.transpose(time_points_b),
+            np.transpose(time_locked_behaviour),
+            color='black',
+            linewidth=0.2,
+            alpha=0.5
+        )
+        axes.set_xticks([0,abs(time_window[0])*camera_fps,(time_window[1]+abs(time_window[0]))*camera_fps])
+        axes.set_xticklabels([time_window[0],0,time_window[1]])
+        axes.set_ylabel('Speed (cm/sec)',size=15)#size should be above 10
+        axes.spines['left'].set_linewidth(2) 
+        time_points = np.arange(time_locked_behaviour2.shape[1])
+        time_points_b = np.tile(time_points, (time_locked_behaviour2.shape[0], 1))
+        median=np.median(time_locked_behaviour2, axis=0)
+        frame_index=np.mean(time_points_b, axis=0)
+        bars=np.std(time_locked_behaviour2, axis=0)
+        axes2.plot(
+            frame_index,
+            median,
+            color='red',
+            linewidth=4
+        )
+        axes2.plot(
+            np.transpose(time_points_b),
+            np.transpose(time_locked_behaviour2),
+            color='black',
+            linewidth=0.2,
+            alpha=0.5
+        ) 
+        axes2.set_ylabel(r'$\omega$ (rad/sec)',size=15)
+        axes2.set_xticks([0,abs(time_window[0])*camera_fps,(time_window[1]+abs(time_window[0]))*camera_fps])
+        axes2.set_xticklabels([time_window[0],0,time_window[1]])
+        axes2.spines['left'].set_linewidth(2) 
+        fix_ylim=True
+        if event_of_interest.startswith('stop'):
+            yrange=[0,5]
+        else:
+            yrange=[0,10]
+        if fix_ylim:
+            axes.set_ylim(yrange)
+            axes.set_yticks(yrange)
+            axes2.set_ylim([0, 1])
+            axes2.set_yticks([0,1])
+        png_name = f"{event_of_interest}_ts_plot.png"
+        fig.savefig(oe_folder / png_name)
+        svg_name = f"{event_of_interest}_ts_plot.svg"
+        fig.savefig(oe_folder / svg_name)
+    else:
+        print('analyse spiking activity without behaviour')
+
+
     ## needs to reorganise this part. Figure out a better to plot data about behavioural-state modulated stimulus response
     # if velocity_file is not None and trial_file is not None and analyse_behavioural_state_modulation==True:
     #     #velocity_tbt = np.load(velocity_file)
@@ -430,7 +546,7 @@ def align_async_signals(thisDir, json_file):
         main_foler_name='kilosort4_motion_corrected'
         #main_foler_name='kilosort4_ThU18_ThL17_T0_T1500'
         #main_foler_name='kilosort4_T0_T1500'
-        merged_units=False
+        merged_units=True
         folder_suffix="_merged" if merged_units else ""
         file_type=".npy"
         ks_path=oe_folder/f"{main_foler_name}{folder_suffix}"/ "shank_0"
@@ -511,32 +627,32 @@ def align_async_signals(thisDir, json_file):
     else:
         stim_type = analysis_methods.get("stim_type")
     ## it might be useful to calulcate all the clusters together but right now it does not look necessary
-    peth_means, peth_stds, tscale,ids=calculate_peths_details(
-    spike_time_interest,cluster_id_interest, np.unique(cluster_id_interest), events_time, pre_time=abs(time_window[0]),
-    post_time=time_window[1], bin_size=0.025, smoothing=0.025, return_fr=True)
-    for i, this_id in enumerate(ids):
-        fig2, (ax1,ax2) = plt.subplots(nrows=2, figsize=(12, 8), sharex=True)
-        mean=peth_means[i,:]
-        bars=peth_stds[i,:]
-        ax1.plot(tscale,mean, linewidth=3, color="blue")
-        negative_std=mean - bars
-        if np.any(negative_std<0):            
-            ax1.fill_between(tscale,0, mean + bars, color= 'blue', alpha= 0.5)
-        else:
-            ax1.fill_between(tscale,negative_std, mean + bars,color= 'blue', alpha= 0.5)
-        ax1.set(ylabel="Rate (spikes/sec)",xlim=(time_window[0], time_window[1]))
-        ax1.axvline(0.0,color="black")
-        #ax2.plot(peth.to_tsd(), "|", markersize=1, color="black", mew=1)
-        #ax2.set(ylabel="Event #",xlabel=f"Time from {event_of_interest} (s)",xlim=(time_window[0], time_window[1]))
-        fix_ylim=False
-        if fix_ylim:
-            ax1.set_ylim([0, 250])
-            ax1.set_yticks([0,250])
-        cleanup_xticks=False
-        if cleanup_xticks:
-            ax2.set_xticks([time_window[0],round(time_window[0]/2),0,round(time_window[1]/2),time_window[1]])
-        png_name = f"unit{this_id}_{event_of_interest}_peth_test.png"
-        fig2.savefig(oe_folder / png_name)
+    # peth_means, peth_stds, tscale,ids=calculate_peths_details(
+    # spike_time_interest,cluster_id_interest, np.unique(cluster_id_interest), events_time, pre_time=abs(time_window[0]),
+    # post_time=time_window[1], bin_size=0.025, smoothing=0.025, return_fr=True)
+    # for i, this_id in enumerate(ids):
+    #     fig2, (ax1,ax2) = plt.subplots(nrows=2, figsize=(12, 8), sharex=True)
+    #     mean=peth_means[i,:]
+    #     bars=peth_stds[i,:]
+    #     ax1.plot(tscale,mean, linewidth=3, color="blue")
+    #     negative_std=mean - bars
+    #     if np.any(negative_std<0):            
+    #         ax1.fill_between(tscale,0, mean + bars, color= 'blue', alpha= 0.5)
+    #     else:
+    #         ax1.fill_between(tscale,negative_std, mean + bars,color= 'blue', alpha= 0.5)
+    #     ax1.set(ylabel="Rate (spikes/sec)",xlim=(time_window[0], time_window[1]))
+    #     ax1.axvline(0.0,color="black")
+    #     #ax2.plot(peth.to_tsd(), "|", markersize=1, color="black", mew=1)
+    #     #ax2.set(ylabel="Event #",xlabel=f"Time from {event_of_interest} (s)",xlim=(time_window[0], time_window[1]))
+    #     fix_ylim=False
+    #     if fix_ylim:
+    #         ax1.set_ylim([0, 250])
+    #         ax1.set_yticks([0,250])
+    #     cleanup_xticks=False
+    #     if cleanup_xticks:
+    #         ax2.set_xticks([time_window[0],round(time_window[0]/2),0,round(time_window[1]/2),time_window[1]])
+    #     png_name = f"unit{this_id}_{event_of_interest}_peth_test.png"
+    #     fig2.savefig(oe_folder / png_name)
     ####
     ## similiar idea but use pynapple package
     ####
@@ -623,7 +739,7 @@ def align_async_signals(thisDir, json_file):
             peth_means, peth_stds, tscale,_=calculate_peths_details(
                 these_spikes,these_ids, [this_cluster_id], events_time, pre_time=abs(time_window[0]),
                 post_time=time_window[1], bin_size=0.025, smoothing=0.025, return_fr=True)
-            fig2, (ax1,ax2) = plt.subplots(nrows=2, figsize=(12, 8), sharex=True)
+            fig2, (ax1,ax2) = plt.subplots(nrows=2, figsize=(9, 6), sharex=True)
             #ax1.plot(np.mean(peth.count(0.05), 1) / 0.05, linewidth=3, color="red")
             mean=peth_means[0,:]
             bars=peth_stds[0,:]
@@ -637,11 +753,11 @@ def align_async_signals(thisDir, json_file):
             ax1.axvline(0.0,color="black")
             ax2.plot(peth.to_tsd(), "|", markersize=1, color="black", mew=1)
             ax2.set(ylabel="Event #",xlabel=f"Time from {event_of_interest} (s)",xlim=(time_window[0], time_window[1]))
-            fix_ylim=False
+            fix_ylim=True
             if fix_ylim:
-                ax1.set_ylim([0, 250])
-                ax1.set_yticks([0,250])
-            cleanup_xticks=False
+                ax1.set_ylim([0, 90])
+                ax1.set_yticks([0,90])
+            cleanup_xticks=True
             if cleanup_xticks:
                 ax2.set_xticks([time_window[0],round(time_window[0]/2),0,round(time_window[1]/2),time_window[1]])
             png_name = f"unit{this_cluster_id}_{event_of_interest}_peth.png"
@@ -705,7 +821,9 @@ if __name__ == "__main__":
     #thisDir = r"Y:\GN25068\251221\flashing\session1\2025-12-21_14-44-50"
     #thisDir = r"Y:\GN25067\251220\flashing\session1\2025-12-20_14-36-54"
     #thisDir = r"Y:\GN25066\251214\sweeping\session1\2025-12-14_20-35-57"
-    thisDir = r"Y:\GN26008\250727\spontaneous\session1\2026-01-25_14-33-17"
+    #thisDir = r"Y:\GN26008\250727\spontaneous\session1\2026-01-25_14-33-17"
+    thisDir = r"Y:\GN26012\260208\spontaneous\session1\2026-02-08_13-56-52"
+    #thisDir = r"Y:\GN26011\260207\spontaneous\session1\2026-02-07_13-28-12"
     #thisDir = r"Y:\GN25065\251214\sweeping\session1\2025-12-14_14-14-29"
     #thisDir = r"Y:\GN25060\251130\looming\session1\2025-11-30_16-12-19"
     json_file = "./analysis_methods_dictionary.json"
