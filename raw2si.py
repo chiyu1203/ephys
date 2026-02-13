@@ -221,7 +221,7 @@ def get_preprocessed_recording(oe_folder,analysis_methods):
 
         #As we do not analyse LFP data, there was no need to correct motion based on LFP band. However, this estimation can be good to validate the result from spike-band based motion estimation
         # https://spikeinterface.readthedocs.io/en/latest/how_to/drift_with_lfp.html
-        lfp_drift_estimation=True
+        lfp_drift_estimation=False
         if lfp_drift_estimation:
             raw_rec_dict = raw_rec.split_by(property='group', outputs='dict')
             for group, rec_per_shank in raw_rec_dict.items():
@@ -617,7 +617,14 @@ if __name__ == "__main__":
     #thisDir = r"Y:/GN25070/251228/looming/sessoin1/2025-12-28_13-48-28"
     #thisDir = r"C:\Users\neuroPC\Documents\Open Ephys\2026-01-18_15-25-15"
     #thisDir = r"Y:\GN26006\260118\2026-01-18_13-46-33"
-    thisDir = r"Y:\GN26005\260117\2026-01-17_15-35-48"
+    #thisDir = r"Y:\GN26005\260117\2026-01-17_15-35-48"
+    #thisDir = r"Y:\GN26008\250727\spontaneous\session1\2026-01-25_14-33-17"
+    #thisDir = r"Y:\GN26008\250727\spontaneous\session2\2026-01-25_20-19-40"
+    #thisDir = r"Y:\GN26007\260124\spontaneous\session1\2026-01-24_17-22-09"
+    #thisDir = r"Y:\GN26009\260131\sweeping\session3\2026-01-31_19-13-43"
+    #thisDir = r"Y:\GN26010\260201\sweeping\session1\2026-02-01_13-37-26"
+    #thisDir = r"Y:\GN26010\260201\density\session1\2026-02-01_15-32-08"
+    thisDir = r"Y:\GN26011\260207\sweeping\session3\2026-02-07_18-23-41"
     #thisDir = r"Y:\GN26005\260117\looming\session1\2026-01-17_16-03-04"
     #thisDir = r"Y:\GN26006\260118\looming\session1\2026-01-18_14-14-20"
     json_file = "./analysis_methods_dictionary.json"

@@ -139,7 +139,7 @@ def AP_band_drift_estimation(group,recording_saved,oe_folder,analysis_methods,wi
                     motion_info = spre.load_motion_info(test_folder)
                 else:
                     motion_corrector_params = spre.get_motion_parameters_preset(preset)
-                    print(motion_corrector_params)
+                    #print(motion_corrector_params)
                     recording_corrected, _, motion_info = spre.correct_motion(
                         recording=recording_saved,
                         preset=preset,

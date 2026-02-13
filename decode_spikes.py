@@ -357,7 +357,9 @@ def align_async_signals(thisDir, json_file):
     if 'tracking_df' in locals():
         x_all,y_all,yaw_angular_velocity=preprocess_tracking_data(tracking_df,filtering_method,yaw_axis,smooth_window_length)
         travel_distance_fbf = euclidean_distance(x_all,y_all)
-        walk_states,turn_states,turn_cw,turn_ccw=identify_behavioural_states(travel_distance_fbf,yaw_angular_velocity,filtering_method,camera_fps,consecutive_duration=[2,0.5],smooth_window_length=smooth_window_length,skip_smoothing=False)
+        walk_states,turn_states,turn_cw,turn_ccw,fig=identify_behavioural_states(travel_distance_fbf,yaw_angular_velocity,filtering_method,camera_fps,consecutive_duration=[2,0.5],smooth_window_length=smooth_window_length,skip_smoothing=False)
+        plot_name = f"behavioural_states_classification.png"
+        fig.savefig(thisDir / plot_name)
         if walk_states[0]==1:#identify transition onset depends on whether the first frame is run or stationary already
             s2w_index=np.where(np.diff(walk_states))[0][1::2]
             w2s_index=np.where(np.diff(walk_states))[0][::2]
