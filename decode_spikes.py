@@ -155,7 +155,7 @@ def calculate_peths_details(
 
 
 
-def align_async_signals(thisDir, json_file):
+def align_async_signals(oe_folder, json_file):
     if isinstance(json_file, dict):
         analysis_methods = json_file
     else:
@@ -166,7 +166,7 @@ def align_async_signals(thisDir, json_file):
     stim_variable2 = analysis_methods.get("stim_variable2",'Duration')
     load_previous_methods=analysis_methods.get("load_previous_methods",False)
     if load_previous_methods:
-        previous_methods_file=find_file(thisDir, "ephys_analysis_methods_backup.json")
+        previous_methods_file=find_file(oe_folder, "ephys_analysis_methods_backup.json")
         if previous_methods_file!=None:
             with open(previous_methods_file, "r") as f:
                 print(f"load analysis methods from previous file {previous_methods_file}")
@@ -175,8 +175,8 @@ def align_async_signals(thisDir, json_file):
         else:
             print("previous analysis methods file is not found. Use the current one.")
 
-    if type(thisDir)==str:
-        oe_folder = Path(thisDir)        
+    if type(oe_folder)==str:
+        oe_folder = Path(oe_folder)        
     exp_datetime = string2datetime(oe_folder.stem)
     this_sorter = analysis_methods.get("sorter_name")
     this_experimenter = analysis_methods.get("experimenter")
@@ -357,9 +357,9 @@ def align_async_signals(thisDir, json_file):
     if 'tracking_df' in locals():
         x_all,y_all,yaw_angular_velocity=preprocess_tracking_data(tracking_df,filtering_method,yaw_axis,smooth_window_length)
         travel_distance_fbf = euclidean_distance(x_all,y_all)
-        walk_states,turn_states,turn_cw,turn_ccw,fig=identify_behavioural_states(travel_distance_fbf,yaw_angular_velocity,filtering_method,camera_fps,consecutive_duration=[2,0.5],smooth_window_length=smooth_window_length,skip_smoothing=False)
+        walk_states,turn_states,turn_cw,turn_ccw,fig=identify_behavioural_states(travel_distance_fbf,yaw_angular_velocity,filtering_method,camera_fps,consecutive_duration=[1,0.5],smooth_window_length=smooth_window_length,skip_smoothing=False)
         plot_name = f"behavioural_states_classification.png"
-        fig.savefig(thisDir / plot_name)
+        fig.savefig(oe_folder / plot_name)
         if walk_states[0]==1:#identify transition onset depends on whether the first frame is run or stationary already
             s2w_index=np.where(np.diff(walk_states))[0][1::2]
             w2s_index=np.where(np.diff(walk_states))[0][::2]
@@ -497,10 +497,10 @@ def align_async_signals(thisDir, json_file):
         axes2.set_xticklabels([time_window[0],0,time_window[1]])
         axes2.spines['left'].set_linewidth(2) 
         fix_ylim=True
-        if event_of_interest.startswith('stop'):
-            yrange=[0,5]
-        else:
-            yrange=[0,10]
+        # if event_of_interest.startswith('stop'):
+        #     yrange=[0,5]
+        # else:
+        yrange=[0,10]
         if fix_ylim:
             axes.set_ylim(yrange)
             axes.set_yticks(yrange)
@@ -765,7 +765,7 @@ def align_async_signals(thisDir, json_file):
             png_name = f"unit{this_cluster_id}_{event_of_interest}_peth.png"
             fig2.savefig(oe_folder / png_name)
     json_string = json.dumps(analysis_methods, indent=1)
-    with open(Path(thisDir) / "ephys_analysis_methods_backup.json", "w") as f:
+    with open(oe_folder / "ephys_analysis_methods_backup.json", "w") as f:
         f.write(json_string)
     return spike_count, cluster_id
 
