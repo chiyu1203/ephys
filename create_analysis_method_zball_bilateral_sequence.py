@@ -21,22 +21,22 @@ behaviour_methods = {
     "plotting_event_related_trajectory": True,
     "plotting_deceleration_accerleration": False,
     "plotting_position_dependant_fixation": False,
-    "plotting_optomotor_response": False,
+    "plotting_optomotor_response": True,
     "load_experiment_condition_from_database": True,
     "select_animals_by_condition": False,
     "analysis_by_stimulus_type": True,
     "stationary_phase_before_motion": True,
-    "duration_for_optomotor_index": 5,
+    "duration_for_optomotor_index": 16,
     "yaw_axis":"z",
     "camera_fps": 100,
     "trackball_radius": 5,
     "monitor_fps": 144,
-    "prestim_duration": 205,
-    "stim_duration": [1,4,8],
-    "interval_duration": [4,5,6],
+    "prestim_duration": 185,
+    "stim_duration": [16],
+    "interval_duration": [15,30],
     "analysis_window": [
         -2,
-        8
+        16
     ],
 }  # plue value representing clockwise, counterclockwise is minus, then the rest is coherence leve
 json_file = f"./{file_name}"

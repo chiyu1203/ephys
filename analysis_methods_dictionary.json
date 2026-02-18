@@ -1,8 +1,8 @@
 {
     "experimenter": "chiyu",
-    "probe_type": "H10",
-    "motion_corrector": "skip",
-    "sorter_name": "spykingcircus2",
+    "probe_type": "H6D",
+    "motion_corrector": "testing",
+    "sorter_name": "kilosort4",
     "load_previous_methods": false,
     "overwrite_curated_dataset": true,
     "remove_dead_channels": true,
@@ -14,15 +14,14 @@
         0.0,
         -1.0
     ],
-    "skip_motion_correction": true,
-    "load_existing_motion_info": false,
-    "load_raw_trial_info": false,
-    "save_prepocessed_file": false,
-    "load_prepocessed_file": true,
+    "skip_motion_correction": false,
+    "load_existing_motion_info": true,
+    "save_prepocessed_file": true,
+    "load_prepocessed_file": false,
     "save_sorting_file": true,
     "load_sorting_file": false,
     "save_analyser_to_disc": true,
-    "load_analyser_from_disc": false,
+    "load_analyser_from_disc": true,
     "postprocess_with_unwhitening_recording": true,
     "export_to_phy": true,
     "overwrite_existing_phy": true,
@@ -50,36 +49,34 @@
     "align_with_isi_onset": false,
     "mark_jump_as_nan": false,
     "active_trials_only": true,
-    "filtering_method": "sg_filter",
+    "filtering_method": "rolling_median",
     "plotting_tbt_overview": true,
     "plotting_trajectory": true,
     "plotting_event_related_trajectory": true,
     "plotting_deceleration_accerleration": false,
     "plotting_position_dependant_fixation": false,
-    "plotting_optomotor_response": false,
+    "plotting_optomotor_response": true,
     "load_experiment_condition_from_database": true,
+    "analyse_spontaneous_activity": true,
     "select_animals_by_condition": false,
-    "analysis_by_stimulus_type": true,
-    "stationary_phase_before_motion": true,
+    "analysis_by_stimulus_type": false,
+    "stationary_phase_before_motion": false,
     "camera_fps": 100,
-    "trackball_radius": 50,
+    "trackball_radius": 5,
     "monitor_fps": 144,
     "stim_duration": [
-        1,
-        4,
-        8
+        16
     ],
     "interval_duration": [
-        4,
-        5,
-        6
+        15,
+        30
     ],
     "analysis_window": [
         -2,
-        8
+        16
     ],
-    "prestim_duration": 205,
-    "duration_for_optomotor_index": 5,
+    "prestim_duration": 235,
+    "duration_for_optomotor_index": 16,
     "yaw_axis": "z",
     "stim_variable2": "Duration"
 }
