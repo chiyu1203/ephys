@@ -470,6 +470,8 @@ def align_async_signals(oe_folder, json_file):
                     trial_type_interest[metrics_to_classify]=True
                 else:
                     print("event of interest does not present in this animal. Please choose other type of trials")
+            elif event_of_interest.lower() in ["preStim_ISI","postStim_ISI","stim_onset"]:
+                trial_type_interest= np.ones(num_stim, dtype=bool)
             else:
                 print("only 'walking_trials','stationary_trials','straight_walk_trials','turning_trials' can be used for behavioural trial type. Please choose other type of trials")
         else:
@@ -538,9 +540,6 @@ def align_async_signals(oe_folder, json_file):
         axes2.set_xticklabels([time_window[0],0,time_window[1]])
         axes2.spines['left'].set_linewidth(2) 
         fix_ylim=True
-        # if event_of_interest.startswith('stop'):
-        #     yrange=[0,5]
-        # else:
         yrange=[0,10]
         if fix_ylim:
             axes.set_ylim(yrange)
@@ -708,7 +707,6 @@ def align_async_signals(oe_folder, json_file):
 
 
     for this_cluster_id in np.unique(cluster_id_interest):
-        #if analysis_methods.get("analysis_by_stimulus_type") == True and trial_file is not None:
         these_spikes=spike_time_interest[np.where(cluster_id_interest==this_cluster_id)[0]]
         these_ids=np.ones(these_spikes.shape[0],dtype=int)*this_cluster_id
         tspikes=nap.Tsd(
@@ -719,44 +717,47 @@ def align_async_signals(oe_folder, json_file):
                 for this_stim in stim_type:
                     if np.where((meta_info["stim_type"] == this_stim) & (meta_info[stim_variable2]==this_variable))[0].shape[0]<2:
                         continue
-                    ax = peri_event_time_histogram(
-                        spike_time_interest,
-                        cluster_id_interest,
-                        events_time[
-                            (meta_info["stim_type"] == this_stim) & (meta_info[stim_variable2]==this_variable) & trial_type_interest
-                        ],
-                        this_cluster_id,
-                        t_before=abs(time_window[0]),
-                        t_after=time_window[1],
-                        include_raster=True,
-                        raster_kwargs={"color": "black", "lw": 0.5},
-                    )
+                    these_events=events_time[(meta_info["stim_type"] == this_stim) & (meta_info[stim_variable2]==this_variable) & trial_type_interest]
+                    peth = nap.compute_perievent(
+                    timestamps=tspikes,
+                    tref=nap.Ts(t=these_events, time_units="s"), 
+                    minmax=(time_window[0], time_window[1]), 
+                    time_unit="s")
+                    peth_means, peth_stds, tscale,_=calculate_peths_details(
+                        these_spikes,these_ids, [this_cluster_id], these_events, pre_time=abs(time_window[0]),
+                        post_time=time_window[1], bin_size=0.025, smoothing=0.025, return_fr=True)
+                    fig2, (ax1,ax2) = plt.subplots(nrows=2, figsize=(9, 6), sharex=True)
+                    mean=peth_means[0,:]
+                    bars=peth_stds[0,:]
+                    ax1.plot(tscale,mean, linewidth=3, color="blue")
+                    negative_std=mean - bars
+                    if np.any(negative_std<0):            
+                        ax1.fill_between(tscale,0, mean + bars, color= 'blue', alpha= 0.5)
+                    else:
+                        ax1.fill_between(tscale,negative_std, mean + bars,color= 'blue', alpha= 0.5)
+                    ax1.set(ylabel="Rate (spikes/sec)",xlim=(time_window[0], time_window[1]))
+                    ax1.axvline(0.0,color="black")
+                    ax2.plot(peth.to_tsd(), "|", markersize=1, color="black", mew=1)
+                    ax2.set(ylabel="Event #",xlabel=f"Time from {event_of_interest} (s)",xlim=(time_window[0], time_window[1]))
                     fix_ylim=False
                     if fix_ylim:
-                        ax.set_ylim([0, 250])
-                        ax.set_yticks([0,250])
-                        ax.set_xticks([])
-                        ax.set_xlabel("")
-                        ax.set_ylabel("")
-                        jpg_name = f"unit{this_cluster_id}_peth_stim{this_stim}_{stim_variable2}_{this_variable}_no_raster.png"
-                        #svg_name = f"unit{this_cluster_id}_peth_stim{this_stim}_{stim_variable2}_{this_variable}_no_raster.svg"
-                        ax.figure.savefig(oe_folder / jpg_name)
-                    else:
-                        jpg_name = f"unit{this_cluster_id}_peth_stim{this_stim}_{stim_variable2}_{this_variable}.png"
-                        #svg_name = f"unit{this_cluster_id}_peth_stim{this_stim}_{stim_variable2}_{this_variable}.svg"
-                        ax.figure.savefig(oe_folder / jpg_name)     
-        else:            
+                        ax1.set_ylim([0, 90])
+                        ax1.set_yticks([0,90])
+                    cleanup_xticks=True
+                    if cleanup_xticks:
+                        ax2.set_xticks([time_window[0],round(time_window[0]/2),0,round(time_window[1]/2),time_window[1]])
+                    png_name = f"unit{this_cluster_id}_{event_of_interest}_peth_stim{this_stim}_{stim_variable2}_{this_variable}.png"
+                    fig2.savefig(oe_folder / png_name)
+        else:#Here to plot non-visual evoked activity or peth based on time across stimulus types. The latter one is work in progress
             peth = nap.compute_perievent(
             timestamps=tspikes,
             tref=nap.Ts(t=events_time, time_units="s"), 
             minmax=(time_window[0], time_window[1]), 
             time_unit="s")
-            
             peth_means, peth_stds, tscale,_=calculate_peths_details(
                 these_spikes,these_ids, [this_cluster_id], events_time, pre_time=abs(time_window[0]),
                 post_time=time_window[1], bin_size=0.025, smoothing=0.025, return_fr=True)
             fig2, (ax1,ax2) = plt.subplots(nrows=2, figsize=(9, 6), sharex=True)
-            #ax1.plot(np.mean(peth.count(0.05), 1) / 0.05, linewidth=3, color="red")
             mean=peth_means[0,:]
             bars=peth_stds[0,:]
             ax1.plot(tscale,mean, linewidth=3, color="blue")
