@@ -163,6 +163,8 @@ def align_async_signals(oe_folder, json_file):
             print(f"load analysis methods from file {json_file}")
             analysis_methods = json.loads(f.read())
     ## load previous analysis methods
+    if type(oe_folder)==str:
+        oe_folder = Path(oe_folder)   
     stim_variable2 = analysis_methods.get("stim_variable2",'Duration')
     load_previous_methods=analysis_methods.get("load_previous_methods",False)
     if load_previous_methods:
@@ -174,9 +176,14 @@ def align_async_signals(oe_folder, json_file):
             analysis_methods.update(previous_analysis_methods)
         else:
             print("previous analysis methods file is not found. Use the current one.")
-
-    if type(oe_folder)==str:
-        oe_folder = Path(oe_folder)        
+        previous_methods_file=find_file(oe_folder.parent, "analysis_methods_dictionary_backup.json")
+        if previous_methods_file!=None:
+            with open(previous_methods_file, "r") as f:
+                print(f"load analysis methods from previous file {previous_methods_file}")
+                previous_analysis_methods = json.loads(f.read())
+            analysis_methods.update(previous_analysis_methods)
+        else:
+            print("behavioural analysis methods file is not found. Use the current one.")
     exp_datetime = string2datetime(oe_folder.stem)
     this_sorter = analysis_methods.get("sorter_name")
     this_experimenter = analysis_methods.get("experimenter")
@@ -248,7 +255,9 @@ def align_async_signals(oe_folder, json_file):
     stim_duration = analysis_methods.get("stim_duration")
     ISI_duration = analysis_methods.get("interval_duration")
     preStim_duration =analysis_methods.get("prestim_duration")
-    time_window = analysis_methods.get("analysis_window")#### there should be a analysis window to do data analysis
+    time_window = analysis_methods.get("analysis_window")#### there should be a analysis window to do data analysis, meaning one for visualisation and one for statistical analysis
+    if event_of_interest in ["stop_onset","walk_straght_onset","turn_ccw_onset","turn_cw_onset","walk_onset","turn_onset"]:
+        time_window=[-2,2]# temporarily fix this length of window for behavioural-related events
     #behavioural related metrics
     analyse_behavioural_state_modulation =analysis_methods.get("analyse_behavioural_state_modulation",False)
     camera_fps = analysis_methods.get("camera_fps")
@@ -301,6 +310,14 @@ def align_async_signals(oe_folder, json_file):
         ### changed ISI and Stim signals to 1 and 0 from 2025 April 1st        
         stim_type=meta_info['stim_type'].unique()
         num_stim = meta_info.shape[0]
+        if one_pd_file is None and pd_files is None:
+            return print('no photodiode data detected. Can not resume the analysis')
+        elif pd_files is not None:
+            pd_on_oe=np.load(pd_files[1])
+            pd_off_oe=np.load(pd_files[0])
+        else:
+            pd_on_oe=np.load(one_pd_file)[0]
+            pd_off_oe=np.load(one_pd_file)[1]
         if experiment_name in ['looming',"receding","conflict","sweeping","flashing"]:
             if 'PreMovDuration' in meta_info.columns:
                 if meta_info['PreMovDuration'].unique()==0:
@@ -435,6 +452,30 @@ def align_async_signals(oe_folder, json_file):
         else:
             events_time = stim_on_oe[:].values
 
+    ## needs to reorganise this part. Figure out a better to plot data about behavioural-state modulated stimulus response
+        if trial_file is not None and analyse_behavioural_state_modulation==True:
+            trial_type_interest= np.zeros(num_stim, dtype=bool)
+            behavioural_trial_type=['walking_trials','stationary_trials','straight_walk_trials','turning_trials']
+            walking_trials,stationary_trials,straight_walk_trials,turning_trials=classify_trial_type(meta_info, 0.75, 1)
+            if event_of_interest.lower() in behavioural_trial_type:
+                if event_of_interest.lower() == 'walking_trials':
+                    metrics_to_classify=walking_trials.index
+                elif event_of_interest.lower() == 'stationary_trials':
+                    metrics_to_classify=stationary_trials.index
+                elif event_of_interest.lower() == 'straight_walk_trials':
+                    metrics_to_classify=straight_walk_trials.index
+                elif event_of_interest.lower() == 'turning_trials':
+                    metrics_to_classify=turning_trials.index
+                if metrics_to_classify.shape[0]>0:
+                    trial_type_interest[metrics_to_classify]=True
+                else:
+                    print("event of interest does not present in this animal. Please choose other type of trials")
+            else:
+                print("only 'walking_trials','stationary_trials','straight_walk_trials','turning_trials' can be used for behavioural trial type. Please choose other type of trials")
+        else:
+            trial_type_interest= np.ones(num_stim, dtype=bool)
+
+
     ##build up analysis time window
     events_time_tw = np.array(
         [events_time + time_window[0], events_time + time_window[1]]
@@ -504,41 +545,14 @@ def align_async_signals(oe_folder, json_file):
         if fix_ylim:
             axes.set_ylim(yrange)
             axes.set_yticks(yrange)
-            axes2.set_ylim([0, 1])
-            axes2.set_yticks([0,1])
+            axes2.set_ylim([-1,1])
+            axes2.set_yticks([-1,0,1])
         png_name = f"{event_of_interest}_ts_plot.png"
         fig.savefig(oe_folder / png_name)
         svg_name = f"{event_of_interest}_ts_plot.svg"
         fig.savefig(oe_folder / svg_name)
     else:
-        print('analyse spiking activity without behaviour')
-
-
-    ## needs to reorganise this part. Figure out a better to plot data about behavioural-state modulated stimulus response
-    # if velocity_file is not None and trial_file is not None and analyse_behavioural_state_modulation==True:
-    #     #velocity_tbt = np.load(velocity_file)
-    #     behavioural_trial_type=['walking_trials','stationary_trials','straight_walk_trials','turning_trials']
-    #     walking_trials,stationary_trials,straight_walk_trials,turning_trials=classify_trial_type(meta_info, 20, 100)
-    #     if event_of_interest.lower() in behavioural_trial_type:
-    #         if event_of_interest.lower() == 'walking_trials':
-    #             metrics_to_classify=walking_trials.index
-    #         elif event_of_interest.lower() == 'stationary_trials':
-    #             metrics_to_classify=stationary_trials.index
-    #         elif event_of_interest.lower() == 'straight_walk_trials':
-    #             metrics_to_classify=straight_walk_trials.index
-    #         elif event_of_interest.lower() == 'turning_trials':
-    #             metrics_to_classify=turning_trials.index
-    #         if metrics_to_classify.shape[0]>0:
-    #             event_times_of_interest=events_time[metrics_to_classify]
-    #         else:
-    #             print("event of interest does not present in this animal. Analyse the data without behavioural inputs")
-    #             event_times_of_interest = events_time
-    #     else:
-    #         print("only 'walking_trials','stationary_trials','straight_walk_trials','turning_trials' can be used for behavioural trial type . Analyse the data without behavioural inputs")
-    #         event_times_of_interest = events_time
-    # else:
-    #     event_times_of_interest = events_time
-
+        print('analyse spiking activity alone or spiking activity modulated by a long behavioural states')
 
     ###start loading info from sorted spikes
     ## if use kilosort standalone, then load kilosort folder. Otherwise, load spikeinterface's preprocessed data and its toolkit.
@@ -548,7 +562,7 @@ def align_async_signals(oe_folder, json_file):
         main_foler_name='kilosort4_motion_corrected'
         #main_foler_name='kilosort4_ThU18_ThL17_T0_T1500'
         #main_foler_name='kilosort4_T0_T1500'
-        merged_units=True
+        merged_units=False
         folder_suffix="_merged" if merged_units else ""
         file_type=".npy"
         ks_path=oe_folder/f"{main_foler_name}{folder_suffix}"/ "shank_0"
@@ -694,7 +708,13 @@ def align_async_signals(oe_folder, json_file):
 
 
     for this_cluster_id in np.unique(cluster_id_interest):
-        if analysis_methods.get("analysis_by_stimulus_type") == True and trial_file is not None:
+        #if analysis_methods.get("analysis_by_stimulus_type") == True and trial_file is not None:
+        these_spikes=spike_time_interest[np.where(cluster_id_interest==this_cluster_id)[0]]
+        these_ids=np.ones(these_spikes.shape[0],dtype=int)*this_cluster_id
+        tspikes=nap.Tsd(
+        t=these_spikes, 
+        d=these_ids, time_units="s") 
+        if event_of_interest not in ["stop_onset","walk_straght_onset","turn_ccw_onset","turn_cw_onset","walk_onset","turn_onset"] and trial_file is not None:
             for this_variable in meta_info[stim_variable2].unique():
                 for this_stim in stim_type:
                     if np.where((meta_info["stim_type"] == this_stim) & (meta_info[stim_variable2]==this_variable))[0].shape[0]<2:
@@ -703,7 +723,7 @@ def align_async_signals(oe_folder, json_file):
                         spike_time_interest,
                         cluster_id_interest,
                         events_time[
-                            (meta_info["stim_type"] == this_stim) & (meta_info[stim_variable2]==this_variable)
+                            (meta_info["stim_type"] == this_stim) & (meta_info[stim_variable2]==this_variable) & trial_type_interest
                         ],
                         this_cluster_id,
                         t_before=abs(time_window[0]),
@@ -722,16 +742,10 @@ def align_async_signals(oe_folder, json_file):
                         #svg_name = f"unit{this_cluster_id}_peth_stim{this_stim}_{stim_variable2}_{this_variable}_no_raster.svg"
                         ax.figure.savefig(oe_folder / jpg_name)
                     else:
-                        #jpg_name = f"unit{this_cluster_id}_peth_stim{this_stim}_{stim_variable2}_{this_variable}.png"
-                        svg_name = f"unit{this_cluster_id}_peth_stim{this_stim}_{stim_variable2}_{this_variable}.svg"
-                        ax.figure.savefig(oe_folder / svg_name)     
-        else:
-            these_spikes=spike_time_interest[np.where(cluster_id_interest==this_cluster_id)[0]]
-            these_ids=np.ones(these_spikes.shape[0],dtype=int)*this_cluster_id
-            tspikes=nap.Tsd(
-            t=these_spikes, 
-            d=these_ids, time_units="s")           
-            
+                        jpg_name = f"unit{this_cluster_id}_peth_stim{this_stim}_{stim_variable2}_{this_variable}.png"
+                        #svg_name = f"unit{this_cluster_id}_peth_stim{this_stim}_{stim_variable2}_{this_variable}.svg"
+                        ax.figure.savefig(oe_folder / jpg_name)     
+        else:            
             peth = nap.compute_perievent(
             timestamps=tspikes,
             tref=nap.Ts(t=events_time, time_units="s"), 
@@ -824,7 +838,8 @@ if __name__ == "__main__":
     #thisDir = r"Y:\GN25067\251220\flashing\session1\2025-12-20_14-36-54"
     #thisDir = r"Y:\GN25066\251214\sweeping\session1\2025-12-14_20-35-57"
     #thisDir = r"Y:\GN26008\250727\spontaneous\session1\2026-01-25_14-33-17"
-    thisDir = r"Y:\GN26012\260208\spontaneous\session1\2026-02-08_13-56-52"
+    #thisDir = r"Y:\GN26012\260208\spontaneous\session1\2026-02-08_13-56-52"
+    thisDir = r"Y:\GN26012\260208\sweeping\session1\2026-02-08_14-33-58"
     #thisDir = r"Y:\GN26011\260207\spontaneous\session1\2026-02-07_13-28-12"
     #thisDir = r"Y:\GN25065\251214\sweeping\session1\2025-12-14_14-14-29"
     #thisDir = r"Y:\GN25060\251130\looming\session1\2025-11-30_16-12-19"
