@@ -265,8 +265,10 @@ def get_preprocessed_recording(oe_folder,analysis_methods):
             bad_channel_ids,channel_labels = spre.detect_bad_channels(recording_f)
             (dead_inds,) = np.where(channel_labels=='dead')
             dead_channel_ids = recording_f.channel_ids[dead_inds]
-            print("bad_channel_ids", bad_channel_ids)
-            print("channel_labels", channel_labels)
+            log_name='si_channels_quality.txt'
+            f=open(oe_folder/log_name,"w")
+            print(f"bad_channel_ids are {bad_channel_ids}. Here are the labels {channel_labels}",file=f)
+            f.close()
             if analysis_methods.get("analyse_good_channels_only") == True:
                 recording_f = recording_f.remove_channels(
                     bad_channel_ids
