@@ -10,8 +10,8 @@ from zetapy import zetatest,zetatest2
 # use elepant or open scope to faciliate data analysis https://elephant.readthedocs.io/en/latest/index.html
 # For kilosort/phy output files we can use the read_phy
 # most formats will have a read_xx that can used.
-import matplotlib as mpl
-mpl.use('TkAgg')
+# import matplotlib as mpl
+# mpl.use('TkAgg')
 import matplotlib.pyplot as plt
 from spikeinterface.widgets import plot_sorting_summary
 import numpy as np
@@ -561,7 +561,7 @@ def align_async_signals(oe_folder, json_file):
         #main_foler_name='kilosort4_motion_corrected'
         #main_foler_name='kilosort4_ThU18_ThL17_T0_T1500'
         #main_foler_name='kilosort4_T0_T1500'
-        merged_units=True
+        merged_units=False
         folder_suffix="_merged" if merged_units else ""
         file_type=".npy"
         ks_path=oe_folder/f"{main_foler_name}{folder_suffix}"/ "shank_0"
@@ -707,13 +707,18 @@ def align_async_signals(oe_folder, json_file):
     #         ax2.set_xticks([time_window[0],round(time_window[0]/2),0,round(time_window[1]/2),time_window[1]])
     #     png_name = f"unit{this_id}_{event_of_interest}_peth_naptest.png"
     #     fig2.savefig(oe_folder / png_name)
-    zeta_id=[499]
-    zeta_log_name='zeta_log_name.txt'
-    f=open(oe_folder/zeta_log_name,"w")
-    vecTrials1 = 'black'## conditions to compare in zeta test
-    vecTrials2 = 'black_luminance'## conditions to compare in zeta test
+    #zeta_id=[6,8,9,38]
+    if event_of_interest=='stim_onset' and experiment_name=='looming_stimuli':
+        vecTrials1 = ['white','black']## conditions to compare in zeta test
+        vecTrials2 = ['white_luminance','black_luminance']## conditions to compare in zeta test
+    elif event_of_interest in ['turn_onset','turn_cw_onset','turn_ccw_onset']:
+        vecTrials1 = [event_of_interest]## conditions to compare in zeta test
+        vecTrials2 = ['walk_straight_onset']## conditions to compare in zeta test
+    else:
+        (vecTrials1,vecTrials2)=([],[])
     intResampNum = 500; #the two-sample test is more variable, as it depends on differences, so it requires more resamplings
-
+    zeta_log_name=f'zeta_results_{event_of_interest}_{vecTrials1[0]}_{vecTrials2[0]}.txt'
+    f=open(oe_folder/zeta_log_name,"w")
     for this_cluster_id in np.unique(cluster_id_interest):
         these_spikes=spike_time_interest[np.where(cluster_id_interest==this_cluster_id)[0]]
         these_ids=np.ones(these_spikes.shape[0],dtype=int)*this_cluster_id
@@ -758,15 +763,19 @@ def align_async_signals(oe_folder, json_file):
                         ax2.set_xticks([time_window[0],round(time_window[0]/2),0,round(time_window[1]/2),time_window[1]])
                     png_name = f"unit{this_cluster_id}_{event_of_interest}_peth_stim{this_stim}_{stim_variable2}_{this_variable}.png"
                     fig2.savefig(oe_folder / png_name)
-                    if this_cluster_id in zeta_id and count==0:
-                        et1=events_time[(meta_info["stim_type"] == vecTrials1) & (meta_info[stim_variable2]==this_variable) & trial_type_interest]
-                        et2=events_time[(meta_info["stim_type"] == vecTrials2) & (meta_info[stim_variable2]==this_variable) & trial_type_interest]
-                        dblUseMaxDur=min(ISI_duration)+this_variable#
-                        t = time.time()
-                        dblZetaTwoSample2a,dZETA2a = zetatest2(these_spikes,et1,these_spikes,et2,dblUseMaxDur,intResampNum,boolPlot=False)
-                        dblElapsedT6 = time.time() - t
-                        print(f"\nIs neuron {this_cluster_id} with this variable {this_variable} responding differently to {vecTrials1} and {vecTrials2} stimuli? (elapsed time: {dblElapsedT6:.2f} s): \
-                            \ntwo-sample zeta-test p-value: {dblZetaTwoSample2a}\nt-test p-value:{dZETA2a['dblMeanP']}",file=f)
+                    #if this_cluster_id in zeta_id and count==0:
+                    if count==0 and len(vecTrials1)>0:# analyse all putatitive unit
+                        for vec_exp, vec_con  in zip(vecTrials1, vecTrials2):
+                            et1=events_time[(meta_info["stim_type"] == vec_exp) & (meta_info[stim_variable2]==this_variable) & trial_type_interest]
+                            et2=events_time[(meta_info["stim_type"] == vec_con) & (meta_info[stim_variable2]==this_variable) & trial_type_interest]
+                            if et1.shape[0]==0 or et2.shape[0]==0:
+                                continue
+                            dblUseMaxDur=min(ISI_duration)+this_variable#
+                            t = time.time()
+                            dblZetaTwoSample2a,dZETA2a = zetatest2(these_spikes,et1,these_spikes,et2,dblUseMaxDur,intResampNum,boolPlot=False)
+                            dblElapsedT6 = time.time() - t
+                            print(f"\nIs neuron {this_cluster_id} with this variable {this_variable} responding differently to {vec_exp} and {vec_con} stimuli? (elapsed time: {dblElapsedT6:.2f} s): \
+                                \ntwo-sample zeta-test p-value: {dblZetaTwoSample2a}\nt-test p-value:{dZETA2a['dblMeanP']}",file=f)
 
         else:#Here to plot non-visual evoked activity or peth based on time across stimulus types. The latter one is work in progress
             peth = nap.compute_perievent(
@@ -799,8 +808,21 @@ def align_async_signals(oe_folder, json_file):
                 ax2.set_xticks([time_window[0],round(time_window[0]/2),0,round(time_window[1]/2),time_window[1]])
             png_name = f"unit{this_cluster_id}_{event_of_interest}_peth.png"
             fig2.savefig(oe_folder / png_name)
-    json_string = json.dumps(analysis_methods, indent=1)
+            # need to think about how to set dblUseMaxDur
+            # for vec_exp, vec_con  in zip(vecTrials1, vecTrials2):
+            #     et1=events_time[(meta_info["stim_type"] == vec_exp) & (meta_info[stim_variable2]==this_variable) & trial_type_interest]
+            #     et2=events_time[(meta_info["stim_type"] == vec_con) & (meta_info[stim_variable2]==this_variable) & trial_type_interest]
+            #     if et1.shape[0]==0 or et2.shape[0]==0:
+            #         continue
+            #     dblUseMaxDur=min(ISI_duration)+this_variable#
+            #     t = time.time()
+            #     dblZetaTwoSample2a,dZETA2a = zetatest2(these_spikes,et1,these_spikes,et2,dblUseMaxDur,intResampNum,boolPlot=False)
+            #     dblElapsedT6 = time.time() - t
+            #     print(f"\nIs neuron {this_cluster_id} with this variable {this_variable} responding differently to {vec_exp} and {vec_con} stimuli? (elapsed time: {dblElapsedT6:.2f} s): \
+            #         \ntwo-sample zeta-test p-value: {dblZetaTwoSample2a}\nt-test p-value:{dZETA2a['dblMeanP']}",file=f)
+    
     f.close()
+    json_string = json.dumps(analysis_methods, indent=1)
     with open(oe_folder / "ephys_analysis_methods_backup.json", "w") as f:
         f.write(json_string)
     return print("done")
@@ -862,7 +884,13 @@ if __name__ == "__main__":
     #thisDir = r"Y:\GN26008\250727\spontaneous\session1\2026-01-25_14-33-17"
     #thisDir = r"Y:\GN26012\260208\spontaneous\session1\2026-02-08_13-56-52"
     #thisDir = r"Y:\GN26012\260208\sweeping\session1\2026-02-08_14-33-58"
-    thisDir =r"Y:\GN25029\250729\looming\session1\2025-07-29_15-22-54"
+    #thisDir =r"Y:\GN25029\250729\looming\session1\2025-07-29_15-22-54"
+    #thisDir =r"Y:\GN26006\260118\looming\session1\2026-01-18_14-14-20"#zeta_id=[75,76]
+    #thisDir =r"Y:\GN26006\260118\looming\session2\2026-01-18_15-43-50"#zeta_id=[19]
+    #thisDir =r"Y:\GN26005\260117\looming\session2\2026-01-17_17-28-34"#zeta_id=[27,28]
+    thisDir =r"Y:\GN26005\260117\looming\session1\2026-01-17_16-03-04"#zeta_id=[6,24,25]
+    #thisDir =r"Y:\GN26004\260111\looming\session1\2026-01-11_14-52-12"#zeta_id=[5,6,28]
+    #thisDir =r"Y:\GN26004\260111\looming\session2\2026-01-11_16-21-45"
     #thisDir = r"Y:\GN26011\260207\spontaneous\session1\2026-02-07_13-28-12"
     #thisDir = r"Y:\GN25065\251214\sweeping\session1\2025-12-14_14-14-29"
     #thisDir = r"Y:\GN25060\251130\looming\session1\2025-11-30_16-12-19"
