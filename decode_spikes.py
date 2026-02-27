@@ -193,7 +193,7 @@ def align_async_signals(oe_folder, json_file):
     this_sorter = analysis_methods.get("sorter_name")
     this_experimenter = analysis_methods.get("experimenter")
     experiment_name = analysis_methods.get("experiment_name")
-    if experiment_name in ['gratings','coherence']:
+    if experiment_name in ['gratings','coherence',"choices"]:
         stationary_phase_before_motion=False
     else:
         stationary_phase_before_motion = analysis_methods.get("stationary_phase_before_motion",True)
@@ -323,7 +323,7 @@ def align_async_signals(oe_folder, json_file):
         else:
             pd_on_oe=np.load(one_pd_file)[0]
             pd_off_oe=np.load(one_pd_file)[1]
-        if experiment_name in ['looming',"receding","conflict","sweeping","flashing"]:
+        if experiment_name in ['looming',"receding","conflict","sweeping","flashing","choices"]:
             if 'PreMovDuration' in meta_info.columns:
                 if meta_info['PreMovDuration'].unique()==0:
                     pd_on_oe=pd_on_oe[preStim_duration<pd_on_oe]
@@ -557,8 +557,8 @@ def align_async_signals(oe_folder, json_file):
     ## if use kilosort standalone, then load kilosort folder. Otherwise, load spikeinterface's preprocessed data and its toolkit.
     if analysis_methods.get("motion_corrector")=="kilosort_default" or analysis_methods.get("motion_corrector")=="testing":
         #main_foler_name='kilosort4_ThU13_ThL11'
-        main_foler_name='kilosort4'
-        #main_foler_name='kilosort4_motion_corrected'
+        #main_foler_name='kilosort4'
+        main_foler_name='kilosort4_motion_corrected'
         #main_foler_name='kilosort4_ThU18_ThL17_T0_T1500'
         #main_foler_name='kilosort4_T0_T1500'
         merged_units=False
@@ -711,13 +711,25 @@ def align_async_signals(oe_folder, json_file):
     if event_of_interest=='stim_onset' and experiment_name=='looming_stimuli':
         vecTrials1 = ['white','black']## conditions to compare in zeta test
         vecTrials2 = ['white_luminance','black_luminance']## conditions to compare in zeta test
-    elif event_of_interest in ['turn_onset','turn_cw_onset','turn_ccw_onset']:
+    elif event_of_interest in ['turn_onset','turn_cw_onset','turn_ccw_onset','stop_onset']:
         vecTrials1 = [event_of_interest]## conditions to compare in zeta test
         vecTrials2 = ['walk_straight_onset']## conditions to compare in zeta test
+    elif event_of_interest == 'walk_straight_onset':
+        vecTrials1 = [event_of_interest]## conditions to compare in zeta test
+        vecTrials2 = ['turn_onset']## conditions to compare in zeta test
+    elif event_of_interest == 'walk_onset':
+        vecTrials1 = [event_of_interest]## conditions to compare in zeta test
+        vecTrials2 = ['stop_onset']## conditions to compare in zeta test
+    elif event_of_interest =='stop_onset':
+        vecTrials1 = [event_of_interest]## conditions to compare in zeta test
+        vecTrials2 = ['walk_onset']## conditions to compare in zeta test
     else:
         (vecTrials1,vecTrials2)=([],[])
-    intResampNum = 500; #the two-sample test is more variable, as it depends on differences, so it requires more resamplings
-    zeta_log_name=f'zeta_results_{event_of_interest}_{vecTrials1[0]}_{vecTrials2[0]}.txt'
+    intResampNum = 500 #the two-sample test is more variable, as it depends on differences, so it requires more resamplings
+    if len(vecTrials1)>0:
+        zeta_log_name=f'zeta_results_{event_of_interest}_{vecTrials1[0]}_{vecTrials2[0]}.txt'
+    else:
+        zeta_log_name=f'zeta_results_{event_of_interest}.txt'
     f=open(oe_folder/zeta_log_name,"w")
     for this_cluster_id in np.unique(cluster_id_interest):
         these_spikes=spike_time_interest[np.where(cluster_id_interest==this_cluster_id)[0]]
@@ -888,7 +900,10 @@ if __name__ == "__main__":
     #thisDir =r"Y:\GN26006\260118\looming\session1\2026-01-18_14-14-20"#zeta_id=[75,76]
     #thisDir =r"Y:\GN26006\260118\looming\session2\2026-01-18_15-43-50"#zeta_id=[19]
     #thisDir =r"Y:\GN26005\260117\looming\session2\2026-01-17_17-28-34"#zeta_id=[27,28]
-    thisDir =r"Y:\GN26005\260117\looming\session1\2026-01-17_16-03-04"#zeta_id=[6,24,25]
+    #thisDir =r"Y:\GN26005\260117\looming\session1\2026-01-17_16-03-04"#zeta_id=[6,24,25]
+    #thisDir =r"Y:\GN26017\260222\spontaneous\session1\2026-02-22_11-59-48"
+    #thisDir =r"Y:\GN26016\260221\choices\session1\2026-02-21_18-27-57"
+    thisDir =r"Y:\GN26015\260221\choices\session1\2026-02-21_12-43-51"
     #thisDir =r"Y:\GN26004\260111\looming\session1\2026-01-11_14-52-12"#zeta_id=[5,6,28]
     #thisDir =r"Y:\GN26004\260111\looming\session2\2026-01-11_16-21-45"
     #thisDir = r"Y:\GN26011\260207\spontaneous\session1\2026-02-07_13-28-12"
