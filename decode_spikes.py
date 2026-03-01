@@ -77,6 +77,284 @@ def sort_arrays(arr1, *arrays):
 
     return sorted_arr1, *sorted_arrays
 
+def plot_event_locked_behavioural_metrics(oe_folder, event_of_interest, time_locked_behaviour,time_locked_behaviour2,time_window, camera_fps,time_points_b):
+    fig, (axes,axes2) = plt.subplots(
+        nrows=2, ncols=1, figsize=(9, 4.5), tight_layout=True,sharex=True
+    )#change fig size to 11,5.5 or something lower value for bigger legend
+    mean=np.mean(time_locked_behaviour, axis=0)
+    frame_index=np.mean(time_points_b, axis=0)
+    #bars=np.std(time_locked_behaviour, axis=0)
+    axes.plot(
+        frame_index,
+        mean,
+        color='red',
+        linewidth=4
+    )
+    axes.plot(
+        np.transpose(time_points_b),
+        np.transpose(time_locked_behaviour),
+        color='black',
+        linewidth=0.2,
+        alpha=0.5
+    )
+    axes.set_xticks([0,abs(time_window[0])*camera_fps,(time_window[1]+abs(time_window[0]))*camera_fps])
+    axes.set_xticklabels([time_window[0],0,time_window[1]])
+    axes.set_ylabel('Speed (cm/sec)',size=15)#size should be above 10
+    axes.spines['left'].set_linewidth(2) 
+    time_points = np.arange(time_locked_behaviour2.shape[1])
+    time_points_b = np.tile(time_points, (time_locked_behaviour2.shape[0], 1))
+    median=np.median(time_locked_behaviour2, axis=0)
+    frame_index=np.mean(time_points_b, axis=0)
+    bars=np.std(time_locked_behaviour2, axis=0)
+    axes2.plot(
+        frame_index,
+        median,
+        color='red',
+        linewidth=4
+    )
+    axes2.plot(
+        np.transpose(time_points_b),
+        np.transpose(time_locked_behaviour2),
+        color='black',
+        linewidth=0.2,
+        alpha=0.5
+    ) 
+    axes2.set_ylabel(r'$\omega$ (rad/sec)',size=15)
+    axes2.set_xticks([0,abs(time_window[0])*camera_fps,(time_window[1]+abs(time_window[0]))*camera_fps])
+    axes2.set_xticklabels([time_window[0],0,time_window[1]])
+    axes2.spines['left'].set_linewidth(2) 
+    fix_ylim=True
+    yrange=[0,10]
+    if fix_ylim:
+        axes.set_ylim(yrange)
+        axes.set_yticks(yrange)
+        axes2.set_ylim([-1,1])
+        axes2.set_yticks([-1,0,1])
+    png_name = f"{event_of_interest}_ts_plot.png"
+    fig.savefig(oe_folder / png_name)
+    svg_name = f"{event_of_interest}_ts_plot.svg"
+    fig.savefig(oe_folder / svg_name)
+    return fig
+def plot_psth(spike_time_interest,oe_folder, event_of_interest,analysis_methods,time_window, cluster_id_interest,meta_info,events_time,trial_type_interest,trial_file=None,stim_variable2=None):
+    stim_type=meta_info['stim_type'].unique()
+    stim_duration=analysis_methods.get("stim_duration")
+    ISI_duration=analysis_methods.get("interval_duration")
+    if event_of_interest=='stim_onset' and analysis_methods.get("experiment_name")=='looming_stimuli':
+        vecTrials1 = ['white','black']## conditions to compare in zeta test
+        vecTrials2 = ['white_luminance','black_luminance']## conditions to compare in zeta test
+    elif event_of_interest in ['turn_onset','turn_cw_onset','turn_ccw_onset','stop_onset']:
+        vecTrials1 = [event_of_interest]## conditions to compare in zeta test
+        vecTrials2 = ['walk_straight_onset']## conditions to compare in zeta test
+    elif event_of_interest == 'walk_straight_onset':
+        vecTrials1 = [event_of_interest]## conditions to compare in zeta test
+        vecTrials2 = ['turn_onset']## conditions to compare in zeta test
+    elif event_of_interest == 'walk_onset':
+        vecTrials1 = [event_of_interest]## conditions to compare in zeta test
+        vecTrials2 = ['stop_onset']## conditions to compare in zeta test
+    elif event_of_interest =='stop_onset':
+        vecTrials1 = [event_of_interest]## conditions to compare in zeta test
+        vecTrials2 = ['walk_onset']## conditions to compare in zeta test
+    else:
+        (vecTrials1,vecTrials2)=([],[])
+    intResampNum = 500 #the two-sample test is more variable, as it depends on differences, so it requires more resamplings
+    if len(vecTrials1)>0:
+        zeta_log_name=f'zeta_results_{event_of_interest}_{vecTrials1[0]}_{vecTrials2[0]}.txt'
+    else:
+        zeta_log_name=f'zeta_results_{event_of_interest}.txt'
+    f=open(oe_folder/zeta_log_name,"w")
+    for this_cluster_id in np.unique(cluster_id_interest):
+        these_spikes=spike_time_interest[np.where(cluster_id_interest==this_cluster_id)[0]]
+        these_ids=np.ones(these_spikes.shape[0],dtype=int)*this_cluster_id
+        tspikes=nap.Tsd(
+        t=these_spikes, 
+        d=these_ids, time_units="s") 
+        if event_of_interest not in ["stop_onset","walk_straght_onset","turn_ccw_onset","turn_cw_onset","walk_onset","turn_onset"] and trial_file is not None:
+            for this_variable in meta_info[stim_variable2].unique():
+                for count,this_stim in enumerate(stim_type):
+                    if np.where((meta_info["stim_type"] == this_stim) & (meta_info[stim_variable2]==this_variable))[0].shape[0]<2:
+                        continue
+                    if len(stim_duration)>1 and stim_variable2=='Duration':
+                        time_window=[time_window[0],this_variable+2]
+                    these_events=events_time[(meta_info["stim_type"] == this_stim) & (meta_info[stim_variable2]==this_variable) & trial_type_interest]
+                    peth = nap.compute_perievent(
+                    timestamps=tspikes,
+                    tref=nap.Ts(t=these_events, time_units="s"), 
+                    minmax=(time_window[0], time_window[1]), 
+                    time_unit="s")
+                    peth_means, peth_stds, tscale,_=calculate_peths_details(
+                        these_spikes,these_ids, [this_cluster_id], these_events, pre_time=abs(time_window[0]),
+                        post_time=time_window[1], bin_size=0.025, smoothing=0.025, return_fr=True)
+                    fig2, (ax1,ax2) = plt.subplots(nrows=2, figsize=(9, 6), sharex=True)
+                    mean=peth_means[0,:]
+                    bars=peth_stds[0,:]
+                    ax1.plot(tscale,mean, linewidth=3, color="blue")
+                    negative_std=mean - bars
+                    if np.any(negative_std<0):            
+                        ax1.fill_between(tscale,0, mean + bars, color= 'blue', alpha= 0.5)
+                    else:
+                        ax1.fill_between(tscale,negative_std, mean + bars,color= 'blue', alpha= 0.5)
+                    ax1.set(ylabel="Rate (spikes/sec)",xlim=(time_window[0], time_window[1]))
+                    ax1.axvline(0.0,color="black")
+                    ax2.plot(peth.to_tsd(), "|", markersize=1, color="black", mew=1)
+                    ax2.set(ylabel="Event #",xlabel=f"Time from {event_of_interest} (s)",xlim=(time_window[0], time_window[1]))
+                    fix_ylim=False
+                    if fix_ylim:
+                        ax1.set_ylim([0, 90])
+                        ax1.set_yticks([0,90])
+                    cleanup_xticks=True
+                    if cleanup_xticks:
+                        ax2.set_xticks([time_window[0],round(time_window[0]/2),0,round(time_window[1]/2),time_window[1]])
+                    png_name = f"unit{this_cluster_id}_{event_of_interest}_peth_stim{this_stim}_{stim_variable2}_{this_variable}.png"
+                    fig2.savefig(oe_folder / png_name)
+                    #if this_cluster_id in zeta_id and count==0:
+                    if count==0 and len(vecTrials1)>0:# analyse all putatitive unit
+                        for vec_exp, vec_con  in zip(vecTrials1, vecTrials2):
+                            et1=events_time[(meta_info["stim_type"] == vec_exp) & (meta_info[stim_variable2]==this_variable) & trial_type_interest]
+                            et2=events_time[(meta_info["stim_type"] == vec_con) & (meta_info[stim_variable2]==this_variable) & trial_type_interest]
+                            if et1.shape[0]==0 or et2.shape[0]==0:
+                                continue
+                            dblUseMaxDur=min(ISI_duration)+this_variable#
+                            t = time.time()
+                            dblZetaTwoSample2a,dZETA2a = zetatest2(these_spikes,et1,these_spikes,et2,dblUseMaxDur,intResampNum,boolPlot=False)
+                            dblElapsedT6 = time.time() - t
+                            print(f"\nIs neuron {this_cluster_id} with this variable {this_variable} responding differently to {vec_exp} and {vec_con} stimuli? (elapsed time: {dblElapsedT6:.2f} s): \
+                                \ntwo-sample zeta-test p-value: {dblZetaTwoSample2a}\nt-test p-value:{dZETA2a['dblMeanP']}",file=f)
+
+        else:#Here to plot non-visual evoked activity or peth based on time across stimulus types. The latter one is work in progress
+            peth = nap.compute_perievent(
+            timestamps=tspikes,
+            tref=nap.Ts(t=events_time, time_units="s"), 
+            minmax=(time_window[0], time_window[1]), 
+            time_unit="s")
+            peth_means, peth_stds, tscale,_=calculate_peths_details(
+                these_spikes,these_ids, [this_cluster_id], events_time, pre_time=abs(time_window[0]),
+                post_time=time_window[1], bin_size=0.025, smoothing=0.025, return_fr=True)
+            fig2, (ax1,ax2) = plt.subplots(nrows=2, figsize=(9, 6), sharex=True)
+            mean=peth_means[0,:]
+            bars=peth_stds[0,:]
+            ax1.plot(tscale,mean, linewidth=3, color="blue")
+            negative_std=mean - bars
+            if np.any(negative_std<0):            
+                ax1.fill_between(tscale,0, mean + bars, color= 'blue', alpha= 0.5)
+            else:
+                ax1.fill_between(tscale,negative_std, mean + bars,color= 'blue', alpha= 0.5)
+            ax1.set(ylabel="Rate (spikes/sec)",xlim=(time_window[0], time_window[1]))
+            ax1.axvline(0.0,color="black")
+            ax2.plot(peth.to_tsd(), "|", markersize=1, color="black", mew=1)
+            ax2.set(ylabel="Event #",xlabel=f"Time from {event_of_interest} (s)",xlim=(time_window[0], time_window[1]))
+            fix_ylim=True
+            if fix_ylim:
+                ax1.set_ylim([0, 90])
+                ax1.set_yticks([0,90])
+            cleanup_xticks=True
+            if cleanup_xticks:
+                ax2.set_xticks([time_window[0],round(time_window[0]/2),0,round(time_window[1]/2),time_window[1]])
+            png_name = f"unit{this_cluster_id}_{event_of_interest}_peth.png"
+            fig2.savefig(oe_folder / png_name)
+            # need to think about how to set dblUseMaxDur
+            # for vec_exp, vec_con  in zip(vecTrials1, vecTrials2):
+            #     et1=events_time[(meta_info["stim_type"] == vec_exp) & (meta_info[stim_variable2]==this_variable) & trial_type_interest]
+            #     et2=events_time[(meta_info["stim_type"] == vec_con) & (meta_info[stim_variable2]==this_variable) & trial_type_interest]
+            #     if et1.shape[0]==0 or et2.shape[0]==0:
+            #         continue
+            #     dblUseMaxDur=min(ISI_duration)+this_variable#
+            #     t = time.time()
+            #     dblZetaTwoSample2a,dZETA2a = zetatest2(these_spikes,et1,these_spikes,et2,dblUseMaxDur,intResampNum,boolPlot=False)
+            #     dblElapsedT6 = time.time() - t
+            #     print(f"\nIs neuron {this_cluster_id} with this variable {this_variable} responding differently to {vec_exp} and {vec_con} stimuli? (elapsed time: {dblElapsedT6:.2f} s): \
+            #         \ntwo-sample zeta-test p-value: {dblZetaTwoSample2a}\nt-test p-value:{dZETA2a['dblMeanP']}",file=f)
+    
+    f.close()
+
+def extract_event_time(event_of_interest,meta_info,stim_on_oe,isi_on_oe,oe_camera_time,s2w_index,w2s_index,walk_states,time_window,camera_fps,travel_distance_fbf,turn_states,turn_ccw,turn_cw,trial_file,analysis_methods):
+    preStim_duration=analysis_methods.get("preStim_duration",60)
+    analyse_behavioural_state_modulation=analysis_methods.get("analyse_behavioural_state_modulation",False)
+    num_stim = meta_info.shape[0]
+    if event_of_interest.lower() == "preStim_ISI":
+        events_time = isi_on_oe[1:].values
+    elif event_of_interest.lower() == "postStim_ISI":
+        events_time = isi_on_oe[:-1].values
+    elif event_of_interest.lower() == "walk_onset":
+        events_time = oe_camera_time[s2w_index]
+        transition_index=s2w_index
+    elif event_of_interest.lower() == "stop_onset":
+        events_time = oe_camera_time[w2s_index]
+        transition_index=w2s_index
+    elif event_of_interest.lower() == "turn_onset":
+        events_time = oe_camera_time[n2t_index]
+        transition_index=n2t_index
+    elif event_of_interest.lower() == "walk_straight_onset":
+        walk_straight_index=np.where((turn_states[1:] == 0) & (walk_states == 1))[0]
+        walk_straight_states=np.zeros(len(walk_states))
+        walk_straight_states[walk_straight_index]=1
+        if walk_straight_states[0]==1:
+            s2w_index=np.where(np.diff(walk_states))[0][1::2]
+        else:
+            s2w_index=np.where(np.diff(walk_straight_states))[0][::2]
+        s2w_index=s2w_index[s2w_index+time_window[1]*camera_fps<travel_distance_fbf.shape[0]]
+        s2w_index=s2w_index[s2w_index-abs(time_window[0]*camera_fps)>0]
+        events_time = oe_camera_time[s2w_index]
+        transition_index=s2w_index
+    elif event_of_interest.lower() == "turn_ccw_onset":
+        turn_index=np.where((turn_ccw[1:] == 1) & (walk_states == 1))[0]
+        turn_states=np.zeros(len(walk_states))
+        turn_states[turn_index]=1
+        if turn_states[0]==1:
+            n2t_index=np.where(np.diff(turn_states))[0][1::2]
+        else:
+            n2t_index=np.where(np.diff(turn_states))[0][::2]
+        n2t_index=n2t_index[n2t_index+time_window[1]*camera_fps<travel_distance_fbf.shape[0]]
+        n2t_index=n2t_index[n2t_index-abs(time_window[0]*camera_fps)>0]
+        events_time = oe_camera_time[n2t_index]
+        transition_index=n2t_index
+    elif event_of_interest.lower() == "turn_cw_onset":
+        turn_index=np.where((turn_cw[1:] == 1) & (walk_states == 1))[0]
+        turn_states=np.zeros(len(walk_states))
+        turn_states[turn_index]=1
+        if turn_states[0]==1:
+            n2t_index=np.where(np.diff(turn_states))[0][1::2]
+        else:
+            n2t_index=np.where(np.diff(turn_states))[0][::2]
+        n2t_index=n2t_index[n2t_index+time_window[1]*camera_fps<travel_distance_fbf.shape[0]]
+        n2t_index=n2t_index[n2t_index-abs(time_window[0]*camera_fps)>0]
+        events_time = oe_camera_time[n2t_index]
+        transition_index=n2t_index
+    else:
+        if len(stim_on_oe) > num_stim:
+            stim_on_oe=stim_on_oe[preStim_duration<stim_on_oe]### I should move this to line 258 for coherence etc.
+            events_time=stim_on_oe[:num_stim]
+        elif type(stim_on_oe)==np.ndarray:
+            events_time = stim_on_oe
+        else:
+            events_time = stim_on_oe[:].values
+
+
+        ## needs to reorganise this part. Figure out a better to plot data about behavioural-state modulated stimulus response
+        if trial_file is not None and analyse_behavioural_state_modulation==True:
+            trial_type_interest= np.zeros(num_stim, dtype=bool)
+            behavioural_trial_type=['walking_trials','stationary_trials','straight_walk_trials','turning_trials']
+            walking_trials,stationary_trials,straight_walk_trials,turning_trials=classify_trial_type(meta_info, 0.75, 1)
+            if event_of_interest.lower() in behavioural_trial_type:
+                if event_of_interest.lower() == 'walking_trials':
+                    metrics_to_classify=walking_trials.index
+                elif event_of_interest.lower() == 'stationary_trials':
+                    metrics_to_classify=stationary_trials.index
+                elif event_of_interest.lower() == 'straight_walk_trials':
+                    metrics_to_classify=straight_walk_trials.index
+                elif event_of_interest.lower() == 'turning_trials':
+                    metrics_to_classify=turning_trials.index
+                if metrics_to_classify.shape[0]>0:
+                    trial_type_interest[metrics_to_classify]=True
+                else:
+                    print("event of interest does not present in this animal. Please choose other type of trials")
+            elif event_of_interest.lower() in ["preStim_ISI","postStim_ISI","stim_onset"]:
+                trial_type_interest= np.ones(num_stim, dtype=bool)
+            else:
+                print("only 'walking_trials','stationary_trials','straight_walk_trials','turning_trials' can be used for behavioural trial type. Please choose other type of trials")
+        else:
+            trial_type_interest= np.ones(num_stim, dtype=bool)
+    return events_time, transition_index,trial_type_interest
+
 def calculate_peths_details(
     spike_times, spike_clusters, cluster_ids, align_times, pre_time=0.2,
     post_time=0.5, bin_size=0.025, smoothing=0.025, return_fr=True):
@@ -399,160 +677,6 @@ def align_async_signals(oe_folder, json_file):
         n2t_index=n2t_index[n2t_index+time_window[1]*camera_fps<travel_distance_fbf.shape[0]]
         n2t_index=n2t_index[n2t_index-abs(time_window[0]*camera_fps)>0]
 
-    if event_of_interest.lower() == "preStim_ISI":
-        events_time = isi_on_oe[1:].values
-    elif event_of_interest.lower() == "postStim_ISI":
-        events_time = isi_on_oe[:-1].values
-    elif event_of_interest.lower() == "walk_onset":
-        events_time = oe_camera_time[s2w_index]
-        transition_index=s2w_index
-    elif event_of_interest.lower() == "stop_onset":
-        events_time = oe_camera_time[w2s_index]
-        transition_index=w2s_index
-    elif event_of_interest.lower() == "turn_onset":
-        events_time = oe_camera_time[n2t_index]
-        transition_index=n2t_index
-    elif event_of_interest.lower() == "walk_straight_onset":
-        walk_straight_index=np.where((turn_states[1:] == 0) & (walk_states == 1))[0]
-        walk_straight_states=np.zeros(len(walk_states))
-        walk_straight_states[walk_straight_index]=1
-        if walk_straight_states[0]==1:
-            s2w_index=np.where(np.diff(walk_states))[0][1::2]
-        else:
-            s2w_index=np.where(np.diff(walk_straight_states))[0][::2]
-        s2w_index=s2w_index[s2w_index+time_window[1]*camera_fps<travel_distance_fbf.shape[0]]
-        s2w_index=s2w_index[s2w_index-abs(time_window[0]*camera_fps)>0]
-        events_time = oe_camera_time[s2w_index]
-        transition_index=s2w_index
-    elif event_of_interest.lower() == "turn_ccw_onset":
-        turn_index=np.where((turn_ccw[1:] == 1) & (walk_states == 1))[0]
-        turn_states=np.zeros(len(walk_states))
-        turn_states[turn_index]=1
-        if turn_states[0]==1:
-            n2t_index=np.where(np.diff(turn_states))[0][1::2]
-        else:
-            n2t_index=np.where(np.diff(turn_states))[0][::2]
-        n2t_index=n2t_index[n2t_index+time_window[1]*camera_fps<travel_distance_fbf.shape[0]]
-        n2t_index=n2t_index[n2t_index-abs(time_window[0]*camera_fps)>0]
-        events_time = oe_camera_time[n2t_index]
-        transition_index=n2t_index
-    elif event_of_interest.lower() == "turn_cw_onset":
-        turn_index=np.where((turn_cw[1:] == 1) & (walk_states == 1))[0]
-        turn_states=np.zeros(len(walk_states))
-        turn_states[turn_index]=1
-        if turn_states[0]==1:
-            n2t_index=np.where(np.diff(turn_states))[0][1::2]
-        else:
-            n2t_index=np.where(np.diff(turn_states))[0][::2]
-        n2t_index=n2t_index[n2t_index+time_window[1]*camera_fps<travel_distance_fbf.shape[0]]
-        n2t_index=n2t_index[n2t_index-abs(time_window[0]*camera_fps)>0]
-        events_time = oe_camera_time[n2t_index]
-        transition_index=n2t_index
-    else:
-        if len(stim_on_oe) > num_stim:
-            stim_on_oe=stim_on_oe[preStim_duration<stim_on_oe]### I should move this to line 258 for coherence etc.
-            events_time=stim_on_oe[:num_stim]
-        elif type(stim_on_oe)==np.ndarray:
-            events_time = stim_on_oe
-        else:
-            events_time = stim_on_oe[:].values
-
-    ## needs to reorganise this part. Figure out a better to plot data about behavioural-state modulated stimulus response
-        if trial_file is not None and analyse_behavioural_state_modulation==True:
-            trial_type_interest= np.zeros(num_stim, dtype=bool)
-            behavioural_trial_type=['walking_trials','stationary_trials','straight_walk_trials','turning_trials']
-            walking_trials,stationary_trials,straight_walk_trials,turning_trials=classify_trial_type(meta_info, 0.75, 1)
-            if event_of_interest.lower() in behavioural_trial_type:
-                if event_of_interest.lower() == 'walking_trials':
-                    metrics_to_classify=walking_trials.index
-                elif event_of_interest.lower() == 'stationary_trials':
-                    metrics_to_classify=stationary_trials.index
-                elif event_of_interest.lower() == 'straight_walk_trials':
-                    metrics_to_classify=straight_walk_trials.index
-                elif event_of_interest.lower() == 'turning_trials':
-                    metrics_to_classify=turning_trials.index
-                if metrics_to_classify.shape[0]>0:
-                    trial_type_interest[metrics_to_classify]=True
-                else:
-                    print("event of interest does not present in this animal. Please choose other type of trials")
-            elif event_of_interest.lower() in ["preStim_ISI","postStim_ISI","stim_onset"]:
-                trial_type_interest= np.ones(num_stim, dtype=bool)
-            else:
-                print("only 'walking_trials','stationary_trials','straight_walk_trials','turning_trials' can be used for behavioural trial type. Please choose other type of trials")
-        else:
-            trial_type_interest= np.ones(num_stim, dtype=bool)
-
-    if 'transition_index' in locals():
-        if transition_index.shape[0]>0:
-            index_points = generate_index_points(transition_index, time_window, camera_fps)
-            # if event_of_interest.lower().startswith('walk') or event_of_interest.lower().startswith('stop'):      
-            time_locked_behaviour=travel_distance_fbf[index_points]*camera_fps
-            # elif event_of_interest.lower().startswith('turn'):
-            time_locked_behaviour2=yaw_angular_velocity[index_points]
-        else:
-            print('no transition detected')
-            return
-        time_points = np.arange(time_locked_behaviour.shape[1])
-        time_points_b = np.tile(time_points, (time_locked_behaviour.shape[0], 1))
-        fig, (axes,axes2) = plt.subplots(
-            nrows=2, ncols=1, figsize=(9, 4.5), tight_layout=True,sharex=True
-        )#change fig size to 11,5.5 or something lower value for bigger legend
-        mean=np.mean(time_locked_behaviour, axis=0)
-        frame_index=np.mean(time_points_b, axis=0)
-        bars=np.std(time_locked_behaviour, axis=0)
-        axes.plot(
-            frame_index,
-            mean,
-            color='red',
-            linewidth=4
-        )
-        axes.plot(
-            np.transpose(time_points_b),
-            np.transpose(time_locked_behaviour),
-            color='black',
-            linewidth=0.2,
-            alpha=0.5
-        )
-        axes.set_xticks([0,abs(time_window[0])*camera_fps,(time_window[1]+abs(time_window[0]))*camera_fps])
-        axes.set_xticklabels([time_window[0],0,time_window[1]])
-        axes.set_ylabel('Speed (cm/sec)',size=15)#size should be above 10
-        axes.spines['left'].set_linewidth(2) 
-        time_points = np.arange(time_locked_behaviour2.shape[1])
-        time_points_b = np.tile(time_points, (time_locked_behaviour2.shape[0], 1))
-        median=np.median(time_locked_behaviour2, axis=0)
-        frame_index=np.mean(time_points_b, axis=0)
-        bars=np.std(time_locked_behaviour2, axis=0)
-        axes2.plot(
-            frame_index,
-            median,
-            color='red',
-            linewidth=4
-        )
-        axes2.plot(
-            np.transpose(time_points_b),
-            np.transpose(time_locked_behaviour2),
-            color='black',
-            linewidth=0.2,
-            alpha=0.5
-        ) 
-        axes2.set_ylabel(r'$\omega$ (rad/sec)',size=15)
-        axes2.set_xticks([0,abs(time_window[0])*camera_fps,(time_window[1]+abs(time_window[0]))*camera_fps])
-        axes2.set_xticklabels([time_window[0],0,time_window[1]])
-        axes2.spines['left'].set_linewidth(2) 
-        fix_ylim=True
-        yrange=[0,10]
-        if fix_ylim:
-            axes.set_ylim(yrange)
-            axes.set_yticks(yrange)
-            axes2.set_ylim([-1,1])
-            axes2.set_yticks([-1,0,1])
-        png_name = f"{event_of_interest}_ts_plot.png"
-        fig.savefig(oe_folder / png_name)
-        svg_name = f"{event_of_interest}_ts_plot.svg"
-        fig.savefig(oe_folder / svg_name)
-    else:
-        print('analyse spiking activity alone or spiking activity modulated by a long behavioural states')
-
     ###start loading info from sorted spikes
     ## if use kilosort standalone, then load kilosort folder. Otherwise, load spikeinterface's preprocessed data and its toolkit.
     if analysis_methods.get("motion_corrector")=="kilosort_default" or analysis_methods.get("motion_corrector")=="testing":
@@ -640,10 +764,7 @@ def align_async_signals(oe_folder, json_file):
     # )
 
     ## go through the peri_event_time_histogram of every cluster
-    if "stim_type" in locals():
-        print("use stim type generated by sorting trial info")
-    else:
-        stim_type = analysis_methods.get("stim_type")
+
     ## it might be useful to calulcate all the clusters together but right now it does not look necessary
     # peth_means, peth_stds, tscale,ids=calculate_peths_details(
     # spike_time_interest,cluster_id_interest, np.unique(cluster_id_interest), events_time, pre_time=abs(time_window[0]),
@@ -707,133 +828,45 @@ def align_async_signals(oe_folder, json_file):
     #         ax2.set_xticks([time_window[0],round(time_window[0]/2),0,round(time_window[1]/2),time_window[1]])
     #     png_name = f"unit{this_id}_{event_of_interest}_peth_naptest.png"
     #     fig2.savefig(oe_folder / png_name)
-    #zeta_id=[6,8,9,38]
-    if event_of_interest=='stim_onset' and experiment_name=='looming_stimuli':
-        vecTrials1 = ['white','black']## conditions to compare in zeta test
-        vecTrials2 = ['white_luminance','black_luminance']## conditions to compare in zeta test
-    elif event_of_interest in ['turn_onset','turn_cw_onset','turn_ccw_onset','stop_onset']:
-        vecTrials1 = [event_of_interest]## conditions to compare in zeta test
-        vecTrials2 = ['walk_straight_onset']## conditions to compare in zeta test
-    elif event_of_interest == 'walk_straight_onset':
-        vecTrials1 = [event_of_interest]## conditions to compare in zeta test
-        vecTrials2 = ['turn_onset']## conditions to compare in zeta test
-    elif event_of_interest == 'walk_onset':
-        vecTrials1 = [event_of_interest]## conditions to compare in zeta test
-        vecTrials2 = ['stop_onset']## conditions to compare in zeta test
-    elif event_of_interest =='stop_onset':
-        vecTrials1 = [event_of_interest]## conditions to compare in zeta test
-        vecTrials2 = ['walk_onset']## conditions to compare in zeta test
-    else:
-        (vecTrials1,vecTrials2)=([],[])
-    intResampNum = 500 #the two-sample test is more variable, as it depends on differences, so it requires more resamplings
-    if len(vecTrials1)>0:
-        zeta_log_name=f'zeta_results_{event_of_interest}_{vecTrials1[0]}_{vecTrials2[0]}.txt'
-    else:
-        zeta_log_name=f'zeta_results_{event_of_interest}.txt'
-    f=open(oe_folder/zeta_log_name,"w")
-    for this_cluster_id in np.unique(cluster_id_interest):
-        these_spikes=spike_time_interest[np.where(cluster_id_interest==this_cluster_id)[0]]
-        these_ids=np.ones(these_spikes.shape[0],dtype=int)*this_cluster_id
-        tspikes=nap.Tsd(
-        t=these_spikes, 
-        d=these_ids, time_units="s") 
-        if event_of_interest not in ["stop_onset","walk_straght_onset","turn_ccw_onset","turn_cw_onset","walk_onset","turn_onset"] and trial_file is not None:
-            for this_variable in meta_info[stim_variable2].unique():
-                for count,this_stim in enumerate(stim_type):
-                    if np.where((meta_info["stim_type"] == this_stim) & (meta_info[stim_variable2]==this_variable))[0].shape[0]<2:
-                        continue
-                    if len(stim_duration)>1 and stim_variable2=='Duration':
-                        time_window=[time_window[0],this_variable+2]
-                    these_events=events_time[(meta_info["stim_type"] == this_stim) & (meta_info[stim_variable2]==this_variable) & trial_type_interest]
-                    peth = nap.compute_perievent(
-                    timestamps=tspikes,
-                    tref=nap.Ts(t=these_events, time_units="s"), 
-                    minmax=(time_window[0], time_window[1]), 
-                    time_unit="s")
-                    peth_means, peth_stds, tscale,_=calculate_peths_details(
-                        these_spikes,these_ids, [this_cluster_id], these_events, pre_time=abs(time_window[0]),
-                        post_time=time_window[1], bin_size=0.025, smoothing=0.025, return_fr=True)
-                    fig2, (ax1,ax2) = plt.subplots(nrows=2, figsize=(9, 6), sharex=True)
-                    mean=peth_means[0,:]
-                    bars=peth_stds[0,:]
-                    ax1.plot(tscale,mean, linewidth=3, color="blue")
-                    negative_std=mean - bars
-                    if np.any(negative_std<0):            
-                        ax1.fill_between(tscale,0, mean + bars, color= 'blue', alpha= 0.5)
-                    else:
-                        ax1.fill_between(tscale,negative_std, mean + bars,color= 'blue', alpha= 0.5)
-                    ax1.set(ylabel="Rate (spikes/sec)",xlim=(time_window[0], time_window[1]))
-                    ax1.axvline(0.0,color="black")
-                    ax2.plot(peth.to_tsd(), "|", markersize=1, color="black", mew=1)
-                    ax2.set(ylabel="Event #",xlabel=f"Time from {event_of_interest} (s)",xlim=(time_window[0], time_window[1]))
-                    fix_ylim=False
-                    if fix_ylim:
-                        ax1.set_ylim([0, 90])
-                        ax1.set_yticks([0,90])
-                    cleanup_xticks=True
-                    if cleanup_xticks:
-                        ax2.set_xticks([time_window[0],round(time_window[0]/2),0,round(time_window[1]/2),time_window[1]])
-                    png_name = f"unit{this_cluster_id}_{event_of_interest}_peth_stim{this_stim}_{stim_variable2}_{this_variable}.png"
-                    fig2.savefig(oe_folder / png_name)
-                    #if this_cluster_id in zeta_id and count==0:
-                    if count==0 and len(vecTrials1)>0:# analyse all putatitive unit
-                        for vec_exp, vec_con  in zip(vecTrials1, vecTrials2):
-                            et1=events_time[(meta_info["stim_type"] == vec_exp) & (meta_info[stim_variable2]==this_variable) & trial_type_interest]
-                            et2=events_time[(meta_info["stim_type"] == vec_con) & (meta_info[stim_variable2]==this_variable) & trial_type_interest]
-                            if et1.shape[0]==0 or et2.shape[0]==0:
-                                continue
-                            dblUseMaxDur=min(ISI_duration)+this_variable#
-                            t = time.time()
-                            dblZetaTwoSample2a,dZETA2a = zetatest2(these_spikes,et1,these_spikes,et2,dblUseMaxDur,intResampNum,boolPlot=False)
-                            dblElapsedT6 = time.time() - t
-                            print(f"\nIs neuron {this_cluster_id} with this variable {this_variable} responding differently to {vec_exp} and {vec_con} stimuli? (elapsed time: {dblElapsedT6:.2f} s): \
-                                \ntwo-sample zeta-test p-value: {dblZetaTwoSample2a}\nt-test p-value:{dZETA2a['dblMeanP']}",file=f)
-
-        else:#Here to plot non-visual evoked activity or peth based on time across stimulus types. The latter one is work in progress
-            peth = nap.compute_perievent(
-            timestamps=tspikes,
-            tref=nap.Ts(t=events_time, time_units="s"), 
-            minmax=(time_window[0], time_window[1]), 
-            time_unit="s")
-            peth_means, peth_stds, tscale,_=calculate_peths_details(
-                these_spikes,these_ids, [this_cluster_id], events_time, pre_time=abs(time_window[0]),
-                post_time=time_window[1], bin_size=0.025, smoothing=0.025, return_fr=True)
-            fig2, (ax1,ax2) = plt.subplots(nrows=2, figsize=(9, 6), sharex=True)
-            mean=peth_means[0,:]
-            bars=peth_stds[0,:]
-            ax1.plot(tscale,mean, linewidth=3, color="blue")
-            negative_std=mean - bars
-            if np.any(negative_std<0):            
-                ax1.fill_between(tscale,0, mean + bars, color= 'blue', alpha= 0.5)
+    if isinstance(event_of_interest, list):
+        for this_event in event_of_interest:
+            events_time, transition_index,trial_type_interest=extract_event_time(this_event,meta_info,stim_on_oe,isi_on_oe,oe_camera_time,s2w_index,w2s_index,walk_states,time_window,camera_fps,travel_distance_fbf,turn_states,turn_ccw,turn_cw,trial_file,analysis_methods)
+            if 'transition_index' in locals():
+                if transition_index.shape[0]>0:
+                    index_points = generate_index_points(transition_index, time_window, camera_fps)
+                    # if event_of_interest.lower().startswith('walk') or event_of_interest.lower().startswith('stop'):      
+                    time_locked_behaviour=travel_distance_fbf[index_points]*camera_fps
+                    # elif event_of_interest.lower().startswith('turn'):
+                    time_locked_behaviour2=yaw_angular_velocity[index_points]
+                else:
+                    print('no behavioural transition detected')
+                    return
+                time_points = np.arange(time_locked_behaviour.shape[1])
+                time_points_b = np.tile(time_points, (time_locked_behaviour.shape[0], 1))
+                event_locked_behaviour_fig=plot_event_locked_behavioural_metrics(oe_folder, this_event, time_locked_behaviour,time_locked_behaviour2,time_window, camera_fps,time_points_b)
             else:
-                ax1.fill_between(tscale,negative_std, mean + bars,color= 'blue', alpha= 0.5)
-            ax1.set(ylabel="Rate (spikes/sec)",xlim=(time_window[0], time_window[1]))
-            ax1.axvline(0.0,color="black")
-            ax2.plot(peth.to_tsd(), "|", markersize=1, color="black", mew=1)
-            ax2.set(ylabel="Event #",xlabel=f"Time from {event_of_interest} (s)",xlim=(time_window[0], time_window[1]))
-            fix_ylim=True
-            if fix_ylim:
-                ax1.set_ylim([0, 90])
-                ax1.set_yticks([0,90])
-            cleanup_xticks=True
-            if cleanup_xticks:
-                ax2.set_xticks([time_window[0],round(time_window[0]/2),0,round(time_window[1]/2),time_window[1]])
-            png_name = f"unit{this_cluster_id}_{event_of_interest}_peth.png"
-            fig2.savefig(oe_folder / png_name)
-            # need to think about how to set dblUseMaxDur
-            # for vec_exp, vec_con  in zip(vecTrials1, vecTrials2):
-            #     et1=events_time[(meta_info["stim_type"] == vec_exp) & (meta_info[stim_variable2]==this_variable) & trial_type_interest]
-            #     et2=events_time[(meta_info["stim_type"] == vec_con) & (meta_info[stim_variable2]==this_variable) & trial_type_interest]
-            #     if et1.shape[0]==0 or et2.shape[0]==0:
-            #         continue
-            #     dblUseMaxDur=min(ISI_duration)+this_variable#
-            #     t = time.time()
-            #     dblZetaTwoSample2a,dZETA2a = zetatest2(these_spikes,et1,these_spikes,et2,dblUseMaxDur,intResampNum,boolPlot=False)
-            #     dblElapsedT6 = time.time() - t
-            #     print(f"\nIs neuron {this_cluster_id} with this variable {this_variable} responding differently to {vec_exp} and {vec_con} stimuli? (elapsed time: {dblElapsedT6:.2f} s): \
-            #         \ntwo-sample zeta-test p-value: {dblZetaTwoSample2a}\nt-test p-value:{dZETA2a['dblMeanP']}",file=f)
-    
-    f.close()
+                print('analyse spiking activity alone or spiking activity modulated by a long behavioural states')            
+
+            plot_psth(spike_time_interest,oe_folder,this_event,analysis_methods,time_window, cluster_id_interest,meta_info,events_time,trial_type_interest,trial_file,stim_variable2)
+    else:
+        events_time, transition_index,trial_type_interest=extract_event_time(event_of_interest,meta_info,stim_on_oe,isi_on_oe,oe_camera_time,s2w_index,w2s_index,walk_states,time_window,camera_fps,travel_distance_fbf,turn_states,turn_ccw,turn_cw,trial_file,analysis_methods)
+        if 'transition_index' in locals():
+            if transition_index.shape[0]>0:
+                index_points = generate_index_points(transition_index, time_window, camera_fps)
+                # if event_of_interest.lower().startswith('walk') or event_of_interest.lower().startswith('stop'):      
+                time_locked_behaviour=travel_distance_fbf[index_points]*camera_fps
+                # elif event_of_interest.lower().startswith('turn'):
+                time_locked_behaviour2=yaw_angular_velocity[index_points]
+            else:
+                print('no behavioural transition detected')
+                return
+            time_points = np.arange(time_locked_behaviour.shape[1])
+            time_points_b = np.tile(time_points, (time_locked_behaviour.shape[0], 1))
+            event_locked_behaviour_fig=plot_event_locked_behavioural_metrics(oe_folder, event_of_interest, time_locked_behaviour,time_locked_behaviour2,time_window, camera_fps,time_points_b)
+        else:
+            print('analyse spiking activity alone or spiking activity modulated by a long behavioural states')    
+        plot_psth(spike_time_interest,oe_folder, event_of_interest,analysis_methods, time_window, cluster_id_interest,meta_info,events_time,trial_type_interest,trial_file,stim_variable2) 
+
     json_string = json.dumps(analysis_methods, indent=1)
     with open(oe_folder / "ephys_analysis_methods_backup.json", "w") as f:
         f.write(json_string)
