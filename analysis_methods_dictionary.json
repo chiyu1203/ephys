@@ -23,15 +23,19 @@
     "save_analyser_to_disc": true,
     "load_analyser_from_disc": true,
     "postprocess_with_unwhitening_recording": true,
-    "export_to_phy": true,
+    "export_to_phy": false,
     "overwrite_existing_phy": true,
     "load_curated_spikes": false,
     "export_report": false,
     "include_MUA": true,
-    "event_of_interest": "stim_onset",
-    "analyse_behavioural_state_modulation": true,
+    "event_of_interest": [
+        "stop_onset",
+        "walk_straight_onset",
+        "turn_cw_onset"
+    ],
+    "analyse_behavioural_state_modulation": false,
     "exp_place": "Zball",
-    "experiment_name": "sweeping",
+    "experiment_name": "choices",
     "temperature_data_options": "trial",
     "graph_colour_code": [
         "r",
@@ -55,28 +59,29 @@
     "plotting_event_related_trajectory": true,
     "plotting_deceleration_accerleration": false,
     "plotting_position_dependant_fixation": false,
-    "plotting_optomotor_response": true,
+    "plotting_optomotor_response": false,
     "load_experiment_condition_from_database": true,
     "analyse_spontaneous_activity": true,
     "select_animals_by_condition": false,
-    "analysis_by_stimulus_type": false,
+    "analysis_by_stimulus_type": true,
     "stationary_phase_before_motion": false,
     "camera_fps": 100,
     "trackball_radius": 5,
     "monitor_fps": 144,
     "stim_duration": [
-        16
+        30
     ],
     "interval_duration": [
-        15,
-        30
+        20,
+        30,
+        40
     ],
     "analysis_window": [
         -2,
-        16
+        2
     ],
-    "prestim_duration": 235,
-    "duration_for_optomotor_index": 16,
+    "prestim_duration": 60,
+    "duration_for_optomotor_index": 30,
     "yaw_axis": "z",
     "stim_variable2": "Duration"
 }

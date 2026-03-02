@@ -77,13 +77,15 @@ def sort_arrays(arr1, *arrays):
 
     return sorted_arr1, *sorted_arrays
 
-def plot_event_locked_behavioural_metrics(oe_folder, event_of_interest, time_locked_behaviour,time_locked_behaviour2,time_window, camera_fps,time_points_b):
+def plot_event_locked_behavioural_metrics(oe_folder, event_of_interest, time_locked_metrics,time_locked_metrics2,time_window, camera_fps):
+    time_points = np.arange(time_locked_metrics.shape[1])
+    time_points_b = np.tile(time_points, (time_locked_metrics.shape[0], 1))
     fig, (axes,axes2) = plt.subplots(
         nrows=2, ncols=1, figsize=(9, 4.5), tight_layout=True,sharex=True
     )#change fig size to 11,5.5 or something lower value for bigger legend
-    mean=np.mean(time_locked_behaviour, axis=0)
+    mean=np.mean(time_locked_metrics, axis=0)
     frame_index=np.mean(time_points_b, axis=0)
-    #bars=np.std(time_locked_behaviour, axis=0)
+    #bars=np.std(time_locked_metrics, axis=0)
     axes.plot(
         frame_index,
         mean,
@@ -92,7 +94,7 @@ def plot_event_locked_behavioural_metrics(oe_folder, event_of_interest, time_loc
     )
     axes.plot(
         np.transpose(time_points_b),
-        np.transpose(time_locked_behaviour),
+        np.transpose(time_locked_metrics),
         color='black',
         linewidth=0.2,
         alpha=0.5
@@ -101,11 +103,11 @@ def plot_event_locked_behavioural_metrics(oe_folder, event_of_interest, time_loc
     axes.set_xticklabels([time_window[0],0,time_window[1]])
     axes.set_ylabel('Speed (cm/sec)',size=15)#size should be above 10
     axes.spines['left'].set_linewidth(2) 
-    time_points = np.arange(time_locked_behaviour2.shape[1])
-    time_points_b = np.tile(time_points, (time_locked_behaviour2.shape[0], 1))
-    median=np.median(time_locked_behaviour2, axis=0)
+    time_points = np.arange(time_locked_metrics2.shape[1])
+    time_points_b = np.tile(time_points, (time_locked_metrics2.shape[0], 1))
+    median=np.median(time_locked_metrics2, axis=0)
     frame_index=np.mean(time_points_b, axis=0)
-    bars=np.std(time_locked_behaviour2, axis=0)
+    bars=np.std(time_locked_metrics2, axis=0)
     axes2.plot(
         frame_index,
         median,
@@ -114,7 +116,7 @@ def plot_event_locked_behavioural_metrics(oe_folder, event_of_interest, time_loc
     )
     axes2.plot(
         np.transpose(time_points_b),
-        np.transpose(time_locked_behaviour2),
+        np.transpose(time_locked_metrics2),
         color='black',
         linewidth=0.2,
         alpha=0.5
@@ -135,8 +137,9 @@ def plot_event_locked_behavioural_metrics(oe_folder, event_of_interest, time_loc
     svg_name = f"{event_of_interest}_ts_plot.svg"
     fig.savefig(oe_folder / svg_name)
     return fig
-def plot_psth(spike_time_interest,oe_folder, event_of_interest,analysis_methods,time_window, cluster_id_interest,meta_info,events_time,trial_type_interest,trial_file=None,stim_variable2=None):
-    stim_type=meta_info['stim_type'].unique()
+def plot_psth(spike_time_interest,cluster_id_interest,event_of_interest,events_time,analysis_methods,oe_folder,time_window,meta_info=None,trial_type_interest=None,trial_file=None):
+    
+    stim_variable2 = analysis_methods.get("stim_variable2",'Duration')
     stim_duration=analysis_methods.get("stim_duration")
     ISI_duration=analysis_methods.get("interval_duration")
     if event_of_interest=='stim_onset' and analysis_methods.get("experiment_name")=='looming_stimuli':
@@ -169,6 +172,7 @@ def plot_psth(spike_time_interest,oe_folder, event_of_interest,analysis_methods,
         t=these_spikes, 
         d=these_ids, time_units="s") 
         if event_of_interest not in ["stop_onset","walk_straght_onset","turn_ccw_onset","turn_cw_onset","walk_onset","turn_onset"] and trial_file is not None:
+            stim_type=meta_info['stim_type'].unique()
             for this_variable in meta_info[stim_variable2].unique():
                 for count,this_stim in enumerate(stim_type):
                     if np.where((meta_info["stim_type"] == this_stim) & (meta_info[stim_variable2]==this_variable))[0].shape[0]<2:
@@ -266,14 +270,15 @@ def plot_psth(spike_time_interest,oe_folder, event_of_interest,analysis_methods,
     
     f.close()
 
-def extract_event_time(event_of_interest,meta_info,stim_on_oe,isi_on_oe,oe_camera_time,s2w_index,w2s_index,walk_states,time_window,camera_fps,travel_distance_fbf,turn_states,turn_ccw,turn_cw,trial_file,analysis_methods):
-    preStim_duration=analysis_methods.get("preStim_duration",60)
-    analyse_behavioural_state_modulation=analysis_methods.get("analyse_behavioural_state_modulation",False)
-    num_stim = meta_info.shape[0]
+def extract_event_time(event_of_interest,analysis_methods,time_window,stim_on_oe=None,isi_on_oe=None,oe_camera_time=None,s2w_index=None,w2s_index=None,walk_states=None,travel_distance_fbf=None,turn_states=None,turn_ccw=None,turn_cw=None):
+    camera_fps=analysis_methods.get("camera_fps",100)
+    #preStim_duration=analysis_methods.get("preStim_duration",60)
     if event_of_interest.lower() == "preStim_ISI":
         events_time = isi_on_oe[1:].values
+        transition_index=[]
     elif event_of_interest.lower() == "postStim_ISI":
         events_time = isi_on_oe[:-1].values
+        transition_index=[]
     elif event_of_interest.lower() == "walk_onset":
         events_time = oe_camera_time[s2w_index]
         transition_index=s2w_index
@@ -320,40 +325,42 @@ def extract_event_time(event_of_interest,meta_info,stim_on_oe,isi_on_oe,oe_camer
         events_time = oe_camera_time[n2t_index]
         transition_index=n2t_index
     else:
-        if len(stim_on_oe) > num_stim:
-            stim_on_oe=stim_on_oe[preStim_duration<stim_on_oe]### I should move this to line 258 for coherence etc.
-            events_time=stim_on_oe[:num_stim]
-        elif type(stim_on_oe)==np.ndarray:
-            events_time = stim_on_oe
-        else:
-            events_time = stim_on_oe[:].values
+        events_time = stim_on_oe
+        # if len(stim_on_oe) > num_stim:
+        #     stim_on_oe=stim_on_oe[preStim_duration<stim_on_oe]### I should move this to line 258 for coherence etc.
+        #     events_time=stim_on_oe[:num_stim]
+        # elif type(stim_on_oe)==np.ndarray:
+        #     events_time = stim_on_oe
+        # else:
+        #     events_time = stim_on_oe[:].values
+        transition_index=[]
+    return events_time, transition_index
 
 
-        ## needs to reorganise this part. Figure out a better to plot data about behavioural-state modulated stimulus response
-        if trial_file is not None and analyse_behavioural_state_modulation==True:
-            trial_type_interest= np.zeros(num_stim, dtype=bool)
-            behavioural_trial_type=['walking_trials','stationary_trials','straight_walk_trials','turning_trials']
-            walking_trials,stationary_trials,straight_walk_trials,turning_trials=classify_trial_type(meta_info, 0.75, 1)
-            if event_of_interest.lower() in behavioural_trial_type:
-                if event_of_interest.lower() == 'walking_trials':
-                    metrics_to_classify=walking_trials.index
-                elif event_of_interest.lower() == 'stationary_trials':
-                    metrics_to_classify=stationary_trials.index
-                elif event_of_interest.lower() == 'straight_walk_trials':
-                    metrics_to_classify=straight_walk_trials.index
-                elif event_of_interest.lower() == 'turning_trials':
-                    metrics_to_classify=turning_trials.index
-                if metrics_to_classify.shape[0]>0:
-                    trial_type_interest[metrics_to_classify]=True
-                else:
-                    print("event of interest does not present in this animal. Please choose other type of trials")
-            elif event_of_interest.lower() in ["preStim_ISI","postStim_ISI","stim_onset"]:
-                trial_type_interest= np.ones(num_stim, dtype=bool)
-            else:
-                print("only 'walking_trials','stationary_trials','straight_walk_trials','turning_trials' can be used for behavioural trial type. Please choose other type of trials")
+def extract_state_specific_trials(event_of_interest,meta_info):
+    ## needs to reorganise this part. Figure out a better to plot data about behavioural-state modulated stimulus response
+    num_stim = meta_info.shape[0]
+    trial_type_interest= np.zeros(num_stim, dtype=bool)
+    behavioural_trial_type=['walking_trials','stationary_trials','straight_walk_trials','turning_trials']
+    walking_trials,stationary_trials,straight_walk_trials,turning_trials=classify_trial_type(meta_info, 0.75, 1)
+    if event_of_interest.lower() in behavioural_trial_type:
+        if event_of_interest.lower() == 'walking_trials':
+            metrics_to_classify=walking_trials.index
+        elif event_of_interest.lower() == 'stationary_trials':
+            metrics_to_classify=stationary_trials.index
+        elif event_of_interest.lower() == 'straight_walk_trials':
+            metrics_to_classify=straight_walk_trials.index
+        elif event_of_interest.lower() == 'turning_trials':
+            metrics_to_classify=turning_trials.index
+        if metrics_to_classify.shape[0]>0:
+            trial_type_interest[metrics_to_classify]=True
         else:
-            trial_type_interest= np.ones(num_stim, dtype=bool)
-    return events_time, transition_index,trial_type_interest
+            print("event of interest does not present in this animal. Please choose other type of trials")
+    elif event_of_interest.lower() in ["preStim_ISI","postStim_ISI","stim_onset"]:
+        trial_type_interest= np.ones(num_stim, dtype=bool)
+    else:
+        warnings("only 'walking_trials','stationary_trials','straight_walk_trials','turning_trials' can be used for behavioural trial type. Please choose other type of trials")
+    return trial_type_interest
 
 def calculate_peths_details(
     spike_times, spike_clusters, cluster_ids, align_times, pre_time=0.2,
@@ -448,7 +455,6 @@ def align_async_signals(oe_folder, json_file):
     if type(oe_folder)==str:
         oe_folder = Path(oe_folder)
 
-    stim_variable2 = analysis_methods.get("stim_variable2",'Duration')
     load_previous_methods=analysis_methods.get("load_previous_methods",False)
     if load_previous_methods:
         previous_methods_file=find_file(oe_folder, "ephys_analysis_methods_backup.json")
@@ -657,7 +663,7 @@ def align_async_signals(oe_folder, json_file):
     if 'tracking_df' in locals():
         x_all,y_all,yaw_angular_velocity=preprocess_tracking_data(tracking_df,filtering_method,yaw_axis,smooth_window_length)
         travel_distance_fbf = euclidean_distance(x_all,y_all)
-        walk_states,turn_states,turn_cw,turn_ccw,fig=identify_behavioural_states(travel_distance_fbf,yaw_angular_velocity,filtering_method,camera_fps,consecutive_duration=[1,0.5],smooth_window_length=smooth_window_length,skip_smoothing=False)
+        walk_states,turn_states,turn_cw,turn_ccw,fig=identify_behavioural_states(travel_distance_fbf,yaw_angular_velocity,filtering_method,camera_fps,consecutive_duration=[1,0.5],smooth_window_length=smooth_window_length,skip_smoothing=False,walk_thresholds=[0.001,0.003],turn_thresholds=[0.1,0.2])
         plot_name = f"behavioural_states_classification.png"
         fig.savefig(oe_folder / plot_name)
         if walk_states[0]==1:#identify transition onset depends on whether the first frame is run or stationary already
@@ -685,7 +691,7 @@ def align_async_signals(oe_folder, json_file):
         main_foler_name='kilosort4_motion_corrected'
         #main_foler_name='kilosort4_ThU18_ThL17_T0_T1500'
         #main_foler_name='kilosort4_T0_T1500'
-        merged_units=False
+        merged_units=True
         folder_suffix="_merged" if merged_units else ""
         file_type=".npy"
         ks_path=oe_folder/f"{main_foler_name}{folder_suffix}"/ "shank_0"
@@ -828,45 +834,43 @@ def align_async_signals(oe_folder, json_file):
     #         ax2.set_xticks([time_window[0],round(time_window[0]/2),0,round(time_window[1]/2),time_window[1]])
     #     png_name = f"unit{this_id}_{event_of_interest}_peth_naptest.png"
     #     fig2.savefig(oe_folder / png_name)
-    if isinstance(event_of_interest, list):
-        for this_event in event_of_interest:
-            events_time, transition_index,trial_type_interest=extract_event_time(this_event,meta_info,stim_on_oe,isi_on_oe,oe_camera_time,s2w_index,w2s_index,walk_states,time_window,camera_fps,travel_distance_fbf,turn_states,turn_ccw,turn_cw,trial_file,analysis_methods)
-            if 'transition_index' in locals():
-                if transition_index.shape[0]>0:
-                    index_points = generate_index_points(transition_index, time_window, camera_fps)
-                    # if event_of_interest.lower().startswith('walk') or event_of_interest.lower().startswith('stop'):      
-                    time_locked_behaviour=travel_distance_fbf[index_points]*camera_fps
-                    # elif event_of_interest.lower().startswith('turn'):
-                    time_locked_behaviour2=yaw_angular_velocity[index_points]
+    for this_event in event_of_interest:
+        if trial_file is None:
+            events_time, transition_index=extract_event_time(this_event,analysis_methods,time_window,stim_on_oe=None,isi_on_oe=None,oe_camera_time=oe_camera_time,s2w_index=s2w_index,w2s_index=w2s_index,walk_states=walk_states,travel_distance_fbf=travel_distance_fbf,turn_states=turn_states,turn_ccw=turn_ccw,turn_cw=turn_cw)
+            trial_type_interest=0
+        elif video_file is None:
+            if experiment_name=='choices':
+                events_time, transition_index=extract_event_time(this_event,analysis_methods,time_window,stim_on_oe=stim_on_oe,isi_on_oe=isi_on_oe,oe_camera_time=oe_camera_time,s2w_index=s2w_index,w2s_index=w2s_index,walk_states=walk_states,travel_distance_fbf=travel_distance_fbf,turn_states=turn_states,turn_ccw=turn_ccw,turn_cw=turn_cw)
+                if analyse_behavioural_state_modulation==True:
+                    trial_type_interest=extract_state_specific_trials(event_of_interest,meta_info)
                 else:
-                    print('no behavioural transition detected')
-                    return
-                time_points = np.arange(time_locked_behaviour.shape[1])
-                time_points_b = np.tile(time_points, (time_locked_behaviour.shape[0], 1))
-                event_locked_behaviour_fig=plot_event_locked_behavioural_metrics(oe_folder, this_event, time_locked_behaviour,time_locked_behaviour2,time_window, camera_fps,time_points_b)
+                    trial_type_interest= np.ones(num_stim, dtype=bool)
             else:
-                print('analyse spiking activity alone or spiking activity modulated by a long behavioural states')            
-
-            plot_psth(spike_time_interest,oe_folder,this_event,analysis_methods,time_window, cluster_id_interest,meta_info,events_time,trial_type_interest,trial_file,stim_variable2)
-    else:
-        events_time, transition_index,trial_type_interest=extract_event_time(event_of_interest,meta_info,stim_on_oe,isi_on_oe,oe_camera_time,s2w_index,w2s_index,walk_states,time_window,camera_fps,travel_distance_fbf,turn_states,turn_ccw,turn_cw,trial_file,analysis_methods)
-        if 'transition_index' in locals():
+                events_time, transition_index=extract_event_time(this_event,analysis_methods,time_window,stim_on_oe=stim_on_oe,isi_on_oe=isi_on_oe,oe_camera_time=None,s2w_index=None,w2s_index=None,walk_states=None,travel_distance_fbf=None,turn_states=None,turn_ccw=None,turn_cw=None)
+                trial_type_interest= np.ones(num_stim, dtype=bool)
+        else:
+            events_time, transition_index=extract_event_time(this_event,analysis_methods,time_window,stim_on_oe=stim_on_oe,isi_on_oe=isi_on_oe,oe_camera_time=oe_camera_time,s2w_index=s2w_index,w2s_index=w2s_index,walk_states=walk_states,travel_distance_fbf=travel_distance_fbf,turn_states=turn_states,turn_ccw=turn_ccw,turn_cw=turn_cw)
+            if analyse_behavioural_state_modulation==True:
+                trial_type_interest=extract_state_specific_trials(event_of_interest,meta_info)
+            else:
+                trial_type_interest= np.ones(num_stim, dtype=bool)
+        if type(trial_type_interest)==list:
+            print('analyse spiking activity alone or spiking activity modulated by a long behavioural states')
+        else:
             if transition_index.shape[0]>0:
                 index_points = generate_index_points(transition_index, time_window, camera_fps)
                 # if event_of_interest.lower().startswith('walk') or event_of_interest.lower().startswith('stop'):      
-                time_locked_behaviour=travel_distance_fbf[index_points]*camera_fps
+                time_locked_metrics=travel_distance_fbf[index_points]*camera_fps
                 # elif event_of_interest.lower().startswith('turn'):
-                time_locked_behaviour2=yaw_angular_velocity[index_points]
+                time_locked_metrics2=yaw_angular_velocity[index_points]
+                _=plot_event_locked_behavioural_metrics(oe_folder, this_event, time_locked_metrics,time_locked_metrics2,time_window, camera_fps)
             else:
                 print('no behavioural transition detected')
                 return
-            time_points = np.arange(time_locked_behaviour.shape[1])
-            time_points_b = np.tile(time_points, (time_locked_behaviour.shape[0], 1))
-            event_locked_behaviour_fig=plot_event_locked_behavioural_metrics(oe_folder, event_of_interest, time_locked_behaviour,time_locked_behaviour2,time_window, camera_fps,time_points_b)
+        if trial_file is None:
+            plot_psth(spike_time_interest,cluster_id_interest,this_event,events_time,analysis_methods,oe_folder,time_window)
         else:
-            print('analyse spiking activity alone or spiking activity modulated by a long behavioural states')    
-        plot_psth(spike_time_interest,oe_folder, event_of_interest,analysis_methods, time_window, cluster_id_interest,meta_info,events_time,trial_type_interest,trial_file,stim_variable2) 
-
+            plot_psth(spike_time_interest,cluster_id_interest,this_event,events_time,analysis_methods,oe_folder,time_window,meta_info,trial_type_interest,trial_file)
     json_string = json.dumps(analysis_methods, indent=1)
     with open(oe_folder / "ephys_analysis_methods_backup.json", "w") as f:
         f.write(json_string)
@@ -927,7 +931,7 @@ if __name__ == "__main__":
     #thisDir = r"Y:\GN25067\251220\flashing\session1\2025-12-20_14-36-54"
     #thisDir = r"Y:\GN25066\251214\sweeping\session1\2025-12-14_20-35-57"
     #thisDir = r"Y:\GN26008\250727\spontaneous\session1\2026-01-25_14-33-17"
-    #thisDir = r"Y:\GN26012\260208\spontaneous\session1\2026-02-08_13-56-52"
+    thisDir = r"Y:\GN26012\260208\spontaneous\session1\2026-02-08_13-56-52"
     #thisDir = r"Y:\GN26012\260208\sweeping\session1\2026-02-08_14-33-58"
     #thisDir =r"Y:\GN25029\250729\looming\session1\2025-07-29_15-22-54"
     #thisDir =r"Y:\GN26006\260118\looming\session1\2026-01-18_14-14-20"#zeta_id=[75,76]
@@ -936,14 +940,13 @@ if __name__ == "__main__":
     #thisDir =r"Y:\GN26005\260117\looming\session1\2026-01-17_16-03-04"#zeta_id=[6,24,25]
     #thisDir =r"Y:\GN26017\260222\spontaneous\session1\2026-02-22_11-59-48"
     #thisDir =r"Y:\GN26016\260221\choices\session1\2026-02-21_18-27-57"
-    thisDir =r"Y:\GN26015\260221\choices\session1\2026-02-21_12-43-51"
+    #thisDir =r"Y:\GN26015\260221\choices\session1\2026-02-21_12-43-51"
     #thisDir =r"Y:\GN26004\260111\looming\session1\2026-01-11_14-52-12"#zeta_id=[5,6,28]
     #thisDir =r"Y:\GN26004\260111\looming\session2\2026-01-11_16-21-45"
     #thisDir = r"Y:\GN26011\260207\spontaneous\session1\2026-02-07_13-28-12"
     #thisDir = r"Y:\GN25065\251214\sweeping\session1\2025-12-14_14-14-29"
     #thisDir = r"Y:\GN25060\251130\looming\session1\2025-11-30_16-12-19"
     json_file = "./analysis_methods_dictionary.json"
-
     ##Time the function
     tic = time.perf_counter()
     align_async_signals(thisDir, json_file)
