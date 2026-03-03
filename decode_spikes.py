@@ -142,7 +142,9 @@ def plot_psth(spike_time_interest,cluster_id_interest,event_of_interest,events_t
     stim_variable2 = analysis_methods.get("stim_variable2",'Duration')
     stim_duration=analysis_methods.get("stim_duration")
     ISI_duration=analysis_methods.get("interval_duration")
-    if event_of_interest=='stim_onset' and analysis_methods.get("experiment_name")=='looming_stimuli':
+    analysis_by_stimulus_type=ISI_duration=analysis_methods.get("analysis_by_stimulus_type")
+    experiment_name=analysis_methods.get("experiment_name")
+    if event_of_interest=='stim_onset' and experiment_name=='looming_stimuli' and analysis_by_stimulus_type:
         vecTrials1 = ['white','black']## conditions to compare in zeta test
         vecTrials2 = ['white_luminance','black_luminance']## conditions to compare in zeta test
     elif event_of_interest in ['turn_onset','turn_cw_onset','turn_ccw_onset','stop_onset']:
@@ -171,7 +173,7 @@ def plot_psth(spike_time_interest,cluster_id_interest,event_of_interest,events_t
         tspikes=nap.Tsd(
         t=these_spikes, 
         d=these_ids, time_units="s") 
-        if event_of_interest not in ["stop_onset","walk_straght_onset","turn_ccw_onset","turn_cw_onset","walk_onset","turn_onset"] and trial_file is not None:
+        if event_of_interest not in ["stop_onset","walk_straight_onset","turn_ccw_onset","turn_cw_onset","walk_onset","turn_onset"] and trial_file is not None:
             stim_type=meta_info['stim_type'].unique()
             for this_variable in meta_info[stim_variable2].unique():
                 for count,this_stim in enumerate(stim_type):
@@ -179,7 +181,10 @@ def plot_psth(spike_time_interest,cluster_id_interest,event_of_interest,events_t
                         continue
                     if len(stim_duration)>1 and stim_variable2=='Duration':
                         time_window=[time_window[0],this_variable+2]
-                    these_events=events_time[(meta_info["stim_type"] == this_stim) & (meta_info[stim_variable2]==this_variable) & trial_type_interest]
+                    if analysis_by_stimulus_type:
+                        these_events=events_time[(meta_info["stim_type"] == this_stim) & (meta_info[stim_variable2]==this_variable) & trial_type_interest]
+                    else:
+                        these_events=events_time[trial_type_interest]
                     peth = nap.compute_perievent(
                     timestamps=tspikes,
                     tref=nap.Ts(t=these_events, time_units="s"), 
@@ -208,7 +213,10 @@ def plot_psth(spike_time_interest,cluster_id_interest,event_of_interest,events_t
                     cleanup_xticks=True
                     if cleanup_xticks:
                         ax2.set_xticks([time_window[0],round(time_window[0]/2),0,round(time_window[1]/2),time_window[1]])
-                    png_name = f"unit{this_cluster_id}_{event_of_interest}_peth_stim{this_stim}_{stim_variable2}_{this_variable}.png"
+                    if analysis_by_stimulus_type:
+                        png_name = f"unit{this_cluster_id}_{event_of_interest}_peth_stim{this_stim}_{stim_variable2}_{this_variable}.png"
+                    else:
+                        png_name = f"unit{this_cluster_id}_{event_of_interest}_peth_regardless_stim_type.png"
                     fig2.savefig(oe_folder / png_name)
                     #if this_cluster_id in zeta_id and count==0:
                     if count==0 and len(vecTrials1)>0:# analyse all putatitive unit
@@ -340,26 +348,20 @@ def extract_event_time(event_of_interest,analysis_methods,time_window,stim_on_oe
 def extract_state_specific_trials(event_of_interest,meta_info):
     ## needs to reorganise this part. Figure out a better to plot data about behavioural-state modulated stimulus response
     num_stim = meta_info.shape[0]
-    trial_type_interest= np.zeros(num_stim, dtype=bool)
-    behavioural_trial_type=['walking_trials','stationary_trials','straight_walk_trials','turning_trials']
-    walking_trials,stationary_trials,straight_walk_trials,turning_trials=classify_trial_type(meta_info, 0.75, 1)
-    if event_of_interest.lower() in behavioural_trial_type:
-        if event_of_interest.lower() == 'walking_trials':
-            metrics_to_classify=walking_trials.index
-        elif event_of_interest.lower() == 'stationary_trials':
-            metrics_to_classify=stationary_trials.index
-        elif event_of_interest.lower() == 'straight_walk_trials':
-            metrics_to_classify=straight_walk_trials.index
-        elif event_of_interest.lower() == 'turning_trials':
-            metrics_to_classify=turning_trials.index
-        if metrics_to_classify.shape[0]>0:
-            trial_type_interest[metrics_to_classify]=True
-        else:
-            print("event of interest does not present in this animal. Please choose other type of trials")
-    elif event_of_interest.lower() in ["preStim_ISI","postStim_ISI","stim_onset"]:
-        trial_type_interest= np.ones(num_stim, dtype=bool)
+    trial_type_interest= np.zeros(num_stim, dtype=bool)     
+    walking_trials,stationary_trials,straight_walk_trials,turning_trials=classify_trial_type(meta_info, 0.5, 5)
+    if event_of_interest.lower() == 'walking_trials':
+        metrics_to_classify=walking_trials.index
+    elif event_of_interest.lower() == 'stationary_trials':
+        metrics_to_classify=stationary_trials.index
+    elif event_of_interest.lower() == 'straight_walk_trials':
+        metrics_to_classify=straight_walk_trials.index
+    elif event_of_interest.lower() == 'turning_trials':
+        metrics_to_classify=turning_trials.index
+    if metrics_to_classify.shape[0]>0:
+        trial_type_interest[metrics_to_classify]=True
     else:
-        warnings("only 'walking_trials','stationary_trials','straight_walk_trials','turning_trials' can be used for behavioural trial type. Please choose other type of trials")
+        print("event of interest does not present in this animal. Please choose other type of trials")
     return trial_type_interest
 
 def calculate_peths_details(
@@ -841,8 +843,8 @@ def align_async_signals(oe_folder, json_file):
         elif video_file is None:
             if experiment_name=='choices':
                 events_time, transition_index=extract_event_time(this_event,analysis_methods,time_window,stim_on_oe=stim_on_oe,isi_on_oe=isi_on_oe,oe_camera_time=oe_camera_time,s2w_index=s2w_index,w2s_index=w2s_index,walk_states=walk_states,travel_distance_fbf=travel_distance_fbf,turn_states=turn_states,turn_ccw=turn_ccw,turn_cw=turn_cw)
-                if analyse_behavioural_state_modulation==True:
-                    trial_type_interest=extract_state_specific_trials(event_of_interest,meta_info)
+                if this_event in ["walking_trials","stationary_trials","straight_walk_trials","turning_trials"]:
+                    trial_type_interest=extract_state_specific_trials(this_event,meta_info)
                 else:
                     trial_type_interest= np.ones(num_stim, dtype=bool)
             else:
@@ -850,12 +852,14 @@ def align_async_signals(oe_folder, json_file):
                 trial_type_interest= np.ones(num_stim, dtype=bool)
         else:
             events_time, transition_index=extract_event_time(this_event,analysis_methods,time_window,stim_on_oe=stim_on_oe,isi_on_oe=isi_on_oe,oe_camera_time=oe_camera_time,s2w_index=s2w_index,w2s_index=w2s_index,walk_states=walk_states,travel_distance_fbf=travel_distance_fbf,turn_states=turn_states,turn_ccw=turn_ccw,turn_cw=turn_cw)
-            if analyse_behavioural_state_modulation==True:
-                trial_type_interest=extract_state_specific_trials(event_of_interest,meta_info)
+            if this_event in ["walking_trials","stationary_trials","straight_walk_trials","turning_trials"]:
+                trial_type_interest=extract_state_specific_trials(this_event,meta_info)
             else:
                 trial_type_interest= np.ones(num_stim, dtype=bool)
         if type(trial_type_interest)==list:
             print('analyse spiking activity alone or spiking activity modulated by a long behavioural states')
+        elif type(transition_index)==list:
+            print('when analysing visual-evoked responses and behaviour-modulated visual evoked responses, event_locked_behavioural_metrics will be not plotted')
         else:
             if transition_index.shape[0]>0:
                 index_points = generate_index_points(transition_index, time_window, camera_fps)
@@ -931,8 +935,8 @@ if __name__ == "__main__":
     #thisDir = r"Y:\GN25067\251220\flashing\session1\2025-12-20_14-36-54"
     #thisDir = r"Y:\GN25066\251214\sweeping\session1\2025-12-14_20-35-57"
     #thisDir = r"Y:\GN26008\250727\spontaneous\session1\2026-01-25_14-33-17"
-    thisDir = r"Y:\GN26012\260208\spontaneous\session1\2026-02-08_13-56-52"
-    #thisDir = r"Y:\GN26012\260208\sweeping\session1\2026-02-08_14-33-58"
+    #thisDir = r"Y:\GN26012\260208\spontaneous\session1\2026-02-08_13-56-52"
+    thisDir = r"Y:\GN26012\260208\sweeping\session1\2026-02-08_14-33-58"
     #thisDir =r"Y:\GN25029\250729\looming\session1\2025-07-29_15-22-54"
     #thisDir =r"Y:\GN26006\260118\looming\session1\2026-01-18_14-14-20"#zeta_id=[75,76]
     #thisDir =r"Y:\GN26006\260118\looming\session2\2026-01-18_15-43-50"#zeta_id=[19]
