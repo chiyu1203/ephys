@@ -27,17 +27,15 @@
     "overwrite_existing_phy": true,
     "load_curated_spikes": false,
     "export_report": false,
-    "include_MUA": true,
+    "include_MUA": false,
     "event_of_interest": [
         "walking_trials",
         "stationary_trials",
-        "straight_walk_trials",
-        "turning_trials",
         "stim_onset"
     ],
     "analyse_behavioural_state_modulation": false,
     "exp_place": "Zball",
-    "experiment_name": "sweeping",
+    "experiment_name": "looming",
     "temperature_data_options": "trial",
     "graph_colour_code": [
         "r",
@@ -63,26 +61,30 @@
     "plotting_position_dependant_fixation": false,
     "plotting_optomotor_response": false,
     "load_experiment_condition_from_database": true,
-    "analyse_spontaneous_activity": true,
+    "analyse_spontaneous_activity": false,
     "select_animals_by_condition": false,
-    "analysis_by_stimulus_type": false,
-    "stationary_phase_before_motion": false,
+    "analysis_by_stimulus_type": true,
+    "stationary_phase_before_motion": true,
     "camera_fps": 100,
     "trackball_radius": 5,
     "monitor_fps": 144,
     "stim_duration": [
+        1,
+        4,
+        8,
         16
     ],
     "interval_duration": [
-        15,
-        30
+        5,
+        10,
+        15
     ],
     "analysis_window": [
         -2,
-        2
+        16
     ],
-    "prestim_duration": 230,
-    "duration_for_optomotor_index": 15,
+    "prestim_duration": 60,
+    "duration_for_optomotor_index": 0,
     "yaw_axis": "z",
     "stim_variable2": "Duration"
 }

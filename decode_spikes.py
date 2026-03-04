@@ -542,6 +542,8 @@ def align_async_signals(oe_folder, json_file):
     rotation_file = find_file(stim_directory, rotation_ext)
     trial_ext = "trial*.csv"
     trial_file = find_file(stim_directory, trial_ext)
+    summary_ext = "behavioural_summary.parquet.gzip"
+    stimulus_meta_file = find_file(stim_directory, summary_ext)
     event_of_interest = analysis_methods.get("event_of_interest")
     stim_duration = analysis_methods.get("stim_duration")
     ISI_duration = analysis_methods.get("interval_duration")
@@ -576,27 +578,28 @@ def align_async_signals(oe_folder, json_file):
             print("no stimlus timestamp and no camera timestamp. Unable to do further analysis")
             return
     else:
+        if stimulus_meta_file is None and trial_file is None:
+            return print("behavioural summary file and raw trial file not found")
+        stim_pd = pd.read_csv(trial_file)
+        meta_info, stim_type = sorting_trial_info(stim_pd,analysis_methods)
+        if experiment_name=='coherence':#RDK is special because isi info is also logged in the trial info
+            meta_info = meta_info[1::2]
+
         if video_file is None:
-            print("analyse ephys data only. Load raw trial information from csv file")
-            stim_pd = pd.read_csv(trial_file)
-            meta_info, stim_type = sorting_trial_info(stim_pd,analysis_methods)
-            if experiment_name=='coherence':#RDK is special because isi info is also logged in the trial info
-                meta_info = meta_info[1::2]
-        else:
-            summary_ext = "behavioural_summary.parquet.gzip"
-            stimulus_meta_file = find_file(stim_directory, summary_ext)
-            if stimulus_meta_file is None:
-                if trial_file is None:
-                    print("behavioural summary file and raw trial file not found")
-                    return
-                stim_pd = pd.read_csv(trial_file)
-                meta_info, stim_type = sorting_trial_info(stim_pd,analysis_methods)
-                if experiment_name=='coherence':#RDK is special because isi info is also logged in the trial info
-                    meta_info = meta_info[1::2]
-            else:
-                meta_info = pd.read_parquet(stimulus_meta_file)
+            print("analyse ephys data only. The meta_info is basically trial information")
+        elif stimulus_meta_file is not None:
+            tmp_info = pd.read_parquet(stimulus_meta_file)
+            for duplicates_to_remove in ['temperature','humidity','stim_type']:
+                if duplicates_to_remove in  meta_info.columns and duplicates_to_remove in tmp_info.columns:
+                    meta_info.drop(columns=[duplicates_to_remove],inplace=True)
+            meta_info=pd.concat((meta_info,tmp_info),axis=1)             
             if 'present_trial_duration' in meta_info.columns:
-                meta_info['Duration']=meta_info['present_trial_duration']#create a new column called Duration temporary to procastinate unifying the variable name
+                meta_info['Duration']=tmp_info['present_trial_duration']
+                meta_info.drop(columns=['present_trial_duration'],inplace=True)
+            if meta_info['ISI'].values[0]<0:
+                meta_info['ISI']=tmp_info['preStim_ISI_duration']
+                meta_info.drop(columns=['preStim_ISI_duration'],inplace=True)
+            #remove redundant columns because old codes save them into behavioural summary.
         
         ### changed ISI and Stim signals to 1 and 0 from 2025 April 1st        
         stim_type=meta_info['stim_type'].unique()
@@ -664,7 +667,6 @@ def align_async_signals(oe_folder, json_file):
         else:
 
             if camera_sync_file is None:
-
                 if 'stim_onset_thframe' in meta_info.columns:
                     assert stim_on_oe.shape[0] == meta_info['stim_onset_thframe'].shape[0], ("oe sync points and led sync points must have the same number of rows.")
                     tracking_df=pd.read_parquet(raw_tracking)
