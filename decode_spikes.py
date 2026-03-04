@@ -656,11 +656,46 @@ def align_async_signals(oe_folder, json_file):
         else:
             stim_on_oe = pd_on_oe
             isi_on_oe = pd_off_oe
-        if camera_sync_file is not None and video_file is not None:
-            oe_camera_time=np.load(camera_sync_file)
-            tracking_df=pd.read_parquet(raw_tracking)
-        elif video_file is not None:
-            print("do interpolation across each timestamp")
+        if video_file is None:
+            if experiment_name=='choices':
+                tracking_df=pd.read_parquet(raw_tracking)
+            else:
+                pass
+        else:
+
+            if camera_sync_file is None:
+
+                if 'stim_onset_thframe' in meta_info.columns:
+                    assert stim_on_oe.shape[0] == meta_info['stim_onset_thframe'].shape[0], ("oe sync points and led sync points must have the same number of rows.")
+                    tracking_df=pd.read_parquet(raw_tracking)
+                    print("do interpolation within sync points and extrapolation outside sync point to get inferred time points")
+                    all_samples=np.arange(tracking_df.shape[0])
+                    sync_samples=np.sort(np.concatenate((meta_info['stim_onset_thframe'].values,meta_info['isi_onset_thframe'].values)))
+                    sync_times=np.sort(np.concatenate((stim_on_oe,isi_on_oe)))
+                    oe_camera_time = np.interp(np.arange(tracking_df.shape[0]), sync_samples, sync_times)
+
+                    # --- Extrapolate BEFORE first sync point ---
+                    mask_before = all_samples < sync_samples[0]
+                    if mask_before.any():
+                        slope_first = (sync_times[1] - sync_times[0]) / (sync_samples[1] - sync_samples[0])
+                        oe_camera_time[mask_before] = (
+                            sync_times[0] + slope_first * (all_samples[mask_before] - sync_samples[0])
+                        )
+                        #print(f"Samples extrapolated before first sync: {mask_before.sum()}")
+
+                    # --- Extrapolate AFTER last sync point ---
+                    mask_after = all_samples > sync_samples[-1]
+                    if mask_after.any():
+                        slope_last = (sync_times[-1] - sync_times[-2]) / (sync_samples[-1] - sync_samples[-2])
+                        oe_camera_time[mask_after] = (
+                            sync_times[-1] + slope_last * (all_samples[mask_after] - sync_samples[-1])
+                        )
+                        #print(f"Samples extrapolated after last sync : {mask_after.sum()}")
+                else:
+                    print("dont have the refence time point from LED data so can not do interpolation")
+            else:
+                oe_camera_time=np.load(camera_sync_file)
+                tracking_df=pd.read_parquet(raw_tracking)
 
     if 'tracking_df' in locals():
         x_all,y_all,yaw_angular_velocity=preprocess_tracking_data(tracking_df,filtering_method,yaw_axis,smooth_window_length)
@@ -689,11 +724,11 @@ def align_async_signals(oe_folder, json_file):
     ## if use kilosort standalone, then load kilosort folder. Otherwise, load spikeinterface's preprocessed data and its toolkit.
     if analysis_methods.get("motion_corrector")=="kilosort_default" or analysis_methods.get("motion_corrector")=="testing":
         #main_foler_name='kilosort4_ThU13_ThL11'
-        #main_foler_name='kilosort4'
-        main_foler_name='kilosort4_motion_corrected'
+        main_foler_name='kilosort4'
+        #main_foler_name='kilosort4_motion_corrected'
         #main_foler_name='kilosort4_ThU18_ThL17_T0_T1500'
         #main_foler_name='kilosort4_T0_T1500'
-        merged_units=True
+        merged_units=False
         folder_suffix="_merged" if merged_units else ""
         file_type=".npy"
         ks_path=oe_folder/f"{main_foler_name}{folder_suffix}"/ "shank_0"
@@ -936,7 +971,7 @@ if __name__ == "__main__":
     #thisDir = r"Y:\GN25066\251214\sweeping\session1\2025-12-14_20-35-57"
     #thisDir = r"Y:\GN26008\250727\spontaneous\session1\2026-01-25_14-33-17"
     #thisDir = r"Y:\GN26012\260208\spontaneous\session1\2026-02-08_13-56-52"
-    thisDir = r"Y:\GN26012\260208\sweeping\session1\2026-02-08_14-33-58"
+    #thisDir = r"Y:\GN26012\260208\sweeping\session1\2026-02-08_14-33-58"
     #thisDir =r"Y:\GN25029\250729\looming\session1\2025-07-29_15-22-54"
     #thisDir =r"Y:\GN26006\260118\looming\session1\2026-01-18_14-14-20"#zeta_id=[75,76]
     #thisDir =r"Y:\GN26006\260118\looming\session2\2026-01-18_15-43-50"#zeta_id=[19]
@@ -950,6 +985,7 @@ if __name__ == "__main__":
     #thisDir = r"Y:\GN26011\260207\spontaneous\session1\2026-02-07_13-28-12"
     #thisDir = r"Y:\GN25065\251214\sweeping\session1\2025-12-14_14-14-29"
     #thisDir = r"Y:\GN25060\251130\looming\session1\2025-11-30_16-12-19"
+    thisDir =r"Y:\GN25061\251205\looming\session2\2025-12-05_16-01-35"
     json_file = "./analysis_methods_dictionary.json"
     ##Time the function
     tic = time.perf_counter()
