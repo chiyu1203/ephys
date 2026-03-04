@@ -137,13 +137,10 @@ def plot_event_locked_behavioural_metrics(oe_folder, event_of_interest, time_loc
     svg_name = f"{event_of_interest}_ts_plot.svg"
     fig.savefig(oe_folder / svg_name)
     return fig
-def plot_psth(spike_time_interest,cluster_id_interest,event_of_interest,events_time,analysis_methods,oe_folder,time_window,meta_info=None,trial_type_interest=None,trial_file=None):
-    
-    stim_variable2 = analysis_methods.get("stim_variable2",'Duration')
-    stim_duration=analysis_methods.get("stim_duration")
-    ISI_duration=analysis_methods.get("interval_duration")
-    analysis_by_stimulus_type=ISI_duration=analysis_methods.get("analysis_by_stimulus_type")
+def run_zeta_test(oe_folder,vecTrials1,vecTrials2,analysis_methods,meta_info):
+    analysis_by_stimulus_type=analysis_methods.get("analysis_by_stimulus_type")
     experiment_name=analysis_methods.get("experiment_name")
+    event_of_interest=analysis_methods.get("event_of_interest")
     if event_of_interest=='stim_onset' and experiment_name=='looming_stimuli' and analysis_by_stimulus_type:
         vecTrials1 = ['white','black']## conditions to compare in zeta test
         vecTrials2 = ['white_luminance','black_luminance']## conditions to compare in zeta test
@@ -166,7 +163,36 @@ def plot_psth(spike_time_interest,cluster_id_interest,event_of_interest,events_t
         zeta_log_name=f'zeta_results_{event_of_interest}_{vecTrials1[0]}_{vecTrials2[0]}.txt'
     else:
         zeta_log_name=f'zeta_results_{event_of_interest}.txt'
+
+    for vec_exp, vec_con  in zip(vecTrials1, vecTrials2):
+        et1=events_time[(meta_info["stim_type"] == vec_exp) & (meta_info[stim_variable2]==this_variable) & trial_type_interest]
+        et2=events_time[(meta_info["stim_type"] == vec_con) & (meta_info[stim_variable2]==this_variable) & trial_type_interest]
+        if et1.shape[0]==0 or et2.shape[0]==0:
+            continue
+        dblUseMaxDur=min(ISI_duration)+this_variable#
+        t = time.time()
+        dblZetaTwoSample2a,dZETA2a = zetatest2(these_spikes,et1,these_spikes,et2,dblUseMaxDur,intResampNum,boolPlot=False)
+        dblElapsedT6 = time.time() - t
+        print(f"\nIs neuron {this_cluster_id} with this variable {this_variable} responding differently to {vec_exp} and {vec_con} stimuli? (elapsed time: {dblElapsedT6:.2f} s): \
+            \ntwo-sample zeta-test p-value: {dblZetaTwoSample2a}\nt-test p-value:{dZETA2a['dblMeanP']}",file=f)
+
+    # need to think about how to set dblUseMaxDur
+    # for vec_exp, vec_con  in zip(vecTrials1, vecTrials2):
+    #     et1=events_time[(meta_info["stim_type"] == vec_exp) & (meta_info[stim_variables]==this_variable) & trial_type_interest]
+    #     et2=events_time[(meta_info["stim_type"] == vec_con) & (meta_info[stim_variables]==this_variable) & trial_type_interest]
+    #     if et1.shape[0]==0 or et2.shape[0]==0:
+    #         continue
+    #     dblUseMaxDur=min(ISI_duration)+this_variable#
+    #     t = time.time()
+    #     dblZetaTwoSample2a,dZETA2a = zetatest2(these_spikes,et1,these_spikes,et2,dblUseMaxDur,intResampNum,boolPlot=False)
+    #     dblElapsedT6 = time.time() - t
+    #     print(f"\nIs neuron {this_cluster_id} with this variable {this_variable} responding differently to {vec_exp} and {vec_con} stimuli? (elapsed time: {dblElapsedT6:.2f} s): \
+    #         \ntwo-sample zeta-test p-value: {dblZetaTwoSample2a}\nt-test p-value:{dZETA2a['dblMeanP']}",file=f)
     f=open(oe_folder/zeta_log_name,"w")
+    f.close()
+def plot_psth(spike_time_interest,cluster_id_interest,event_of_interest,events_time,analysis_methods,oe_folder,time_window,meta_info=None,trial_type_interest=None,trial_file=None):
+    stim_variables = analysis_methods.get("stim_variables",['Duration'])
+    analyse_behavioural_state_modulation=analysis_methods.get("analyse_behavioural_state_modulation")
     for this_cluster_id in np.unique(cluster_id_interest):
         these_spikes=spike_time_interest[np.where(cluster_id_interest==this_cluster_id)[0]]
         these_ids=np.ones(these_spikes.shape[0],dtype=int)*this_cluster_id
@@ -174,65 +200,56 @@ def plot_psth(spike_time_interest,cluster_id_interest,event_of_interest,events_t
         t=these_spikes, 
         d=these_ids, time_units="s") 
         if event_of_interest not in ["stop_onset","walk_straight_onset","turn_ccw_onset","turn_cw_onset","walk_onset","turn_onset"] and trial_file is not None:
-            stim_type=meta_info['stim_type'].unique()
-            for this_variable in meta_info[stim_variable2].unique():
-                for count,this_stim in enumerate(stim_type):
-                    if np.where((meta_info["stim_type"] == this_stim) & (meta_info[stim_variable2]==this_variable))[0].shape[0]<2:
-                        continue
-                    if len(stim_duration)>1 and stim_variable2=='Duration':
-                        time_window=[time_window[0],this_variable+2]
-                    if analysis_by_stimulus_type:
-                        these_events=events_time[(meta_info["stim_type"] == this_stim) & (meta_info[stim_variable2]==this_variable) & trial_type_interest]
-                    else:
-                        these_events=events_time[trial_type_interest]
-                    peth = nap.compute_perievent(
-                    timestamps=tspikes,
-                    tref=nap.Ts(t=these_events, time_units="s"), 
-                    minmax=(time_window[0], time_window[1]), 
-                    time_unit="s")
-                    peth_means, peth_stds, tscale,_=calculate_peths_details(
-                        these_spikes,these_ids, [this_cluster_id], these_events, pre_time=abs(time_window[0]),
-                        post_time=time_window[1], bin_size=0.025, smoothing=0.025, return_fr=True)
-                    fig2, (ax1,ax2) = plt.subplots(nrows=2, figsize=(9, 6), sharex=True)
-                    mean=peth_means[0,:]
-                    bars=peth_stds[0,:]
-                    ax1.plot(tscale,mean, linewidth=3, color="blue")
-                    negative_std=mean - bars
-                    if np.any(negative_std<0):            
-                        ax1.fill_between(tscale,0, mean + bars, color= 'blue', alpha= 0.5)
-                    else:
-                        ax1.fill_between(tscale,negative_std, mean + bars,color= 'blue', alpha= 0.5)
-                    ax1.set(ylabel="Rate (spikes/sec)",xlim=(time_window[0], time_window[1]))
-                    ax1.axvline(0.0,color="black")
-                    ax2.plot(peth.to_tsd(), "|", markersize=1, color="black", mew=1)
-                    ax2.set(ylabel="Event #",xlabel=f"Time from {event_of_interest} (s)",xlim=(time_window[0], time_window[1]))
-                    fix_ylim=False
-                    if fix_ylim:
-                        ax1.set_ylim([0, 90])
-                        ax1.set_yticks([0,90])
-                    cleanup_xticks=True
-                    if cleanup_xticks:
-                        ax2.set_xticks([time_window[0],round(time_window[0]/2),0,round(time_window[1]/2),time_window[1]])
-                    if analysis_by_stimulus_type:
-                        png_name = f"unit{this_cluster_id}_{event_of_interest}_peth_stim{this_stim}_{stim_variable2}_{this_variable}.png"
-                    else:
-                        png_name = f"unit{this_cluster_id}_{event_of_interest}_peth_regardless_stim_type.png"
-                    fig2.savefig(oe_folder / png_name)
-                    #if this_cluster_id in zeta_id and count==0:
-                    if count==0 and len(vecTrials1)>0:# analyse all putatitive unit
-                        for vec_exp, vec_con  in zip(vecTrials1, vecTrials2):
-                            et1=events_time[(meta_info["stim_type"] == vec_exp) & (meta_info[stim_variable2]==this_variable) & trial_type_interest]
-                            et2=events_time[(meta_info["stim_type"] == vec_con) & (meta_info[stim_variable2]==this_variable) & trial_type_interest]
-                            if et1.shape[0]==0 or et2.shape[0]==0:
-                                continue
-                            dblUseMaxDur=min(ISI_duration)+this_variable#
-                            t = time.time()
-                            dblZetaTwoSample2a,dZETA2a = zetatest2(these_spikes,et1,these_spikes,et2,dblUseMaxDur,intResampNum,boolPlot=False)
-                            dblElapsedT6 = time.time() - t
-                            print(f"\nIs neuron {this_cluster_id} with this variable {this_variable} responding differently to {vec_exp} and {vec_con} stimuli? (elapsed time: {dblElapsedT6:.2f} s): \
-                                \ntwo-sample zeta-test p-value: {dblZetaTwoSample2a}\nt-test p-value:{dZETA2a['dblMeanP']}",file=f)
+            for id, entries in meta_info.groupby(stim_variables):
+                if analyse_behavioural_state_modulation:
+                    these_events=events_time[entries.index][trial_type_interest[entries.index]]
+                    stim_types=entries['stim_type'][trial_type_interest[entries.index]]
+                else:
+                    these_events=events_time[entries.index]
+                    stim_types=entries['stim_type']
 
-        else:#Here to plot non-visual evoked activity or peth based on time across stimulus types. The latter one is work in progress
+                if these_events.shape[0]<2:
+                    print("too few trials to plot a meaningful PSTH. Skip this/these variable(s)")
+                    continue
+                if 'Duration' in stim_variables:## varying the length of PSTH when there are different length of stimulus
+                    if type(id) ==int:
+                        time_window=[time_window[0],id+2]
+                    else:
+                        time_window=[time_window[0],id[stim_variables.index('Duration')]+2]
+                peth = nap.compute_perievent(
+                timestamps=tspikes,
+                tref=nap.Ts(t=these_events, time_units="s"), 
+                minmax=(time_window[0], time_window[1]), 
+                time_unit="s")
+                peth_means, peth_stds, tscale,_=calculate_peths_details(
+                    these_spikes,these_ids, [this_cluster_id], these_events, pre_time=abs(time_window[0]),
+                    post_time=time_window[1], bin_size=0.025, smoothing=0.025, return_fr=True)
+                fig2, (ax1,ax2) = plt.subplots(nrows=2, figsize=(9, 6), sharex=True)
+                mean=peth_means[0,:]
+                bars=peth_stds[0,:]
+                ax1.plot(tscale,mean, linewidth=3, color="blue")
+                negative_std=mean - bars
+                if np.any(negative_std<0):            
+                    ax1.fill_between(tscale,0, mean + bars, color= 'blue', alpha= 0.5)
+                else:
+                    ax1.fill_between(tscale,negative_std, mean + bars,color= 'blue', alpha= 0.5)
+                ax1.set(ylabel="Rate (spikes/sec)",xlim=(time_window[0], time_window[1]))
+                ax1.axvline(0.0,color="black")
+                ax2.plot(peth.to_tsd(), "|", markersize=1, color="black", mew=1)
+                ax2.set(ylabel="Event #",xlabel=f"Time from {event_of_interest} (s)",xlim=(time_window[0], time_window[1]))
+                fix_ylim=False
+                if fix_ylim:
+                    ax1.set_ylim([0, 90])
+                    ax1.set_yticks([0,90])
+                cleanup_xticks=True
+                if cleanup_xticks:
+                    ax2.set_xticks([time_window[0],round(time_window[0]/2),0,round(time_window[1]/2),time_window[1]])
+                if len(stim_types.unique())==1:
+                    png_name = f"unit{this_cluster_id}_{event_of_interest}_peth_stim{stim_types[0]}_{id}.png"
+                else:
+                    png_name = f"unit{this_cluster_id}_{event_of_interest}_peth_stim_{id}.png"
+                fig2.savefig(oe_folder / png_name)
+        else:#Here to plot non-visual evoked activity
             peth = nap.compute_perievent(
             timestamps=tspikes,
             tref=nap.Ts(t=events_time, time_units="s"), 
@@ -263,21 +280,6 @@ def plot_psth(spike_time_interest,cluster_id_interest,event_of_interest,events_t
                 ax2.set_xticks([time_window[0],round(time_window[0]/2),0,round(time_window[1]/2),time_window[1]])
             png_name = f"unit{this_cluster_id}_{event_of_interest}_peth.png"
             fig2.savefig(oe_folder / png_name)
-            # need to think about how to set dblUseMaxDur
-            # for vec_exp, vec_con  in zip(vecTrials1, vecTrials2):
-            #     et1=events_time[(meta_info["stim_type"] == vec_exp) & (meta_info[stim_variable2]==this_variable) & trial_type_interest]
-            #     et2=events_time[(meta_info["stim_type"] == vec_con) & (meta_info[stim_variable2]==this_variable) & trial_type_interest]
-            #     if et1.shape[0]==0 or et2.shape[0]==0:
-            #         continue
-            #     dblUseMaxDur=min(ISI_duration)+this_variable#
-            #     t = time.time()
-            #     dblZetaTwoSample2a,dZETA2a = zetatest2(these_spikes,et1,these_spikes,et2,dblUseMaxDur,intResampNum,boolPlot=False)
-            #     dblElapsedT6 = time.time() - t
-            #     print(f"\nIs neuron {this_cluster_id} with this variable {this_variable} responding differently to {vec_exp} and {vec_con} stimuli? (elapsed time: {dblElapsedT6:.2f} s): \
-            #         \ntwo-sample zeta-test p-value: {dblZetaTwoSample2a}\nt-test p-value:{dZETA2a['dblMeanP']}",file=f)
-    
-    f.close()
-
 def extract_event_time(event_of_interest,analysis_methods,time_window,stim_on_oe=None,isi_on_oe=None,oe_camera_time=None,s2w_index=None,w2s_index=None,walk_states=None,travel_distance_fbf=None,turn_states=None,turn_ccw=None,turn_cw=None):
     camera_fps=analysis_methods.get("camera_fps",100)
     #preStim_duration=analysis_methods.get("preStim_duration",60)
@@ -567,8 +569,6 @@ def align_async_signals(oe_folder, json_file):
     ### 2nd, visual evoked activity with video needs to interpolate behavioural time stamp with ephys timestamp, no need to load raw trial info
     ### 3rd, visual evoked activity with video sync needs to align behavioural time stamp with ephys timestamp, no need to load raw trial info
     ### 4th, visual evoked activity without video (visual only) needs load raw trial info
-
-    #time_window = np.array([-5, 5])
     if trial_file is None:
         print("analyse spontaneous activity")
         if camera_sync_file is not None:
@@ -908,10 +908,14 @@ def align_async_signals(oe_folder, json_file):
             else:
                 print('no behavioural transition detected')
                 return
-        if trial_file is None:
-            plot_psth(spike_time_interest,cluster_id_interest,this_event,events_time,analysis_methods,oe_folder,time_window)
-        else:
-            plot_psth(spike_time_interest,cluster_id_interest,this_event,events_time,analysis_methods,oe_folder,time_window,meta_info,trial_type_interest,trial_file)
+        if analysis_methods.get("plot_psth",False):
+            if trial_file is None:
+                plot_psth(spike_time_interest,cluster_id_interest,this_event,events_time,analysis_methods,oe_folder,time_window)
+            else:
+                plot_psth(spike_time_interest,cluster_id_interest,this_event,events_time,analysis_methods,oe_folder,time_window,meta_info,trial_type_interest,trial_file)
+        if analysis_methods.get("run_zeta_test",False):
+            print("work in progress run_zeta_test")
+
     json_string = json.dumps(analysis_methods, indent=1)
     with open(oe_folder / "ephys_analysis_methods_backup.json", "w") as f:
         f.write(json_string)

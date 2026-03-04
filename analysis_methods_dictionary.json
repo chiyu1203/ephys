@@ -28,12 +28,19 @@
     "load_curated_spikes": false,
     "export_report": false,
     "include_MUA": false,
+    "stim_variables": [
+        "LocationBeginZ1",
+        "R1",
+        "Duration"
+    ],
     "event_of_interest": [
         "walking_trials",
         "stationary_trials",
         "stim_onset"
     ],
-    "analyse_behavioural_state_modulation": false,
+    "analyse_behavioural_state_modulation": true,
+    "plot_psth": true,
+    "run_zeta_test": false,
     "exp_place": "Zball",
     "experiment_name": "looming",
     "temperature_data_options": "trial",
@@ -85,6 +92,5 @@
     ],
     "prestim_duration": 60,
     "duration_for_optomotor_index": 0,
-    "yaw_axis": "z",
-    "stim_variable2": "Duration"
+    "yaw_axis": "z"
 }
