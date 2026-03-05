@@ -5,7 +5,7 @@ behaviour_methods = {
     "exp_place": "Zball",
     "experiment_name": "looming",
     "temperature_data_options": "trial",
-    "stim_variable2":'Duration',
+    "load_previous_methods": False,
     "overwrite_curated_dataset": True,
     "graph_colour_code": ["r", "y", "m", "c", "k", "b", "g", "r"],
     "save_output": True,
@@ -14,7 +14,7 @@ behaviour_methods = {
     "align_with_isi_onset": False,
     "mark_jump_as_nan": False,
     "active_trials_only": True,
-    "filtering_method": "sg_filter",
+    "filtering_method": "rolling_median",
     "plotting_tbt_overview": True,
     "plotting_trajectory": True,
     "plotting_event_related_trajectory": True,
@@ -28,7 +28,7 @@ behaviour_methods = {
     "duration_for_optomotor_index": 0,
     "yaw_axis":"z",
     "camera_fps": 100,
-    "trackball_radius": 50,
+    "trackball_radius": 5,
     "monitor_fps": 144,
     "prestim_duration": 60,
     "stim_duration": [1,4,16],
@@ -36,7 +36,30 @@ behaviour_methods = {
     "analysis_window": [
         -2,
         16
-    ]
+    ],
+    "event_of_interest": [
+    "stim_onset",
+    "walking_trials",
+    "stationary_trials"
+    ],    
+    "stim_variables": [
+    "PolarBeginR1",
+    "R1",
+    "LocustTexture1",
+    "Duration"
+    ],
+    "zeta_variables1": [
+        18.5,
+        0.0,
+        1.0,
+        1.0
+    ],
+    "zeta_variables2": [
+        18.5,
+        0.0,
+        0.0,
+        1.0
+    ],
 }  # plue value representing clockwise, counterclockwise is minus, then the rest is coherence leve
 json_file = f"./{file_name}"
 if isinstance(json_file, dict):

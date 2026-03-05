@@ -30,26 +30,17 @@ behaviour_methods = {
     "camera_fps": 100,
     "trackball_radius": 5,
     "monitor_fps": 144,
-    "prestim_duration": 60,
-    "stim_duration": [
-        1,
-        4,
-        8,
-        16
-    ],
-    "interval_duration": [
-        5,
-        10,
-        15
-    ],
+    "prestim_duration": 200,
+    "stim_duration": [1,6],
+    "interval_duration": [5,10,15],
     "analysis_window": [
         -2,
-        16
+        6
     ],
     "event_of_interest": [
-        "stim_onset",
-        "walking_trials",
-        "stationary_trials"
+    "stim_onset",
+    "walking_trials",
+    "stationary_trials"
     ],    
     "stim_variables": [
     "PolarBeginR1",

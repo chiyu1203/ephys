@@ -5,7 +5,6 @@ electrophysiology_methods = {
     "experimenter": "chiyu",
     "save_output": True,
     "overwrite_curated_dataset": True,
-    "plot_traces":False,
     "probe_type":"P2",
     "motion_corrector":"dredge",
     "sorter_name": "kilosort4",
@@ -16,19 +15,25 @@ electrophysiology_methods = {
     "tmin_tmax": [0.0,-1.0],
     "skip_motion_correction":True,
     "load_existing_motion_info":False,
-    "save_prepocessed_file": False,
-    "load_prepocessed_file": True,
+    "save_prepocessed_file": True,
+    "load_prepocessed_file": False,
     "save_sorting_file": True,
     "load_sorting_file": False,
     "save_analyser_to_disc": True,
     "load_analyser_from_disc": False,
-    "extract_waveform_sparse": False,
-    "extract_waveform_sparse_explicit": False,
+    "postprocess_with_unwhitening_recording": True,
     "export_to_phy": True,
     "overwrite_existing_phy": True,
+    "plot_traces":False,
+    "plot_psth": True,
     "load_curated_spikes": True,
     "export_report": False,
     "include_MUA": True,
+    "event_of_interest": [
+        "stim_onset",
+        "walking_trials",
+        "stationary_trials"
+    ],
 }  # plue value representing clockwise, counterclockwise is minus, then the rest is coherence leve
 json_file = f"./{file_name}"
 if isinstance(json_file, dict):
