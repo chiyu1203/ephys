@@ -28,19 +28,27 @@
     "load_curated_spikes": false,
     "export_report": false,
     "include_MUA": false,
-    "stim_variables": [
-        "LocationBeginZ1",
-        "R1",
-        "Duration"
-    ],
-    "event_of_interest": [
-        "walking_trials",
-        "stationary_trials",
-        "stim_onset"
-    ],
-    "analyse_behavioural_state_modulation": true,
     "plot_psth": true,
-    "run_zeta_test": false,
+    "event_of_interest": [
+        "stim_onset",
+        "walking_trials",
+        "stationary_trials"
+    ],
+    "stim_variables": [
+        "PolarBeginR1",
+        "R1",
+        "A1"
+    ],
+    "zeta_variables1": [
+        18.5,
+        1.0,
+        1.0
+    ],
+    "zeta_variables2": [
+        18.5,
+        1.0,
+        1.0
+    ],
     "exp_place": "Zball",
     "experiment_name": "looming",
     "temperature_data_options": "trial",
