@@ -3,52 +3,23 @@ import json
 file_name = "analysis_methods_dictionary.json"
 behaviour_methods = {
     "exp_place": "Zball",
-    "experiment_name": "sweeping",
     "temperature_data_options": "trial",
-    "load_previous_methods": False,
     "overwrite_curated_dataset": True,
     "graph_colour_code": ["r", "y", "m", "c", "k", "b", "g", "r"],
     "save_output": True,
     "fictrac_posthoc_analysis": True,
-    "use_led_to_align_stimulus_timing": True,
-    "align_with_isi_onset": False,
-    "mark_jump_as_nan": False,
-    "active_trials_only": True,
+    "mark_jump_as_nan": True,
     "filtering_method": "rolling_median",
-    "plotting_tbt_overview": True,
-    "plotting_trajectory": True,
-    "plotting_event_related_trajectory": True,
-    "plotting_deceleration_accerleration": False,
-    "plotting_position_dependant_fixation": False,
-    "plotting_optomotor_response": True,
-    "load_experiment_condition_from_database": True,
+    "plotting_trajectory": False,
     "select_animals_by_condition": False,
-    "analysis_by_stimulus_type": True,
-    "stationary_phase_before_motion": False,
-    "plot_psth": True,
-    "duration_for_optomotor_index": 16,
     "yaw_axis":"z",
     "camera_fps": 100,
     "trackball_radius": 5,
-    "monitor_fps": 144,
-    "prestim_duration": 230,
-    "stim_duration": [16],
-    "interval_duration": [15,30],
     "analysis_window": [
         -2,
-        16
+        2
     ],
-    "event_of_interest": [
-        "stim_onset",
-        "walking_trials",
-        "stationary_trials"
-    ],
-    "stim_variables": [
-        "PolarBeginDegree1",
-        "R1"
-    ],
-    "zeta_variables1": [],
-    "zeta_variables2": [],
+    "event_of_interest": ["stop_onset","walk_straight_onset","turn_ccw_onset","turn_cw_onset","walk_onset","turn_onset"],
 }  # plue value representing clockwise, counterclockwise is minus, then the rest is coherence leve
 json_file = f"./{file_name}"
 if isinstance(json_file, dict):

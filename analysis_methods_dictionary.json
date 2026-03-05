@@ -30,27 +30,21 @@
     "include_MUA": false,
     "plot_psth": true,
     "event_of_interest": [
-        "stim_onset",
-        "walking_trials",
-        "stationary_trials"
+        "stop_onset",
+        "walk_straight_onset",
+        "turn_ccw_onset",
+        "turn_cw_onset",
+        "walk_onset",
+        "turn_onset"
     ],
     "stim_variables": [
-        "PolarBeginR1",
-        "R1",
-        "A1"
+        "PolarBeginDegree1",
+        "R1"
     ],
-    "zeta_variables1": [
-        18.5,
-        1.0,
-        1.0
-    ],
-    "zeta_variables2": [
-        18.5,
-        1.0,
-        1.0
-    ],
+    "zeta_variables1": [],
+    "zeta_variables2": [],
     "exp_place": "Zball",
-    "experiment_name": "looming",
+    "experiment_name": "sweeping",
     "temperature_data_options": "trial",
     "graph_colour_code": [
         "r",
@@ -66,39 +60,34 @@
     "fictrac_posthoc_analysis": true,
     "use_led_to_align_stimulus_timing": true,
     "align_with_isi_onset": false,
-    "mark_jump_as_nan": false,
+    "mark_jump_as_nan": true,
     "active_trials_only": true,
     "filtering_method": "rolling_median",
     "plotting_tbt_overview": true,
-    "plotting_trajectory": true,
+    "plotting_trajectory": false,
     "plotting_event_related_trajectory": true,
     "plotting_deceleration_accerleration": false,
     "plotting_position_dependant_fixation": false,
     "plotting_optomotor_response": false,
     "load_experiment_condition_from_database": true,
-    "analyse_spontaneous_activity": false,
     "select_animals_by_condition": false,
     "analysis_by_stimulus_type": true,
-    "stationary_phase_before_motion": true,
+    "stationary_phase_before_motion": false,
     "camera_fps": 100,
     "trackball_radius": 5,
     "monitor_fps": 144,
     "stim_duration": [
-        1,
-        4,
-        8,
         16
     ],
     "interval_duration": [
-        5,
-        10,
-        15
+        15,
+        30
     ],
     "analysis_window": [
         -2,
-        16
+        2
     ],
-    "prestim_duration": 60,
+    "prestim_duration": 230,
     "duration_for_optomotor_index": 0,
     "yaw_axis": "z"
 }

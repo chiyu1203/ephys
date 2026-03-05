@@ -155,8 +155,6 @@ def plot_psth(spike_time_interest,cluster_id_interest,event_of_interest,events_t
         if type(zeta_variables1[0])==str:
             zeta_log_name=f'zeta_results_{event_of_interest}_{zeta_variables1[0]}_{zeta_variables2[0]}.txt'
         else:            
-            zeta_variables1 = [18.5, 1.0, 1.0, 16]
-            stim_variables  = ["PolarBeginR1", "R1", "A1", "Duration"]
             suffix = "_".join(f"{var}_{val}" for var, val in zip(stim_variables, zeta_variables1))
             zeta_log_name=f'zeta_results_{event_of_interest}_{suffix}.txt'
 
@@ -238,7 +236,7 @@ def plot_psth(spike_time_interest,cluster_id_interest,event_of_interest,events_t
             ax1.axvline(0.0,color="black")
             ax2.plot(peth.to_tsd(), "|", markersize=1, color="black", mew=1)
             ax2.set(ylabel="Event #",xlabel=f"Time from {event_of_interest} (s)",xlim=(time_window[0], time_window[1]))
-            fix_ylim=True
+            fix_ylim=False
             if fix_ylim:
                 ax1.set_ylim([0, 90])
                 ax1.set_yticks([0,90])
@@ -249,29 +247,31 @@ def plot_psth(spike_time_interest,cluster_id_interest,event_of_interest,events_t
             fig2.savefig(oe_folder / png_name)
 
         #run two-sample zeta test if stim duration is consistent and there are trials to compare
-        if len(zeta_variables1)==0 or len(zeta_variables2)==0:
+        if len(zeta_variables1)==0 or len(zeta_variables2)==0 or event_of_interest in ["stop_onset","walk_straight_onset","turn_ccw_onset","turn_cw_onset","walk_onset","turn_onset"]:
             continue
-        if event_of_interest not in ["stop_onset","walk_straight_onset","turn_ccw_onset","turn_cw_onset","walk_onset","turn_onset"]:
-            if type(zeta_variables1)==list:
-                et1 = events_time[build_mask(meta_info, stim_variables, zeta_variables1, trial_type_interest)]
-                et2 = events_time[build_mask(meta_info, stim_variables, zeta_variables2, trial_type_interest)]
-                this_variable_duration=meta_info['Duration'][build_mask(meta_info, stim_variables, zeta_variables1, trial_type_interest)]
-            elif type(zeta_variables1)==int or type(zeta_variables1)==float:
-                et1=events_time[(meta_info[stim_variables] == zeta_variables1) & trial_type_interest]
-                et2=events_time[(meta_info[stim_variables] == zeta_variables2) & trial_type_interest]
-                this_variable_duration=meta_info['Duration'][meta_info[stim_variables] == zeta_variables1]
-            elif  zeta_variables1 in meta_info["stim_type"].unique() and zeta_variables2 in meta_info["stim_type"].unique():
-                et1=events_time[(meta_info["stim_type"] == zeta_variables1) & trial_type_interest]
-                et2=events_time[(meta_info["stim_type"] == zeta_variables2) & trial_type_interest]
-                this_variable_duration=meta_info['Duration'][meta_info["stim_type"] == zeta_variables1]
-            else:
-                print("selected stimulus type does not exist in meta info")
-                continue
-            min_dblUseDur=min(ISI_duration)
+        # if event_of_interest not in ["stop_onset","walk_straight_onset","turn_ccw_onset","turn_cw_onset","walk_onset","turn_onset"]:
+        if type(zeta_variables1)==list:
+            et1 = events_time[build_mask(meta_info, stim_variables, zeta_variables1, trial_type_interest)]
+            et2 = events_time[build_mask(meta_info, stim_variables, zeta_variables2, trial_type_interest)]
+            this_variable_duration=meta_info['Duration'][build_mask(meta_info, stim_variables, zeta_variables1, trial_type_interest)]
+        elif type(zeta_variables1)==int or type(zeta_variables1)==float:
+            et1=events_time[(meta_info[stim_variables] == zeta_variables1) & trial_type_interest]
+            et2=events_time[(meta_info[stim_variables] == zeta_variables2) & trial_type_interest]
+            this_variable_duration=meta_info['Duration'][meta_info[stim_variables] == zeta_variables1]
+        elif  zeta_variables1 in meta_info["stim_type"].unique() and zeta_variables2 in meta_info["stim_type"].unique():
+            et1=events_time[(meta_info["stim_type"] == zeta_variables1) & trial_type_interest]
+            et2=events_time[(meta_info["stim_type"] == zeta_variables2) & trial_type_interest]
+            this_variable_duration=meta_info['Duration'][meta_info["stim_type"] == zeta_variables1]
         else:
-            et1=events_time[zeta_variables1]
-            et2=events_time[zeta_variables2]
-            [min_dblUseDur,this_variable_duration]=time_window
+            print("selected stimulus type does not exist in meta info")
+            continue
+        min_dblUseDur=min(ISI_duration)
+        # else:
+        #     continue
+        # unable to extract events_time from the reference variables yet
+            # et1=events_time[zeta_variables1]
+            # et2=events_time[zeta_variables2]
+            # [min_dblUseDur,this_variable_duration]=time_window
         if et1.shape[0]==0 or et2.shape[0]==0 or this_variable_duration.unique().shape[0]>1:
             print("the format of data is not compatible with zeta test")
             continue
@@ -285,7 +285,7 @@ def plot_psth(spike_time_interest,cluster_id_interest,event_of_interest,events_t
     return fig2,f
         
     
-def extract_event_time(event_of_interest,analysis_methods,time_window,stim_on_oe=None,isi_on_oe=None,oe_camera_time=None,s2w_index=None,w2s_index=None,walk_states=None,travel_distance_fbf=None,turn_states=None,turn_ccw=None,turn_cw=None):
+def extract_event_time(event_of_interest,analysis_methods,time_window,stim_on_oe=None,isi_on_oe=None,oe_camera_time=None,s2w_index=None,w2s_index=None,n2t_index=None,walk_states=None,travel_distance_fbf=None,turn_states=None,turn_ccw=None,turn_cw=None):
     camera_fps=analysis_methods.get("camera_fps",100)
     #preStim_duration=analysis_methods.get("preStim_duration",60)
     if event_of_interest.lower() == "preStim_ISI":
@@ -639,7 +639,7 @@ def align_async_signals(oe_folder, json_file):
                     else:
                         stim_on_oe = pd_off_oe[::2]## if bright stimuli represent appearance of the stimulus or the stop of moving stimulus, then stim onset and ISI onset are based on pd_off_oe
                         isi_on_oe=pd_off_oe[1::2]            
-            elif stationary_phase_before_motion==True:## this is used in gratings or if the meta info was first processed by bonfic code where the 'PreMovDuration' is not in the meta_info.columns.
+            elif stationary_phase_before_motion==True:## this is used in gratings
                 pd_on_oe=pd_on_oe[preStim_duration<pd_on_oe]
                 pd_off_oe=pd_off_oe[preStim_duration<pd_off_oe]
                 if 'gregarious_locust' in stim_type and exp_datetime < datetime(2025, 11, 1, 12, 0, 0):##the date before the bug in locust loom is fixed
@@ -730,11 +730,11 @@ def align_async_signals(oe_folder, json_file):
     ## if use kilosort standalone, then load kilosort folder. Otherwise, load spikeinterface's preprocessed data and its toolkit.
     if analysis_methods.get("motion_corrector")=="kilosort_default" or analysis_methods.get("motion_corrector")=="testing":
         #main_foler_name='kilosort4_ThU13_ThL11'
-        main_foler_name='kilosort4'
-        #main_foler_name='kilosort4_motion_corrected'
+        #main_foler_name='kilosort4'
+        main_foler_name='kilosort4_motion_corrected'
         #main_foler_name='kilosort4_ThU18_ThL17_T0_T1500'
         #main_foler_name='kilosort4_T0_T1500'
-        merged_units=False
+        merged_units=True
         folder_suffix="_merged" if merged_units else ""
         file_type=".npy"
         ks_path=oe_folder/f"{main_foler_name}{folder_suffix}"/ "shank_0"
@@ -879,22 +879,22 @@ def align_async_signals(oe_folder, json_file):
     #     fig2.savefig(oe_folder / png_name)
     for this_event in event_of_interest:
         if trial_file is None:
-            events_time, transition_index=extract_event_time(this_event,analysis_methods,time_window,stim_on_oe=None,isi_on_oe=None,oe_camera_time=oe_camera_time,s2w_index=s2w_index,w2s_index=w2s_index,walk_states=walk_states,travel_distance_fbf=travel_distance_fbf,turn_states=turn_states,turn_ccw=turn_ccw,turn_cw=turn_cw)
+            events_time, transition_index=extract_event_time(this_event,analysis_methods,time_window,stim_on_oe=None,isi_on_oe=None,oe_camera_time=oe_camera_time,s2w_index=s2w_index,w2s_index=w2s_index,n2t_index=n2t_index,walk_states=walk_states,travel_distance_fbf=travel_distance_fbf,turn_states=turn_states,turn_ccw=turn_ccw,turn_cw=turn_cw)
             trial_type_interest=0
         elif video_file is None:
             if experiment_name=='choices':
-                events_time, transition_index=extract_event_time(this_event,analysis_methods,time_window,stim_on_oe=stim_on_oe,isi_on_oe=isi_on_oe,oe_camera_time=oe_camera_time,s2w_index=s2w_index,w2s_index=w2s_index,walk_states=walk_states,travel_distance_fbf=travel_distance_fbf,turn_states=turn_states,turn_ccw=turn_ccw,turn_cw=turn_cw)
+                events_time, transition_index=extract_event_time(this_event,analysis_methods,time_window,stim_on_oe=stim_on_oe,isi_on_oe=isi_on_oe,oe_camera_time=oe_camera_time,s2w_index=s2w_index,w2s_index=w2s_index,n2t_index=n2t_index,walk_states=walk_states,travel_distance_fbf=travel_distance_fbf,turn_states=turn_states,turn_ccw=turn_ccw,turn_cw=turn_cw)
                 if this_event in ["walking_trials","stationary_trials","straight_walk_trials","turning_trials"]:
                     trial_type_interest=extract_state_specific_trials(this_event,meta_info)
                 else:
                     trial_type_interest= np.ones(num_stim, dtype=bool)
             else:
-                events_time, transition_index=extract_event_time(this_event,analysis_methods,time_window,stim_on_oe=stim_on_oe,isi_on_oe=isi_on_oe,oe_camera_time=None,s2w_index=None,w2s_index=None,walk_states=None,travel_distance_fbf=None,turn_states=None,turn_ccw=None,turn_cw=None)
+                events_time, transition_index=extract_event_time(this_event,analysis_methods,time_window,stim_on_oe=stim_on_oe,isi_on_oe=isi_on_oe,oe_camera_time=None,s2w_index=None,w2s_index=None,n2t_index=None,walk_states=None,travel_distance_fbf=None,turn_states=None,turn_ccw=None,turn_cw=None)
                 print("this file does not have behavioural data so can not extract state specific trial. Analyse all trials instead.")
                 analysis_methods.update({"event_of_interest":"stim_onset"})
                 trial_type_interest= np.ones(num_stim, dtype=bool)
         else:
-            events_time, transition_index=extract_event_time(this_event,analysis_methods,time_window,stim_on_oe=stim_on_oe,isi_on_oe=isi_on_oe,oe_camera_time=oe_camera_time,s2w_index=s2w_index,w2s_index=w2s_index,walk_states=walk_states,travel_distance_fbf=travel_distance_fbf,turn_states=turn_states,turn_ccw=turn_ccw,turn_cw=turn_cw)
+            events_time, transition_index=extract_event_time(this_event,analysis_methods,time_window,stim_on_oe=stim_on_oe,isi_on_oe=isi_on_oe,oe_camera_time=oe_camera_time,s2w_index=s2w_index,w2s_index=w2s_index,n2t_index=n2t_index,walk_states=walk_states,travel_distance_fbf=travel_distance_fbf,turn_states=turn_states,turn_ccw=turn_ccw,turn_cw=turn_cw)
             if this_event in ["walking_trials","stationary_trials","straight_walk_trials","turning_trials"]:
                 trial_type_interest=extract_state_specific_trials(this_event,meta_info)
             else:
@@ -979,7 +979,7 @@ if __name__ == "__main__":
     #thisDir = r"Y:\GN25067\251220\flashing\session1\2025-12-20_14-36-54"
     #thisDir = r"Y:\GN25066\251214\sweeping\session1\2025-12-14_20-35-57"
     #thisDir = r"Y:\GN26008\250727\spontaneous\session1\2026-01-25_14-33-17"
-    #thisDir = r"Y:\GN26012\260208\spontaneous\session1\2026-02-08_13-56-52"
+    thisDir = r"Y:\GN26012\260208\spontaneous\session1\2026-02-08_13-56-52"
     #thisDir = r"Y:\GN26012\260208\sweeping\session1\2026-02-08_14-33-58"
     #thisDir =r"Y:\GN25029\250729\looming\session1\2025-07-29_15-22-54"
     #thisDir =r"Y:\GN26006\260118\looming\session1\2026-01-18_14-14-20"#zeta_id=[75,76]
@@ -994,7 +994,7 @@ if __name__ == "__main__":
     #thisDir = r"Y:\GN26011\260207\spontaneous\session1\2026-02-07_13-28-12"
     #thisDir = r"Y:\GN25065\251214\sweeping\session1\2025-12-14_14-14-29"
     #thisDir = r"Y:\GN25060\251130\looming\session1\2025-11-30_16-12-19"
-    thisDir =r"Y:\GN25061\251205\looming\session2\2025-12-05_16-01-35"
+    #thisDir =r"Y:\GN25061\251205\looming\session2\2025-12-05_16-01-35"
     json_file = "./analysis_methods_dictionary.json"
     ##Time the function
     tic = time.perf_counter()
