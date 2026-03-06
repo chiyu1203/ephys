@@ -10,7 +10,6 @@ behaviour_methods = {
     "fictrac_posthoc_analysis": True,
     "mark_jump_as_nan": True,
     "filtering_method": "rolling_median",
-    "plotting_trajectory": False,
     "select_animals_by_condition": False,
     "yaw_axis":"z",
     "camera_fps": 100,
