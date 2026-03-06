@@ -5,7 +5,7 @@ electrophysiology_methods = {
     "experimenter": "chiyu",
     "save_output": True,
     "overwrite_curated_dataset": True,
-    "probe_type":"H5",
+    "probe_type":"H5_stacked",
     "motion_corrector":"testing",
     "sorter_name": "kilosort4",
     "remove_dead_channels":True,
