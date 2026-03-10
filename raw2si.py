@@ -36,6 +36,23 @@ from useful_tools import find_file
 """
 This pipeline uses spikeinterface as a backbone. This file includes preprocessing and sorting, converting raw data from openEphys to putative spikes by various sorters
 """
+def save_event_timing(oe_folder):
+    event = se.read_openephys_event(oe_folder)
+    evts=event.get_events(channel_id=event.channel_ids[0])
+    pd_data=evts[evts['label']=='1']
+    camera_data=evts[evts['label']=='2']
+    barcode_data=evts[evts['label']=='3']
+    if pd_data.shape[0]>1:
+        pd_on=pd_data['time']
+        pd_off=pd_data['time']+pd_data['duration']
+        np.save(oe_folder/"pd.npy",np.vstack((pd_on,pd_off)))
+    if camera_data.shape[0]>1:
+        np.save(oe_folder/"camera_pulse.npy",camera_data['time'])
+    if barcode_data.shape[0]>1:
+        barcode_on=barcode_data['time']
+        barcode_off=barcode_data['time']+barcode_data['duration']
+        np.save(oe_folder/"barcode.npy",np.vstack((barcode_on,barcode_off)))
+    
 
 def generate_sorter_suffix(this_sorter):
     if this_sorter.lower() in ["spykingcircus2","sc2"]:
@@ -139,21 +156,7 @@ def get_preprocessed_recording(oe_folder,analysis_methods):
         raw_rec = se.read_openephys(oe_folder, load_sync_timestamps=True,block_index=0,stream_id='0')
     # To show the start of recording time
     # raw_rec.get_times()[0]
-        event = se.read_openephys_event(oe_folder)
-        evts=event.get_events(channel_id=event.channel_ids[0])
-        pd_data=evts[evts['label']=='1']
-        camera_data=evts[evts['label']=='2']
-        barcode_data=evts[evts['label']=='3']
-        if pd_data.shape[0]>1:
-            pd_on=pd_data['time']
-            pd_off=pd_data['time']+pd_data['duration']
-            np.save(oe_folder/"pd.npy",np.vstack((pd_on,pd_off)))
-        if camera_data.shape[0]>1:
-            np.save(oe_folder/"camera_pulse.npy",camera_data['time'])
-        if barcode_data.shape[0]>1:
-            barcode_on=barcode_data['time']
-            barcode_off=barcode_data['time']+barcode_data['duration']
-            np.save(oe_folder/"barcode.npy",np.vstack((barcode_on,barcode_off)))
+        save_event_timing(oe_folder)
         fs = raw_rec.get_sampling_frequency()
         if analysis_methods.get("load_raw_traces") == True:
             trace_snippet = raw_rec.get_traces(
@@ -192,7 +195,7 @@ def get_preprocessed_recording(oe_folder,analysis_methods):
             stacked_probes = pi.read_probeinterface("H6D_RHD2164_openEphys_mapping.json")
             #stacked_probes = pi.read_probeinterface("H6D_2_RHD2132_openEphys_mapping.json")
             probe = stacked_probes.probes[0]
-        if probe_type == "H5_stacked":
+        elif probe_type == "H5_stacked":
             probe_name= "ASSY-77-H5"
             stacked_probes = pi.read_prb("H5_stacked_probes_2D.prb")
             probe = stacked_probes.probes[0]

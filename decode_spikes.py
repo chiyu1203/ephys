@@ -38,6 +38,7 @@ from spike_curation import (
     generate_sorter_suffix,
     MplColorHelper,
 )
+from raw2si import save_event_timing
 warnings.simplefilter("ignore")
 current_working_directory = Path.cwd()
 parent_dir = current_working_directory.resolve().parents[0]
@@ -172,7 +173,7 @@ def plot_psth(spike_time_interest,cluster_id_interest,event_of_interest,events_t
             for id, entries in meta_info.groupby(stim_variables):
                 these_events=events_time[entries.index][trial_type_interest[entries.index]]
                 stim_types=entries['stim_type'][trial_type_interest[entries.index]]
-                if these_events.shape[0]<2:
+                if these_events.shape[0]<1:
                     print("too few trials to plot a meaningful PSTH. Skip this/these variable(s)")
                     continue
                 if 'Duration' in stim_variables:## varying the length of PSTH when there are different length of stimulus
@@ -504,32 +505,18 @@ def align_async_signals(oe_folder, json_file):
     one_pd_file = find_file(oe_folder, pd_ext)
     camera_ext='camera_*.npy'
     camera_sync_file = find_file(oe_folder, camera_ext)
-    ### needs to figure out whether this section is necessary or not
-    # if pd_files is not None and analyse_spontaneous_activity is False:
-    #     pd_on_oe=np.load(pd_files[1])
-    #     pd_off_oe=np.load(pd_files[0])
-    # elif one_pd_file is not None and analyse_spontaneous_activity is False:
-    #     pd_on_oe=np.load(one_pd_file)[0]
-    #     pd_off_oe=np.load(one_pd_file)[1]
-    # elif analyse_spontaneous_activity is False:
-    # ##load adc events from openEphys
-    #     event = se.read_openephys_event(oe_folder)
-    #     evts=event.get_events(channel_id=event.channel_ids[0])
-    #     pd_data=evts[evts['label']=='1']
-    #     camera_data=evts[evts['label']=='2']
-    #     barcode_data=evts[evts['label']=='3']
-    #     if pd_data.shape[0]>1:
-    #         pd_on=pd_data['time']
-    #         pd_off=pd_data['time']+pd_data['duration']
-    #         np.save(oe_folder/"pd.npy",np.vstack((pd_on,pd_off)))
-    #     if camera_data.shape[0]>1:
-    #         np.save(oe_folder/"camera_pulse.npy",camera_data['time'])
-    #     if barcode_data.shape[0]>1:
-    #         barcode_on=barcode_data['time']
-    #         barcode_off=barcode_data['time']+barcode_data['duration']
-    #         np.save(oe_folder/"barcode.npy",np.vstack((barcode_on,barcode_off)))
-    # elif analyse_spontaneous_activity is True and camera_sync_file is None:
-    #     print('need to organise the code here to load ephys event data')
+        # ##load adc events from openEphys
+    if one_pd_file is None and camera_sync_file is None:
+        save_event_timing(oe_folder)
+        pd_ext='pd.npy'
+        one_pd_file = find_file(oe_folder, pd_ext)
+        camera_sync_file = find_file(oe_folder, camera_ext)
+        if one_pd_file is None and camera_sync_file is None:
+            print("this is an old and rare spontaneous experiment where camera sync pulse and photodiode information are missing; or something really broken")
+        if camera_sync_file is None:
+            print("this is an old experiment where camera sync pulse were not recorded")
+        if one_pd_file is None:
+            print("this is an old experiment where camera sync pulse were not recorded")
     
     ## looking for files in the previous folder
     stim_directory = oe_folder.resolve().parents[0]
@@ -734,7 +721,7 @@ def align_async_signals(oe_folder, json_file):
         main_foler_name='kilosort4_motion_corrected'
         #main_foler_name='kilosort4_ThU18_ThL17_T0_T1500'
         #main_foler_name='kilosort4_T0_T1500'
-        merged_units=True
+        merged_units=False
         folder_suffix="_merged" if merged_units else ""
         file_type=".npy"
         ks_path=oe_folder/f"{main_foler_name}{folder_suffix}"/ "shank_0"
@@ -979,7 +966,11 @@ if __name__ == "__main__":
     #thisDir = r"Y:\GN25067\251220\flashing\session1\2025-12-20_14-36-54"
     #thisDir = r"Y:\GN25066\251214\sweeping\session1\2025-12-14_20-35-57"
     #thisDir = r"Y:\GN26008\250727\spontaneous\session1\2026-01-25_14-33-17"
-    thisDir = r"Y:\GN26012\260208\spontaneous\session1\2026-02-08_13-56-52"
+    #thisDir = r"Y:\GN26012\260208\spontaneous\session1\2026-02-08_13-56-52"
+    #thisDir = r"Y:\GN26018\260228\spontaneous\session2\2026-02-28_21-58-44"
+    #thisDir = r"Y:\GN26019\260301\choices\session2\2026-03-01_15-59-22"
+    thisDir = r"Y:\GN26019\260301\choices\session1\2026-03-01_14-41-31"
+    #thisDir = r"Y:\GN26019\260301\spontaneous\session1\2026-03-01_14-10-06"
     #thisDir = r"Y:\GN26012\260208\sweeping\session1\2026-02-08_14-33-58"
     #thisDir =r"Y:\GN25029\250729\looming\session1\2025-07-29_15-22-54"
     #thisDir =r"Y:\GN26006\260118\looming\session1\2026-01-18_14-14-20"#zeta_id=[75,76]
