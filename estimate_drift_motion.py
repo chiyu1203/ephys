@@ -52,6 +52,7 @@ def AP_band_drift_estimation(group,recording_saved,oe_folder,analysis_methods,wi
     motion_folder = oe_folder / f"motion_shank{group}"
     motion_info_list=[]
     motion_corrector_tuple=("dredge","rigid_fast","kilosort_like")
+    #motion_corrector_tuple=("dredge","kilosort_like")
     #motion_corrector_tuple=("rigid_fast","kilosort_like")
     #motion_corrector_tuple=("rigid_fast")
     if skip_motion_correction:
@@ -127,7 +128,10 @@ def AP_band_drift_estimation(group,recording_saved,oe_folder,analysis_methods,wi
         elif motion_corrector == ("testing"):
             # This is a section to test which algorithm is better for motion correction. 
             # This is based on this page https://spikeinterface.readthedocs.io/en/latest/how_to/handle_drift.html
-
+            # peaks = detect_peaks(recording=recording_saved, method="locally_exclusive", detect_threshold=8.0,exclude_sweep_ms= 0.8, radius_um= 80)
+            # peak_locations = localize_peaks(recording=recording_saved, peaks=peaks, method="monopolar_triangulation",radius_um=75.0,max_distance_um=150.0,optimizer='minimize_with_log_penality', enforce_decrease= True, feature='ptp')
+            # motion = estimate_motion(recording=recording_saved,peaks=peaks,peak_locations=peak_locations,method="dredge_ap",direction="y",win_step_um= 75.0, win_scale_um= 150.0,rigid=False,histogram_depth_smooth_um=2,histogram_time_smooth_s=1.5,bin_s=2.0)
+            # rec_corrected = interpolate_motion(recording=recording_saved,motion=motion,border_mode="force_extrapolate",spatial_interpolation_method="kriging",sigma_um=20)
             run_times = []
             for preset in motion_corrector_tuple:
                 print("Computing with", preset)
@@ -150,8 +154,11 @@ def AP_band_drift_estimation(group,recording_saved,oe_folder,analysis_methods,wi
                         estimate_motion_kwargs={
                             "win_step_um": win_step_um,
                             "win_scale_um": win_scale_um,
-                            #"win_margin_um": win_margin_um,
-                        })  # the default mode will remove channels at the border, trying using force_extrapolate
+                            # "histogram_depth_smooth_um":2,
+                            # "histogram_time_smooth_s":1.5,
+                            # "bin_s":10.0
+                        },
+                        )  # the default mode will remove channels at the border, trying using force_extrapolate
                     
                     fig = plt.figure(figsize=(14, 8))
                     sw.plot_motion_info(
@@ -280,21 +287,39 @@ def run(thisDir, json_file):
             probe_name= "ASSY-77-H10"
             stacked_probes = pi.read_probeinterface("H10_RHD2164_rev_openEphys_mapping.json")
             probe = stacked_probes.probes[0]
+        elif probe_type == "H10_32ch":
+            probe_name= "ASSY-77-H10"
+            stacked_probes = pi.read_prb("H10_RHD2164_32channels.prb")
+            #stacked_probes = pi.read_probeinterface("H10_RHD2164_32channels.json")
+            #did not use this function because the error is yet fix in the json file. ValueError: The given Probe either has 'device_channel_indices' that does not match channel count
+            probe = stacked_probes.probes[0]
         elif probe_type == "P2":
             probe_name= "ASSY-37-P-2"
             stacked_probes = pi.read_probeinterface("P2_RHD2132_openEphys_mapping.json")
             probe = stacked_probes.probes[0]    
-        else:
+        elif probe_type == "H6D":
+            probe_name= "ASSY-77-H6D"
+            stacked_probes = pi.read_probeinterface("H6D_RHD2164_openEphys_mapping.json")
+            probe = stacked_probes.probes[0]
+        elif probe_type == "H6D_2132":
+            probe_name= "ASSY-77-H6D"
+            stacked_probes = pi.read_probeinterface("H6D_2_RHD2132_openEphys_mapping.json")
+            probe = stacked_probes.probes[0]
+        if probe_type == "H5_stacked":
+            probe_name= "ASSY-77-H5"
+            stacked_probes = pi.read_prb("H5_stacked_probes_2D.prb")
+            probe = stacked_probes.probes[0]
+        else:              
             manufacturer = "cambridgeneurotech"
-            # if probe_type == "P2":
-            #     probe_name = "ASSY-37-P-2"
-            #     connector_type="ASSY-116>RHD2132"
             if probe_type == "H5":
                 probe_name = "ASSY-77-H5"
                 connector_type="ASSY-77>Adpt.A64-Om32_2x-sm-cambridgeneurotech>RHD2164"
             elif probe_type == "H10":
                 probe_name = "ASSY-77-H10"
                 connector_type="ASSY-77>Adpt.A64-Om32_2x-sm-cambridgeneurotech>RHD2164"
+            # elif probe_type == "P2":
+            #     probe_name = "ASSY-37-P-2"
+            #     connector_type="ASSY-116>RHD2132"
             else:
                 print("the name of probe not identified. stop the programme")
                 return
@@ -321,10 +346,12 @@ def run(thisDir, json_file):
             for group, rec_per_shank in recordings_dict.items():
                 motion_lfp=LFP_band_drift_estimation(group,rec_per_shank,oe_folder)
                 motion_lfp_dict[group]=motion_lfp
-    win_step_set=[75,50,25]
+    #win_step_set=[50,75,100]
     #win_scale_set=[150,200,250]
+    win_step_set=[75]
+    win_scale_set=[150]
     #win_scale_set=[250,200,150]
-    win_scale_set=[100,150]
+    #win_scale_set=[100,150]
     #win_margin_set=[-150,0,150]
     #win_margin_set=[150,0]
     # win_step_um":75.0,"
@@ -350,7 +377,8 @@ if __name__ == "__main__":
     #thisDir =  r"Y:\GN25019\250524\gratings\session1\2025-05-24_16-15-25"
     #thisDir=r"Y:\GN25020\250525\gratings\session1\2025-05-25_18-42-54"
     #thisDir=r"Y:\GN25022\250531\coherence\session1\2025-05-31_17-48-06"
-    thisDir = r"Y:\GN25032\250807\looming\session1\2025-08-07_19-34-42"
+    #thisDir = r"Y:\GN25032\250807\looming\session1\2025-08-07_19-34-42"
+    thisDir = r"Y:\GN26019\260301\sweeping\session1\2026-03-01_17-04-17"
     #thisDir=r"Y:\GN25033\250906\looming\session1\2025-09-06_18-42-24"
     #thisDir=r"Y:\GN25029\250729\looming\session1\2025-07-29_15-22-54"
     json_file = "./analysis_methods_dictionary.json"
