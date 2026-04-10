@@ -1,4 +1,5 @@
 import time, os, json, warnings, sys,operator
+import xarray as xr 
 import spikeinterface.core as si
 import spikeinterface.extractors as se
 import spikeinterface.qualitymetrics as sqm
@@ -14,6 +15,8 @@ from zetapy import zetatest,zetatest2
 # import matplotlib as mpl
 # mpl.use('TkAgg')
 import matplotlib.pyplot as plt
+from scipy.ndimage import gaussian_filter1d
+import scipy
 from spikeinterface.widgets import plot_sorting_summary
 import numpy as np
 from pathlib import Path
@@ -186,6 +189,11 @@ def plot_psth(spike_time_interest,cluster_id_interest,event_of_interest,events_t
                 tref=nap.Ts(t=these_events, time_units="s"), 
                 minmax=(time_window[0], time_window[1]), 
                 time_unit="s")
+                # peth = nap.compute_perievent(
+                # data=tspikes,
+                # events=nap.Ts(t=these_events, time_units="s"),  
+                # window=(time_window[0], time_window[1]), 
+                # time_unit="s")
                 peth_means, peth_stds, tscale,_=calculate_peths_details(
                     these_spikes,these_ids, [this_cluster_id], these_events, pre_time=abs(time_window[0]),
                     post_time=time_window[1], bin_size=0.025, smoothing=0.025, return_fr=True)
@@ -216,6 +224,11 @@ def plot_psth(spike_time_interest,cluster_id_interest,event_of_interest,events_t
                     png_name = f"unit{this_cluster_id}_{event_of_interest}_peth_stim_all_{suffix}.png"
                 fig2.savefig(oe_folder / png_name)
         else:#Here to plot non-visual evoked activity
+            # peth = nap.compute_perievent(
+            # data=tspikes,
+            # events=nap.Ts(t=events_time, time_units="s"), 
+            # window=(time_window[0], time_window[1]), 
+            # time_unit="s")
             peth = nap.compute_perievent(
             timestamps=tspikes,
             tref=nap.Ts(t=events_time, time_units="s"), 
@@ -520,7 +533,11 @@ def align_async_signals(oe_folder, json_file):
     
     ## looking for files in the previous folder
     stim_directory = oe_folder.resolve().parents[0]
-    database_ext = "database*"
+    fictrac_posthoc_analysis = analysis_methods.get("fictrac_posthoc_analysis",True)
+    if fictrac_posthoc_analysis:
+        database_ext = "database*"
+    else:
+        database_ext = "tracking*.csv"
     raw_tracking = find_file(stim_directory, database_ext)
     video_ext = "*.mp4"
     video_file = find_file(stim_directory, video_ext)
@@ -547,6 +564,7 @@ def align_async_signals(oe_folder, json_file):
         time_window=[-2,2]# temporarily fix this length of window for behavioural-related events
     #behavioural related metrics
     camera_fps = analysis_methods.get("camera_fps")
+    trackball_radius=analysis_methods.get("trackball_radius")
     filtering_method=analysis_methods.get("filtering_method")
     yaw_axis=analysis_methods.get("yaw_axis")
     smooth_window_length = round(0.5*camera_fps)
@@ -651,8 +669,40 @@ def align_async_signals(oe_folder, json_file):
             stim_on_oe = pd_on_oe
             isi_on_oe = pd_off_oe
         if video_file is None:
-            if experiment_name=='choices':
-                tracking_df=pd.read_parquet(raw_tracking)
+            if experiment_name in ['choices','looming'] and fictrac_posthoc_analysis==False:
+                if raw_tracking.suffix=='.csv':
+                    tracking_df=pd.read_csv(raw_tracking,skiprows=0)
+                else:
+                    tracking_df=pd.read_parquet(raw_tracking)
+                if tracking_df.shape[1]==4:
+                    columns_name=["intergrated x position","intergrated y position",f"delta rotation vector lab {yaw_axis}","pd_phase"]
+                elif tracking_df.shape[1]==5:
+                    columns_name=["intergrated x position","intergrated y position",f"delta rotation vector lab {yaw_axis}","frame_count","pd_phase"]
+                tracking_df.columns=columns_name
+                tracking_df[["intergrated x position","intergrated y position"]]=tracking_df[["intergrated x position","intergrated y position"]]*trackball_radius
+                tracking_df[f"delta rotation vector lab {yaw_axis}"] = tracking_df[f"delta rotation vector lab {yaw_axis}"] * camera_fps
+                tracking_df.drop_duplicates(subset=["intergrated x position","intergrated y position", "frame_count"], inplace=True)
+                first_saved_frame=tracking_df['frame_count'][0]
+                stim_pd = pd.read_csv(trial_file)
+                meta_info, stim_type = sorting_trial_info(stim_pd,analysis_methods)
+                num_stim=meta_info.shape[0]
+                pd_on_oe=pd_on_oe[preStim_duration<pd_on_oe]
+                pd_off_oe=pd_off_oe[preStim_duration<pd_off_oe]
+                if pd_off_oe[0]>pd_on_oe[0]:
+                    stim_on_oe = pd_on_oe[:num_stim]
+                    isi_on_oe = pd_off_oe[:num_stim]
+                else:
+                    stim_on_oe = pd_off_oe[:num_stim]
+                    isi_on_oe = pd_on_oe[:num_stim]
+                if meta_info['ISI'].values[0]<0:   
+                    ISI_duration=np.round(stim_on_oe[1:]-isi_on_oe[:-1])
+                    ISI_duration=np.append(ISI_duration, np.nan)
+                    meta_info['ISI']=ISI_duration
+                stim_onset_thframe=tracking_df['frame_count'][tracking_df['pd_phase'].diff()==1]+first_saved_frame
+                stim_onset_thframe.reset_index(drop=True, inplace=True)
+                meta_info['stim_onset_thframe']=stim_onset_thframe
+                oe_camera_time=np.load(camera_sync_file)
+                oe_camera_time=oe_camera_time[first_saved_frame:]
             else:
                 pass
         else:
@@ -792,6 +842,50 @@ def align_async_signals(oe_folder, json_file):
     spike_time_interest_sorted, cluster_id_interest_sorted = sort_arrays(
         spike_time_interest, cluster_id_interest
     )
+    heading_angle_all = np.nancumsum(yaw_angular_velocity)/camera_fps
+    heading_angle_all=heading_angle_all % (2 * np.pi)
+    tsdframe_angles = nap.TsdFrame(t=oe_camera_time[:heading_angle_all.shape[0]], d=heading_angle_all)
+    spike_dict={}#(these_heading_angles + np.pi) % (2 * np.pi)
+    ids=np.unique(cluster_id_interest)
+    for keys in ids:
+        spike_dict[keys] = spike_time_interest[np.where(cluster_id_interest==keys)[0]]
+
+    tsdframe_spikes=nap.TsGroup(spike_dict,time_units="s")
+    tuning_curves = nap.compute_tuning_curves(
+    data=tsdframe_spikes, 
+    features=tsdframe_angles, 
+    bins=61, 
+    range=(0, 2*np.pi),
+    feature_names=["head_direction"]
+    )
+    MI = nap.compute_mutual_information(tuning_curves)
+    top_n = 10
+    best_neurons = MI.sort_values(by="bits/sec", ascending=False).head(top_n).index
+    tuning_curves = tuning_curves.sel(unit=best_neurons).sortby("unit")
+    #spikes_highMI = tsdframe_spikes[best_neurons]
+    pref_ang = tuning_curves.idxmax(dim="head_direction")
+    norm = plt.Normalize()
+# Assigns a color in the HSV colormap for each value of preferred angle
+    color = plt.cm.hsv(norm([i / (2 * np.pi) for i in pref_ang.values]))
+    color = xr.DataArray(
+        color, 
+        dims=("unit", "color"),
+        coords={"unit": pref_ang.unit}
+    )
+    tuning_curves.values = gaussian_filter1d(tuning_curves.values,sigma=3,axis=1,mode="wrap")
+    sorted_tuning_curves = tuning_curves.sortby(pref_ang)
+    fig = plt.figure(figsize=[60, 10])
+    for i, n in enumerate(sorted_tuning_curves.coords["unit"]):
+        ax = fig.add_subplot(1,sorted_tuning_curves.coords["unit"].values.shape[0],i+1, polar=True)
+        #plt.subplot(16, 10, i + 1, projection='polar')
+        ax.plot(
+            sorted_tuning_curves.coords["head_direction"], 
+            sorted_tuning_curves.sel(unit=n).values,
+            color=color.sel(unit=n).values
+        )  # Colour of the curves determined by preferred angle
+        ax.set(title=f"unit{n.values}",xticks=[])
+    png_name='turing_curve.png'
+    fig.savefig(oe_folder / png_name)
     # events_time_tw = np.array(
     #     [events_time + time_window[0], events_time + time_window[1]]
     # ).T
@@ -969,7 +1063,8 @@ if __name__ == "__main__":
     #thisDir = r"Y:\GN26012\260208\spontaneous\session1\2026-02-08_13-56-52"
     #thisDir = r"Y:\GN26018\260228\spontaneous\session2\2026-02-28_21-58-44"
     #thisDir = r"Y:\GN26019\260301\choices\session2\2026-03-01_15-59-22"
-    thisDir = r"Y:\GN26019\260301\choices\session1\2026-03-01_14-41-31"
+    #thisDir = r"Y:\GN26019\260301\choices\session1\2026-03-01_14-41-31"
+    thisDir = r"Y:\GN26038\260407\choices\session1\2026-04-07_11-55-17"
     #thisDir = r"Y:\GN26019\260301\spontaneous\session1\2026-03-01_14-10-06"
     #thisDir = r"Y:\GN26012\260208\sweeping\session1\2026-02-08_14-33-58"
     #thisDir =r"Y:\GN25029\250729\looming\session1\2025-07-29_15-22-54"

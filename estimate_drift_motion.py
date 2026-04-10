@@ -264,7 +264,8 @@ def run(thisDir, json_file):
     else:
         print("Load meta information from openEphys")
 
-        raw_rec = se.read_openephys(oe_folder, load_sync_timestamps=True)
+        #raw_rec = se.read_openephys(oe_folder, load_sync_timestamps=True)
+        raw_rec = se.read_openephys(oe_folder, load_sync_timestamps=True,block_index=0,stream_id='0')
         # To show the start of recording time
         # raw_rec.get_times()[0]
         event = se.read_openephys_event(oe_folder)
@@ -305,7 +306,7 @@ def run(thisDir, json_file):
             probe_name= "ASSY-77-H6D"
             stacked_probes = pi.read_probeinterface("H6D_2_RHD2132_openEphys_mapping.json")
             probe = stacked_probes.probes[0]
-        if probe_type == "H5_stacked":
+        elif probe_type == "H5_stacked":
             probe_name= "ASSY-77-H5"
             stacked_probes = pi.read_prb("H5_stacked_probes_2D.prb")
             probe = stacked_probes.probes[0]
@@ -378,7 +379,7 @@ if __name__ == "__main__":
     #thisDir=r"Y:\GN25020\250525\gratings\session1\2025-05-25_18-42-54"
     #thisDir=r"Y:\GN25022\250531\coherence\session1\2025-05-31_17-48-06"
     #thisDir = r"Y:\GN25032\250807\looming\session1\2025-08-07_19-34-42"
-    thisDir = r"Y:\GN26019\260301\sweeping\session1\2026-03-01_17-04-17"
+    thisDir = r"Y:\GN26028\260327\sweeping\session1\2026-03-27_15-27-31"
     #thisDir=r"Y:\GN25033\250906\looming\session1\2025-09-06_18-42-24"
     #thisDir=r"Y:\GN25029\250729\looming\session1\2025-07-29_15-22-54"
     json_file = "./analysis_methods_dictionary.json"
