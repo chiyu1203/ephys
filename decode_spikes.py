@@ -52,7 +52,7 @@ from useful_tools import find_file
 from data_cleaning import sorting_trial_info, load_fictrac_data_file,euclidean_distance
 
 sys.path.insert(0, str(parent_dir) + "\\bonfic")
-from analyse_stimulus_evoked_response import classify_trial_type,preprocess_tracking_data,identify_behavioural_states,generate_index_points
+from analyse_stimulus_evoked_response import classify_trial_type,preprocess_tracking_data,identify_behavioural_states,generate_index_points,analysis_stim_evoked_response_combo
 n_cpus = os.cpu_count()
 n_jobs = n_cpus - 4
 global_job_kwargs = dict(n_jobs=n_jobs, chunk_duration="1s", progress_bar=True)
@@ -698,9 +698,10 @@ def align_async_signals(oe_folder, json_file):
                     ISI_duration=np.round(stim_on_oe[1:]-isi_on_oe[:-1])
                     ISI_duration=np.append(ISI_duration, np.nan)
                     meta_info['ISI']=ISI_duration
-                stim_onset_thframe=tracking_df['frame_count'][tracking_df['pd_phase'].diff()==1]+first_saved_frame
-                stim_onset_thframe.reset_index(drop=True, inplace=True)
-                meta_info['stim_onset_thframe']=stim_onset_thframe
+                stim_onset_thframe=tracking_df['frame_count'][tracking_df['pd_phase'].diff()==1]
+                stim_onset_thframe_oe=stim_onset_thframe+first_saved_frame
+                stim_onset_thframe_oe.reset_index(drop=True, inplace=True)
+                meta_info['stim_onset_thframe']=stim_onset_thframe_oe
                 oe_camera_time=np.load(camera_sync_file)
                 oe_camera_time=oe_camera_time[first_saved_frame:]
             else:
@@ -840,12 +841,36 @@ def align_async_signals(oe_folder, json_file):
 
     # sort spike time for the function get_spike_counts_in_bins
     spike_time_interest_sorted, cluster_id_interest_sorted = sort_arrays(
-        spike_time_interest, cluster_id_interest
-    )
-    heading_angle_all = np.nancumsum(yaw_angular_velocity)/camera_fps
-    heading_angle_all=heading_angle_all % (2 * np.pi)
-    tsdframe_angles = nap.TsdFrame(t=oe_camera_time[:heading_angle_all.shape[0]], d=heading_angle_all)
-    spike_dict={}#(these_heading_angles + np.pi) % (2 * np.pi)
+        spike_time_interest, cluster_id_interest)
+    analyse_heading_angle_tbt=True
+    if analyse_heading_angle_tbt:
+        tem_df_this_exp=[]
+        (_,angular_velocity_tbt,travel_distance_tbt,init_frame,end_frame)=analysis_stim_evoked_response_combo(stim_onset_thframe,meta_info,yaw_angular_velocity,travel_distance_fbf,tem_df_this_exp,analysis_methods)
+        velocity_arr = travel_distance_tbt * camera_fps  # over 1.0 is probably a jump
+        cum_travel_distance = np.nancumsum(velocity_arr, axis=1)/camera_fps
+        heading_angle_tbt = np.nancumsum(angular_velocity_tbt, axis=1)/camera_fps
+        heading_at_stim=heading_angle_tbt[:,init_frame]
+        heading_angle_tbt_rezero=heading_angle_tbt-np.reshape(np.repeat(heading_at_stim,heading_angle_tbt.shape[1]), (num_stim, heading_angle_tbt.shape[1]))
+        heading_angle_tbt_rezero=heading_angle_tbt_rezero % (2 * np.pi)
+        oe_camera_time[meta_info['stim_onset_thframe'].values]
+        index_points = generate_index_points(meta_info['stim_onset_thframe'].values, time_window, camera_fps)
+        tsdframe_angles = nap.TsdFrame(t=np.reshape(oe_camera_time[index_points],-1), d=np.reshape(heading_angle_tbt_rezero,-1))
+        distance_at_stim=cum_travel_distance[:,init_frame]
+        cum_distance_prev_stim=cum_travel_distance[:,:init_frame]-np.reshape(np.repeat(distance_at_stim,init_frame), (num_stim, init_frame))
+        cum_distance_post_stim=cum_travel_distance[:,init_frame:]-np.reshape(np.repeat(distance_at_stim,end_frame-init_frame), (num_stim, end_frame-init_frame))
+        if cum_distance_prev_stim.shape[1]==0:
+            total_distance_prev_stim=np.full((cum_distance_prev_stim.shape[0]), np.nan)
+        else:
+            total_distance_prev_stim=abs(cum_distance_prev_stim[:,0])
+        if cum_distance_post_stim.shape[1]==0:
+            total_distance_post_stim=np.full((cum_distance_post_stim.shape[0]), np.nan)
+        else:
+            total_distance_post_stim=cum_distance_post_stim[:,-1]
+    else:
+        heading_angle_all = np.nancumsum(yaw_angular_velocity)/camera_fps
+        heading_angle_all=heading_angle_all % (2 * np.pi)
+        tsdframe_angles = nap.TsdFrame(t=oe_camera_time[:heading_angle_all.shape[0]], d=heading_angle_all)
+    spike_dict={}
     ids=np.unique(cluster_id_interest)
     for keys in ids:
         spike_dict[keys] = spike_time_interest[np.where(cluster_id_interest==keys)[0]]
@@ -867,11 +892,7 @@ def align_async_signals(oe_folder, json_file):
     norm = plt.Normalize()
 # Assigns a color in the HSV colormap for each value of preferred angle
     color = plt.cm.hsv(norm([i / (2 * np.pi) for i in pref_ang.values]))
-    color = xr.DataArray(
-        color, 
-        dims=("unit", "color"),
-        coords={"unit": pref_ang.unit}
-    )
+    color = xr.DataArray(color,dims=("unit", "color"),coords={"unit": pref_ang.unit})
     tuning_curves.values = gaussian_filter1d(tuning_curves.values,sigma=3,axis=1,mode="wrap")
     sorted_tuning_curves = tuning_curves.sortby(pref_ang)
     fig = plt.figure(figsize=[60, 10])
