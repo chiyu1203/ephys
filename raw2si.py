@@ -1,5 +1,6 @@
 import time, os, json, warnings,sys
 import probeinterface as pi
+from probeinterface import read_prb, Probe
 from probeinterface.plotting import plot_probe
 import spikeinterface.core as si
 import spikeinterface.extractors as se
@@ -153,7 +154,8 @@ def get_preprocessed_recording(oe_folder,analysis_methods):
         probe_type = analysis_methods.get("probe_type")
         plot_traces = analysis_methods.get("plot_traces")
         #raw_rec = se.read_openephys(oe_folder, load_sync_timestamps=True)
-        raw_rec = se.read_openephys(oe_folder, load_sync_timestamps=True,block_index=0,stream_id='0')
+        #raw_rec = se.read_openephys(oe_folder, load_sync_timestamps=True,block_index=0,stream_id='0')
+        raw_rec = se.read_openephys(oe_folder,block_index=0,stream_id='0')
     # To show the start of recording time
     # raw_rec.get_times()[0]
         save_event_timing(oe_folder)
@@ -173,35 +175,44 @@ def get_preprocessed_recording(oe_folder,analysis_methods):
             ValueError("tmax needs to be bigger than tmin to select certain section of the recording")
 
         ################load probe information################
-        if probe_type == "H10_stacked":
-            stacked_probes = pi.read_probeinterface("H10_stacked_probes_2D.json")
-            probe = stacked_probes.probes[0]
-        elif probe_type == "H10_rev":
-            probe_name= "ASSY-77-H10"
-            stacked_probes = pi.read_probeinterface("H10_RHD2164_rev_openEphys_mapping.json")
-            probe = stacked_probes.probes[0]
-        elif probe_type == "H10_32ch":
-            probe_name= "ASSY-77-H10"
-            stacked_probes = pi.read_prb("H10_RHD2164_32channels.prb")
-            #stacked_probes = pi.read_probeinterface("H10_RHD2164_32channels.json")
-            #did not use this function because the error is yet fix in the json file. ValueError: The given Probe either has 'device_channel_indices' that does not match channel count
-            probe = stacked_probes.probes[0]
-        elif probe_type == "P2":
-            probe_name= "ASSY-37-P-2"
-            stacked_probes = pi.read_probeinterface("P2_RHD2132_openEphys_mapping.json")
-            probe = stacked_probes.probes[0]    
-        elif probe_type == "H6D":
-            probe_name= "ASSY-77-H6D"
-            stacked_probes = pi.read_probeinterface("H6D_RHD2164_openEphys_mapping.json")
-            probe = stacked_probes.probes[0]
-        elif probe_type == "H6D_2132":
-            probe_name= "ASSY-77-H6D"
-            stacked_probes = pi.read_probeinterface("H6D_2_RHD2132_openEphys_mapping.json")
-            probe = stacked_probes.probes[0]
-        elif probe_type == "H5_stacked":
-            probe_name= "ASSY-77-H5"
-            stacked_probes = pi.read_prb("H5_stacked_probes_2D.prb")
-            probe = stacked_probes.probes[0]
+        if probe_type in ["H10_stacked","H10_rev","H10_32ch","P2","H6D","H6D_2132","H5_stacked"]:
+            if probe_type == "H10_stacked":
+                probe_map_file_name="H10_stacked_probes_2D.json"
+                probe = stacked_probes.probes[0]
+            elif probe_type == "H10_rev":
+                probe_map_file_name="H10_RHD2164_rev_openEphys_mapping.json"
+                probe_name= "ASSY-77-H10"
+            elif probe_type == "H10_32ch":
+                probe_map_file_name="H10_RHD2164_32channels.prb"
+                probe_name= "ASSY-77-H10"
+                #stacked_probes = pi.read_prb("H10_RHD2164_32channels.prb")
+                #stacked_probes = pi.read_probeinterface("H10_RHD2164_32channels.json")
+                #did not use this function because the error is yet fix in the json file. ValueError: The given Probe either has 'device_channel_indices' that does not match channel count
+            elif probe_type == "P2":
+                probe_map_file_name="P2_RHD2132_openEphys_mapping.json"
+                probe_name= "ASSY-37-P-2"
+            elif probe_type == "H6D":
+                probe_map_file_name="H6D_RHD2164_openEphys_mapping_noshank.prb"
+                probe_name= "ASSY-77-H6D"
+                #stacked_probes = pi.read_probeinterface("H6D_RHD2164_openEphys_mapping.json")
+                #stacked_probes = pi.read_prb("H6D_RHD2164_openEphys_mapping_noshank.prb")
+                #stacked_probes = pi.read_prb("H6D_RHD2164_openEphys_mapping.prb")
+            elif probe_type == "H6D_2132":
+                probe_map_file_name="H6D_2_RHD2132_openEphys_mapping.json"
+                probe_name= "ASSY-77-H6D"
+            elif probe_type == "H5_stacked":
+                probe_map_file_name="H5_stacked_probes_2D.prb"
+                probe_name= "ASSY-77-H5"
+
+            
+            if probe_map_file_name.endswith('prb'):
+                stacked_probes =  pi.read_prb(probe_map_file_name)
+                probe_data = stacked_probes.probes
+                #probe = probegroup.probes[0]
+            else:
+                stacked_probes = pi.read_probeinterface(probe_map_file_name)
+                probe_data = stacked_probes.probes[0]
+
         else:              
             manufacturer = "cambridgeneurotech"
             if probe_type == "H5":
@@ -216,14 +227,26 @@ def get_preprocessed_recording(oe_folder,analysis_methods):
             else:
                 print("the name of probe not identified. stop the programme")
                 return
-            probe = pi.get_probe(manufacturer, probe_name)
-            probe.to_dataframe(complete=True).loc[
+            probe_data = pi.get_probe(manufacturer, probe_name)
+            probe_data.to_dataframe(complete=True).loc[
                 :, ["contact_ids", "shank_ids", "device_channel_indices"]
             ]
-            probe.wiring_to_device(connector_type)
-        print(probe)
+            probe_data.wiring_to_device(connector_type)
+            probe_map_file_name='XXX.json'
+        
+        print(probe_data)
         # drop AUX channels here
-        raw_rec = raw_rec.set_probe(probe,group_mode='by_shank')
+        if probe_map_file_name.endswith('prb'):
+            #raw_rec = raw_rec.set_probegroup(probe_data, group_mode="by_shank")#shank information is not saved in prb
+            # probe = Probe(si_units="um")
+            # channel_positions = np.load(phy_path / "channel_positions.npy")
+            # probe.set_contacts(channel_positions)
+            # probe.set_device_channel_indices(range(probe.get_contact_count()))
+            raw_rec = raw_rec.set_probegroup(probe_data[0])
+            
+            #raw_rec = raw_rec.set_probegroup(stacked_probes)
+        else:
+            raw_rec = raw_rec.set_probe(probe_data,group_mode='by_shank')
         raw_rec.annotate(
             description=f"Dataset of {this_experimenter}"
         )  # should change here for something related in the future
@@ -636,7 +659,9 @@ if __name__ == "__main__":
     #thisDir = r"Y:\GN26009\260131\sweeping\session3\2026-01-31_19-13-43"
     #thisDir = r"Y:\GN26010\260201\sweeping\session1\2026-02-01_13-37-26"
     #thisDir = r"Y:\GN26010\260201\density\session1\2026-02-01_15-32-08"
-    thisDir = r"Y:\GN26011\260207\sweeping\session3\2026-02-07_18-23-41"
+    #thisDir = r"Y:\GN26011\260207\sweeping\session3\2026-02-07_18-23-41"
+    #thisDir = r"Y:\GN26022\260314\sweeping\session1\2026-03-14_15-29-04"
+    thisDir = r"C:\Users\neuroPC\Documents\Open Ephys\2026-04-11_17-22-53"
     #thisDir = r"Y:\GN26005\260117\looming\session1\2026-01-17_16-03-04"
     #thisDir = r"Y:\GN26006\260118\looming\session1\2026-01-18_14-14-20"
     json_file = "./analysis_methods_dictionary.json"

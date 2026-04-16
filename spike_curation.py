@@ -18,7 +18,6 @@ import spikeinterface.widgets as sw
 import matplotlib as mpl
 from matplotlib import cm
 from sklearn.metrics import confusion_matrix, balanced_accuracy_score
-
 warnings.simplefilter("ignore")
 n_cpus = os.cpu_count()
 n_jobs = n_cpus - 4
@@ -258,9 +257,11 @@ def si2phy(thisDir, json_file):
     analyser_folder_name = "analyser" + sorter_suffix
     phy_folder_name = "phy" + sorter_suffix
     report_folder_name = "report" + sorter_suffix
-    remove_excess_spikes = True
+    remove_excess_spikes = False
+    use_kilosort_standalone=True
     postprocess_with_unwhitening_recording=analysis_methods.get("postprocess_with_unwhitening_recording",False)
     load_previous_methods=analysis_methods.get("load_previous_methods",False)
+    export_to_phy=analysis_methods.get("export_to_phy")
     if load_previous_methods:
         previous_methods_file=find_file(oe_folder / sorting_folder_name, "analysis_methods_dictionary_backup.json")
         if previous_methods_file!=None:
@@ -325,13 +326,10 @@ def si2phy(thisDir, json_file):
 
     elif (
         oe_folder / sorting_folder_name
-    ).is_dir():  # need to double check the difference between sorting_folder_name and result_folder_name
+    ).is_dir() or use_kilosort_standalone:  # need to double check the difference between sorting_folder_name and result_folder_name
         print(
             "create a sorting_analyser with fresh sorted spikes from automatic sorters"
         )
-        sorting_spikes = si.load_extractor(
-            oe_folder / sorting_folder_name
-        )  # this acts quite similar than above one line.
         recording_saved = get_preprocessed_recording(oe_folder,analysis_methods)
         analysis_methods.update({"load_existing_motion_info": True})
         recording_saved=spre.astype(recording_saved,np.float32)
@@ -345,22 +343,41 @@ def si2phy(thisDir, json_file):
             recording_for_analysis=si.aggregate_channels(recording_corrected_dict)
         else:
             recording_for_analysis = spre.whiten(recording=recording_corrected_dict[0],mode="local",radius_um=150)
-        if remove_excess_spikes:
-            sorting_spikes=scur.remove_duplicated_spikes(sorting_spikes,censored_period_ms=0.3,method="keep_first_iterative")
-            sorting_spikes = scur.remove_excess_spikes(
-                sorting_spikes, recording_for_analysis
+        if use_kilosort_standalone:
+            kilosort_motion_correction=True
+            if kilosort_motion_correction==True:
+                ks_folder_name='kilosort4_motion_corrected'
+            else:
+                ks_folder_name='kilosort4'
+            if analysis_methods.get("probe_type").startswith("H10"):
+                shank_of_interest=0
+                kilosort_result_folder_name= oe_folder / ks_folder_name / f'shank_{shank_of_interest}'
+            else:
+                kilosort_result_folder_name= oe_folder / ks_folder_name
+            sorting_analyzer=se.read_kilosort_as_analyzer(kilosort_result_folder_name)
+            sorting_analyzer.set_temporary_recording(recording_for_analysis)
+            export_to_phy=False
+            postprocess_with_unwhitening_recording=True
+        else:
+            sorting_spikes = si.load_extractor(
+                oe_folder / sorting_folder_name
+            )  # this acts quite similar than above one line.
+            if remove_excess_spikes:
+                sorting_spikes=scur.remove_duplicated_spikes(sorting_spikes,censored_period_ms=0.3,method="keep_first_iterative")
+                sorting_spikes = scur.remove_excess_spikes(
+                    sorting_spikes, recording_for_analysis
+                )
+                print(f"find redundant units: {scur.find_redundant_units(sorting_spikes)}") #sorting_spikes= scur.remove_redundant_units(sorting_spikes,align=False) remove redundant on spikeinterface-gui
+            sorting_analyzer = si.create_sorting_analyzer(
+                sorting=sorting_spikes,
+                recording=recording_for_analysis,
+                sparse=True,  # default
+                format="memory",  # default
             )
-            print(f"find redundant units: {scur.find_redundant_units(sorting_spikes)}") #sorting_spikes= scur.remove_redundant_units(sorting_spikes,align=False) remove redundant on spikeinterface-gui
-        sorting_analyzer = si.create_sorting_analyzer(
-            sorting=sorting_spikes,
-            recording=recording_for_analysis,
-            sparse=True,  # default
-            format="memory",  # default
-        )
         calculate_analyzer_extension(sorting_analyzer)
         if analysis_methods.get("save_analyser_to_disc")==True:
             sorting_analyzer.save_as(folder=oe_folder / analyser_folder_name,format="zarr")
-        if analysis_methods.get("export_to_phy") == True:
+        if export_to_phy == True:
             if Path(oe_folder / phy_folder_name).exists() and analysis_methods.get("overwrite_existing_phy") == False:
                 _ = se.read_phy(
                 oe_folder / phy_folder_name)
@@ -473,7 +490,9 @@ def si2phy(thisDir, json_file):
 
 if __name__ == "__main__":
     #thisDir = r"Y:\GN25019\250524\2025-05-24_15-11-49"
-    thisDir = r"Y:\GN25060\251130\coherence\session1\2025-11-30_14-25-01"
+    #thisDir = r"Y:\GN25060\251130\coherence\session1\2025-11-30_14-25-01"
+    #thisDir = r"Y:\GN25070\251228\looming\sessoin1\2025-12-28_13-48-28"
+    thisDir = r"Y:\GN26038\260407\choices\session2\2026-04-07_12-56-56"
     json_file = "./analysis_methods_dictionary.json"
     ##Time the function
     tic = time.perf_counter()
