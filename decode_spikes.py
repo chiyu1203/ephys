@@ -1,4 +1,6 @@
 import time, os, json, warnings, sys,operator
+warnings.simplefilter("ignore")
+from importlib.metadata import version
 import xarray as xr 
 import spikeinterface.core as si
 import spikeinterface.extractors as se
@@ -7,7 +9,11 @@ import spikeinterface.widgets as sw
 import spikeinterface.curation as sc
 from datetime import datetime
 from functools import reduce
-from scipy.signal import medfilt,convolve, gaussian
+# if version('scipy')<'1.13.0':
+#     from scipy.signal import medfilt,convolve, gaussian
+# else:
+from scipy.signal import medfilt,convolve
+from scipy.signal.windows import gaussian
 from zetapy import zetatest,zetatest2
 # use elepant or open scope to faciliate data analysis https://elephant.readthedocs.io/en/latest/index.html
 # For kilosort/phy output files we can use the read_phy
@@ -25,15 +31,15 @@ import pynapple as nap
 import seaborn as sns
 custom_params = {"axes.spines.right": False, "axes.spines.top": False}
 sns.set_theme(style="ticks", palette="colorblind", font_scale=1.5, rc=custom_params)
-from brainbox.population.decode import get_spike_counts_in_bins
-from brainbox.plot import peri_event_time_histogram, driftmap_color, driftmap
-from brainbox.ephys_plots import (
-    plot_cdf,
-    image_rms_plot,
-    scatter_raster_plot,
-    scatter_amp_depth_fr_plot,
-    probe_rms_plot,
-)
+# from brainbox.population.decode import get_spike_counts_in_bins
+# from brainbox.plot import peri_event_time_histogram, driftmap_color, driftmap
+# from brainbox.ephys_plots import (
+#     plot_cdf,
+#     image_rms_plot,
+#     scatter_raster_plot,
+#     scatter_amp_depth_fr_plot,
+#     probe_rms_plot,
+# )
 from spike_curation import (
     calculate_analyzer_extension,
     get_preprocessed_recording,
@@ -42,17 +48,17 @@ from spike_curation import (
     MplColorHelper,
 )
 from raw2si import save_event_timing
-warnings.simplefilter("ignore")
+# import packages outside this directory
 current_working_directory = Path.cwd()
 parent_dir = current_working_directory.resolve().parents[0]
 sys.path.insert(
     0, str(parent_dir) + "\\utilities"
 )  ## 0 means search for new dir first and 1 means search for sys.path first
+sys.path.insert(0, str(parent_dir) + "\\bonfic")
 from useful_tools import find_file
 from data_cleaning import sorting_trial_info, load_fictrac_data_file,euclidean_distance
-
-sys.path.insert(0, str(parent_dir) + "\\bonfic")
 from analyse_stimulus_evoked_response import classify_trial_type,preprocess_tracking_data,identify_behavioural_states,generate_index_points,analysis_stim_evoked_response_combo
+
 n_cpus = os.cpu_count()
 n_jobs = n_cpus - 4
 global_job_kwargs = dict(n_jobs=n_jobs, chunk_duration="1s", progress_bar=True)
@@ -169,9 +175,7 @@ def plot_psth(spike_time_interest,cluster_id_interest,event_of_interest,events_t
     for this_cluster_id in np.unique(cluster_id_interest):
         these_spikes=spike_time_interest[np.where(cluster_id_interest==this_cluster_id)[0]]
         these_ids=np.ones(these_spikes.shape[0],dtype=int)*this_cluster_id
-        tspikes=nap.Tsd(
-        t=these_spikes, 
-        d=these_ids, time_units="s") 
+        tspikes = nap.Ts(these_spikes, time_units="s")
         if event_of_interest not in ["stop_onset","walk_straight_onset","turn_ccw_onset","turn_cw_onset","walk_onset","turn_onset"]:
             for id, entries in meta_info.groupby(stim_variables):
                 these_events=events_time[entries.index][trial_type_interest[entries.index]]
@@ -185,15 +189,10 @@ def plot_psth(spike_time_interest,cluster_id_interest,event_of_interest,events_t
                     else:
                         time_window=[time_window[0],id[stim_variables.index('Duration')]+2]
                 peth = nap.compute_perievent(
-                timestamps=tspikes,
-                tref=nap.Ts(t=these_events, time_units="s"), 
-                minmax=(time_window[0], time_window[1]), 
+                data=tspikes,
+                events=nap.Ts(t=these_events, time_units="s"),  
+                window=(time_window[0], time_window[1]), 
                 time_unit="s")
-                # peth = nap.compute_perievent(
-                # data=tspikes,
-                # events=nap.Ts(t=these_events, time_units="s"),  
-                # window=(time_window[0], time_window[1]), 
-                # time_unit="s")
                 peth_means, peth_stds, tscale,_=calculate_peths_details(
                     these_spikes,these_ids, [this_cluster_id], these_events, pre_time=abs(time_window[0]),
                     post_time=time_window[1], bin_size=0.025, smoothing=0.025, return_fr=True)
@@ -224,15 +223,10 @@ def plot_psth(spike_time_interest,cluster_id_interest,event_of_interest,events_t
                     png_name = f"unit{this_cluster_id}_{event_of_interest}_peth_stim_all_{suffix}.png"
                 fig2.savefig(oe_folder / png_name)
         else:#Here to plot non-visual evoked activity
-            # peth = nap.compute_perievent(
-            # data=tspikes,
-            # events=nap.Ts(t=events_time, time_units="s"), 
-            # window=(time_window[0], time_window[1]), 
-            # time_unit="s")
             peth = nap.compute_perievent(
-            timestamps=tspikes,
-            tref=nap.Ts(t=events_time, time_units="s"), 
-            minmax=(time_window[0], time_window[1]), 
+            data=tspikes,
+            events=nap.Ts(t=events_time, time_units="s"), 
+            window=(time_window[0], time_window[1]), 
             time_unit="s")
             peth_means, peth_stds, tscale,_=calculate_peths_details(
                 these_spikes,these_ids, [this_cluster_id], events_time, pre_time=abs(time_window[0]),
@@ -683,17 +677,6 @@ def align_async_signals(oe_folder, json_file):
                 tracking_df[f"delta rotation vector lab {yaw_axis}"] = tracking_df[f"delta rotation vector lab {yaw_axis}"] * camera_fps
                 tracking_df.drop_duplicates(subset=["intergrated x position","intergrated y position", "frame_count"], inplace=True)
                 first_saved_frame=tracking_df['frame_count'][0]
-                stim_pd = pd.read_csv(trial_file)
-                meta_info, stim_type = sorting_trial_info(stim_pd,analysis_methods)
-                num_stim=meta_info.shape[0]
-                pd_on_oe=pd_on_oe[preStim_duration<pd_on_oe]
-                pd_off_oe=pd_off_oe[preStim_duration<pd_off_oe]
-                if pd_off_oe[0]>pd_on_oe[0]:
-                    stim_on_oe = pd_on_oe[:num_stim]
-                    isi_on_oe = pd_off_oe[:num_stim]
-                else:
-                    stim_on_oe = pd_off_oe[:num_stim]
-                    isi_on_oe = pd_on_oe[:num_stim]
                 if meta_info['ISI'].values[0]<0:   
                     ISI_duration=np.round(stim_on_oe[1:]-isi_on_oe[:-1])
                     ISI_duration=np.append(ISI_duration, np.nan)
@@ -842,71 +825,73 @@ def align_async_signals(oe_folder, json_file):
     # sort spike time for the function get_spike_counts_in_bins
     spike_time_interest_sorted, cluster_id_interest_sorted = sort_arrays(
         spike_time_interest, cluster_id_interest)
-    analyse_heading_angle_tbt=True
-    if analyse_heading_angle_tbt:
-        tem_df_this_exp=[]
-        (_,angular_velocity_tbt,travel_distance_tbt,init_frame,end_frame)=analysis_stim_evoked_response_combo(stim_onset_thframe,meta_info,yaw_angular_velocity,travel_distance_fbf,tem_df_this_exp,analysis_methods)
-        velocity_arr = travel_distance_tbt * camera_fps  # over 1.0 is probably a jump
-        cum_travel_distance = np.nancumsum(velocity_arr, axis=1)/camera_fps
-        heading_angle_tbt = np.nancumsum(angular_velocity_tbt, axis=1)/camera_fps
-        heading_at_stim=heading_angle_tbt[:,init_frame]
-        heading_angle_tbt_rezero=heading_angle_tbt-np.reshape(np.repeat(heading_at_stim,heading_angle_tbt.shape[1]), (num_stim, heading_angle_tbt.shape[1]))
-        heading_angle_tbt_rezero=heading_angle_tbt_rezero % (2 * np.pi)
-        oe_camera_time[meta_info['stim_onset_thframe'].values]
-        index_points = generate_index_points(meta_info['stim_onset_thframe'].values, time_window, camera_fps)
-        tsdframe_angles = nap.TsdFrame(t=np.reshape(oe_camera_time[index_points],-1), d=np.reshape(heading_angle_tbt_rezero,-1))
-        distance_at_stim=cum_travel_distance[:,init_frame]
-        cum_distance_prev_stim=cum_travel_distance[:,:init_frame]-np.reshape(np.repeat(distance_at_stim,init_frame), (num_stim, init_frame))
-        cum_distance_post_stim=cum_travel_distance[:,init_frame:]-np.reshape(np.repeat(distance_at_stim,end_frame-init_frame), (num_stim, end_frame-init_frame))
-        if cum_distance_prev_stim.shape[1]==0:
-            total_distance_prev_stim=np.full((cum_distance_prev_stim.shape[0]), np.nan)
+    decode_tuning_curve=False
+    if decode_tuning_curve:
+        analyse_heading_angle_tbt=False
+        if analyse_heading_angle_tbt:
+            tem_df_this_exp=[]
+            (_,angular_velocity_tbt,travel_distance_tbt,init_frame,end_frame)=analysis_stim_evoked_response_combo(stim_onset_thframe,meta_info,yaw_angular_velocity,travel_distance_fbf,tem_df_this_exp,analysis_methods)
+            velocity_arr = travel_distance_tbt * camera_fps  # over 1.0 is probably a jump
+            cum_travel_distance = np.nancumsum(velocity_arr, axis=1)/camera_fps
+            heading_angle_tbt = np.nancumsum(angular_velocity_tbt, axis=1)/camera_fps
+            heading_at_stim=heading_angle_tbt[:,init_frame]
+            heading_angle_tbt_rezero=heading_angle_tbt-np.reshape(np.repeat(heading_at_stim,heading_angle_tbt.shape[1]), (num_stim, heading_angle_tbt.shape[1]))
+            heading_angle_tbt_rezero=heading_angle_tbt_rezero % (2 * np.pi)
+            oe_camera_time[meta_info['stim_onset_thframe'].values]
+            index_points = generate_index_points(meta_info['stim_onset_thframe'].values, time_window, camera_fps)
+            tsdframe_angles = nap.TsdFrame(t=np.reshape(oe_camera_time[index_points],-1), d=np.reshape(heading_angle_tbt_rezero,-1))
+            distance_at_stim=cum_travel_distance[:,init_frame]
+            cum_distance_prev_stim=cum_travel_distance[:,:init_frame]-np.reshape(np.repeat(distance_at_stim,init_frame), (num_stim, init_frame))
+            cum_distance_post_stim=cum_travel_distance[:,init_frame:]-np.reshape(np.repeat(distance_at_stim,end_frame-init_frame), (num_stim, end_frame-init_frame))
+            if cum_distance_prev_stim.shape[1]==0:
+                total_distance_prev_stim=np.full((cum_distance_prev_stim.shape[0]), np.nan)
+            else:
+                total_distance_prev_stim=abs(cum_distance_prev_stim[:,0])
+            if cum_distance_post_stim.shape[1]==0:
+                total_distance_post_stim=np.full((cum_distance_post_stim.shape[0]), np.nan)
+            else:
+                total_distance_post_stim=cum_distance_post_stim[:,-1]
         else:
-            total_distance_prev_stim=abs(cum_distance_prev_stim[:,0])
-        if cum_distance_post_stim.shape[1]==0:
-            total_distance_post_stim=np.full((cum_distance_post_stim.shape[0]), np.nan)
-        else:
-            total_distance_post_stim=cum_distance_post_stim[:,-1]
-    else:
-        heading_angle_all = np.nancumsum(yaw_angular_velocity)/camera_fps
-        heading_angle_all=heading_angle_all % (2 * np.pi)
-        tsdframe_angles = nap.TsdFrame(t=oe_camera_time[:heading_angle_all.shape[0]], d=heading_angle_all)
-    spike_dict={}
-    ids=np.unique(cluster_id_interest)
-    for keys in ids:
-        spike_dict[keys] = spike_time_interest[np.where(cluster_id_interest==keys)[0]]
+            heading_angle_all = np.nancumsum(yaw_angular_velocity)/camera_fps
+            heading_angle_all=heading_angle_all % (2 * np.pi)
+            tsdframe_angles = nap.TsdFrame(t=oe_camera_time[:heading_angle_all.shape[0]], d=heading_angle_all)
+        spike_dict={}
+        ids=np.unique(cluster_id_interest)
+        for keys in ids:
+            spike_dict[keys] = spike_time_interest[np.where(cluster_id_interest==keys)[0]]
 
-    tsdframe_spikes=nap.TsGroup(spike_dict,time_units="s")
-    tuning_curves = nap.compute_tuning_curves(
-    data=tsdframe_spikes, 
-    features=tsdframe_angles, 
-    bins=61, 
-    range=(0, 2*np.pi),
-    feature_names=["head_direction"]
-    )
-    MI = nap.compute_mutual_information(tuning_curves)
-    top_n = 10
-    best_neurons = MI.sort_values(by="bits/sec", ascending=False).head(top_n).index
-    tuning_curves = tuning_curves.sel(unit=best_neurons).sortby("unit")
-    #spikes_highMI = tsdframe_spikes[best_neurons]
-    pref_ang = tuning_curves.idxmax(dim="head_direction")
-    norm = plt.Normalize()
-# Assigns a color in the HSV colormap for each value of preferred angle
-    color = plt.cm.hsv(norm([i / (2 * np.pi) for i in pref_ang.values]))
-    color = xr.DataArray(color,dims=("unit", "color"),coords={"unit": pref_ang.unit})
-    tuning_curves.values = gaussian_filter1d(tuning_curves.values,sigma=3,axis=1,mode="wrap")
-    sorted_tuning_curves = tuning_curves.sortby(pref_ang)
-    fig = plt.figure(figsize=[60, 10])
-    for i, n in enumerate(sorted_tuning_curves.coords["unit"]):
-        ax = fig.add_subplot(1,sorted_tuning_curves.coords["unit"].values.shape[0],i+1, polar=True)
-        #plt.subplot(16, 10, i + 1, projection='polar')
-        ax.plot(
-            sorted_tuning_curves.coords["head_direction"], 
-            sorted_tuning_curves.sel(unit=n).values,
-            color=color.sel(unit=n).values
-        )  # Colour of the curves determined by preferred angle
-        ax.set(title=f"unit{n.values}",xticks=[])
-    png_name='turing_curve.png'
-    fig.savefig(oe_folder / png_name)
+        tsdframe_spikes=nap.TsGroup(spike_dict,time_units="s")
+        tuning_curves = nap.compute_tuning_curves(
+        data=tsdframe_spikes, 
+        features=tsdframe_angles, 
+        bins=61, 
+        range=(0, 2*np.pi),
+        feature_names=["head_direction"]
+        )
+        MI = nap.compute_mutual_information(tuning_curves)
+        top_n = 10
+        best_neurons = MI.sort_values(by="bits/sec", ascending=False).head(top_n).index
+        tuning_curves = tuning_curves.sel(unit=best_neurons).sortby("unit")
+        #spikes_highMI = tsdframe_spikes[best_neurons]
+        pref_ang = tuning_curves.idxmax(dim="head_direction")
+        norm = plt.Normalize()
+    # Assigns a color in the HSV colormap for each value of preferred angle
+        color = plt.cm.hsv(norm([i / (2 * np.pi) for i in pref_ang.values]))
+        color = xr.DataArray(color,dims=("unit", "color"),coords={"unit": pref_ang.unit})
+        tuning_curves.values = gaussian_filter1d(tuning_curves.values,sigma=3,axis=1,mode="wrap")
+        sorted_tuning_curves = tuning_curves.sortby(pref_ang)
+        fig = plt.figure(figsize=[60, 10])
+        for i, n in enumerate(sorted_tuning_curves.coords["unit"]):
+            ax = fig.add_subplot(1,sorted_tuning_curves.coords["unit"].values.shape[0],i+1, polar=True)
+            #plt.subplot(16, 10, i + 1, projection='polar')
+            ax.plot(
+                sorted_tuning_curves.coords["head_direction"], 
+                sorted_tuning_curves.sel(unit=n).values,
+                color=color.sel(unit=n).values
+            )  # Colour of the curves determined by preferred angle
+            ax.set(title=f"unit{n.values}",xticks=[])
+        png_name='turing_curve.png'
+        fig.savefig(oe_folder / png_name)
     # events_time_tw = np.array(
     #     [events_time + time_window[0], events_time + time_window[1]]
     # ).T
@@ -1086,6 +1071,7 @@ if __name__ == "__main__":
     #thisDir = r"Y:\GN26019\260301\choices\session2\2026-03-01_15-59-22"
     #thisDir = r"Y:\GN26019\260301\choices\session1\2026-03-01_14-41-31"
     thisDir = r"Y:\GN26038\260407\choices\session1\2026-04-07_11-55-17"
+    #thisDir = r"Y:\GN26041\260411\looming\session1\2026-04-11_17-22-53"
     #thisDir = r"Y:\GN26019\260301\spontaneous\session1\2026-03-01_14-10-06"
     #thisDir = r"Y:\GN26012\260208\sweeping\session1\2026-02-08_14-33-58"
     #thisDir =r"Y:\GN25029\250729\looming\session1\2025-07-29_15-22-54"
