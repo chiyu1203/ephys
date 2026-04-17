@@ -25,6 +25,7 @@ behaviour_methods = {
     "load_experiment_condition_from_database": True,
     "select_animals_by_condition": False,
     "analysis_by_stimulus_type": True,
+    "duration_for_optomotor_index": 0,
     "camera_fps": 100,
     "trackball_radius": 5,
     "monitor_fps": 144,

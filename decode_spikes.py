@@ -188,6 +188,11 @@ def plot_psth(spike_time_interest,cluster_id_interest,event_of_interest,events_t
                         time_window=[time_window[0],id+2]
                     else:
                         time_window=[time_window[0],id[stim_variables.index('Duration')]+2]
+                if this_cluster_id==64 and event_of_interest=="stationary_trials":
+                    continue
+
+                # if this_cluster_id==64:
+                #     print('wait')
                 peth = nap.compute_perievent(
                 data=tspikes,
                 events=nap.Ts(t=these_events, time_units="s"),  
@@ -459,7 +464,32 @@ def calculate_peths_details(
     #peths = Bunch({'means': peth_means, 'stds': peth_stds, 'tscale': tscale, 'cscale': ids})
     return peth_means, peth_stds, tscale,ids
 
-
+def debug_freeze_session(exp_datetime,stim_on_oe,isi_on_oe):
+    if exp_datetime=='2026-02-28_13-42-38':
+        stop_time=1000
+    elif exp_datetime=='2026-03-01_14-41-31':
+        stop_time=1000
+    elif exp_datetime=='2026-03-01_17-04-17':
+        stop_time=1000
+    elif exp_datetime=='2026-03-14_13-02-34':
+        stop_time=1000
+    elif exp_datetime=='2026-03-15_13-02-26':
+        stop_time=1000
+    elif exp_datetime=='2026-03-15_18-59-09':
+        stop_time=1000
+    elif exp_datetime=='2026-03-21_14-09-58':
+        stop_time=1000
+    elif exp_datetime=='2026-03-21_15-46-11':
+        stop_time=1000
+    elif exp_datetime=='2026-03-22_15-37-55':
+        stop_time=1000
+    elif exp_datetime=='2026-03-22_18-31-29':
+        stop_time=1000
+    else:
+        stop_time=0
+    stim_on_oe=stim_on_oe[stim_on_oe<stop_time]
+    isi_on_oe=isi_on_oe[isi_on_oe<stop_time]
+    return stim_on_oe,isi_on_oe,stop_time
 
 def align_async_signals(oe_folder, json_file):
     if isinstance(json_file, dict):
@@ -588,7 +618,7 @@ def align_async_signals(oe_folder, json_file):
         if experiment_name=='coherence':#RDK is special because isi info is also logged in the trial info
             meta_info = meta_info[1::2]
 
-        if video_file is None:
+        if video_file is None and fictrac_posthoc_analysis==True:
             print("analyse ephys data only. The meta_info is basically trial information")
         elif stimulus_meta_file is not None:
             tmp_info = pd.read_parquet(stimulus_meta_file)
@@ -662,6 +692,8 @@ def align_async_signals(oe_folder, json_file):
         else:
             stim_on_oe = pd_on_oe
             isi_on_oe = pd_off_oe
+        if exp_datetime in ['2026-02-28_13-42-38','2026-03-01_14-41-31','2026-03-01_17-04-17','2026-03-14_13-02-34','2026-03-15_13-02-26','2026-03-15_18-59-09','2026-03-21_14-09-58','2026-03-21_15-46-11','2026-03-22_15-37-55','2026-03-22_18-31-29']:#on,off,off,on,on,N/A,N/A,on,on,on
+            stim_on_oe,isi_on_oe,freeze_time=debug_freeze_session(exp_datetime,stim_on_oe,isi_on_oe)
         if video_file is None:
             if experiment_name in ['choices','looming'] and fictrac_posthoc_analysis==False:
                 if raw_tracking.suffix=='.csv':
@@ -687,6 +719,7 @@ def align_async_signals(oe_folder, json_file):
                 meta_info['stim_onset_thframe']=stim_onset_thframe_oe
                 oe_camera_time=np.load(camera_sync_file)
                 oe_camera_time=oe_camera_time[first_saved_frame:]
+                velocity_tbt=np.load(velocity_file)
             else:
                 pass
         else:
@@ -969,7 +1002,7 @@ def align_async_signals(oe_folder, json_file):
             events_time, transition_index=extract_event_time(this_event,analysis_methods,time_window,stim_on_oe=None,isi_on_oe=None,oe_camera_time=oe_camera_time,s2w_index=s2w_index,w2s_index=w2s_index,n2t_index=n2t_index,walk_states=walk_states,travel_distance_fbf=travel_distance_fbf,turn_states=turn_states,turn_ccw=turn_ccw,turn_cw=turn_cw)
             trial_type_interest=0
         elif video_file is None:
-            if experiment_name=='choices':
+            if experiment_name in ['choices','looming'] and fictrac_posthoc_analysis==False:
                 events_time, transition_index=extract_event_time(this_event,analysis_methods,time_window,stim_on_oe=stim_on_oe,isi_on_oe=isi_on_oe,oe_camera_time=oe_camera_time,s2w_index=s2w_index,w2s_index=w2s_index,n2t_index=n2t_index,walk_states=walk_states,travel_distance_fbf=travel_distance_fbf,turn_states=turn_states,turn_ccw=turn_ccw,turn_cw=turn_cw)
                 if this_event in ["walking_trials","stationary_trials","straight_walk_trials","turning_trials"]:
                     trial_type_interest=extract_state_specific_trials(this_event,meta_info)
@@ -1070,8 +1103,8 @@ if __name__ == "__main__":
     #thisDir = r"Y:\GN26018\260228\spontaneous\session2\2026-02-28_21-58-44"
     #thisDir = r"Y:\GN26019\260301\choices\session2\2026-03-01_15-59-22"
     #thisDir = r"Y:\GN26019\260301\choices\session1\2026-03-01_14-41-31"
-    thisDir = r"Y:\GN26038\260407\choices\session1\2026-04-07_11-55-17"
-    #thisDir = r"Y:\GN26041\260411\looming\session1\2026-04-11_17-22-53"
+    #thisDir = r"Y:\GN26038\260407\choices\session1\2026-04-07_11-55-17"
+    thisDir = r"Y:\GN26042\260412\looming\session1\2026-04-12_14-23-36"
     #thisDir = r"Y:\GN26019\260301\spontaneous\session1\2026-03-01_14-10-06"
     #thisDir = r"Y:\GN26012\260208\sweeping\session1\2026-02-08_14-33-58"
     #thisDir =r"Y:\GN25029\250729\looming\session1\2025-07-29_15-22-54"
