@@ -185,12 +185,13 @@ def plot_psth(spike_time_interest,cluster_id_interest,event_of_interest,events_t
                     continue
                 if 'Duration' in stim_variables:## varying the length of PSTH when there are different length of stimulus
                     if type(id) ==int:
-                        time_window=[time_window[0],id+2]
+                        time_window=[time_window[0],id+1]
                     else:
-                        time_window=[time_window[0],id[stim_variables.index('Duration')]+2]
+                        time_window=[time_window[0],id[stim_variables.index('Duration')]+1]
                 if this_cluster_id==64 and event_of_interest=="stationary_trials":
                     continue
-
+                if this_cluster_id in [9,27,65] and event_of_interest=="walking_trials":
+                    continue
                 # if this_cluster_id==64:
                 #     print('wait')
                 peth = nap.compute_perievent(
@@ -214,13 +215,14 @@ def plot_psth(spike_time_interest,cluster_id_interest,event_of_interest,events_t
                 ax1.axvline(0.0,color="black")
                 ax2.plot(peth.to_tsd(), "|", markersize=1, color="black", mew=1)
                 ax2.set(ylabel="Event #",xlabel=f"Time from {event_of_interest} (s)",xlim=(time_window[0], time_window[1]))
-                fix_ylim=False
+                fix_ylim=True
                 if fix_ylim:
-                    ax1.set_ylim([0, 90])
-                    ax1.set_yticks([0,90])
+                    ax1.set_ylim([0, 120])
+                    ax1.set_yticks([0,120])
                 cleanup_xticks=True
                 if cleanup_xticks:
-                    ax2.set_xticks([time_window[0],round(time_window[0]/2),0,round(time_window[1]/2),time_window[1]])
+                    #ax2.set_xticks([time_window[0],round(time_window[0]/2),0,round(time_window[1]/2),time_window[1]])
+                    ax2.set_xticks([-0.5,0,4,4.5])
                 suffix = "_".join(f"{var}_{val}" for var, val in zip(stim_variables, id))
                 if len(stim_types.unique())==1:
                     png_name = f"unit{this_cluster_id}_{event_of_interest}_peth_stim_{stim_types.values[0]}_{suffix}.png"
@@ -249,10 +251,10 @@ def plot_psth(spike_time_interest,cluster_id_interest,event_of_interest,events_t
             ax1.axvline(0.0,color="black")
             ax2.plot(peth.to_tsd(), "|", markersize=1, color="black", mew=1)
             ax2.set(ylabel="Event #",xlabel=f"Time from {event_of_interest} (s)",xlim=(time_window[0], time_window[1]))
-            fix_ylim=False
+            fix_ylim=True
             if fix_ylim:
-                ax1.set_ylim([0, 90])
-                ax1.set_yticks([0,90])
+                ax1.set_ylim([0,120])
+                ax1.set_yticks([0,120])
             cleanup_xticks=True
             if cleanup_xticks:
                 ax2.set_xticks([time_window[0],round(time_window[0]/2),0,round(time_window[1]/2),time_window[1]])
@@ -278,7 +280,8 @@ def plot_psth(spike_time_interest,cluster_id_interest,event_of_interest,events_t
         else:
             print("selected stimulus type does not exist in meta info")
             continue
-        min_dblUseDur=min(ISI_duration)
+        #min_dblUseDur=min(ISI_duration)
+        min_dblUseDur=1
         # else:
         #     continue
         # unable to extract events_time from the reference variables yet
@@ -692,6 +695,15 @@ def align_async_signals(oe_folder, json_file):
         else:
             stim_on_oe = pd_on_oe
             isi_on_oe = pd_off_oe
+        if stim_on_oe.shape[0]>num_stim:
+            stim_on_oe=stim_on_oe[:num_stim]
+        elif stim_on_oe.shape[0]<num_stim:
+            warnings(f'the number of stim_on_oe is fewer than {num_stim}')
+        if isi_on_oe.shape[0]>num_stim:
+            isi_on_oe=isi_on_oe[:num_stim]
+        elif isi_on_oe.shape[0]<num_stim:
+            warnings(f'the number of isi_on_oe is fewer than {num_stim}')
+
         if exp_datetime in ['2026-02-28_13-42-38','2026-03-01_14-41-31','2026-03-01_17-04-17','2026-03-14_13-02-34','2026-03-15_13-02-26','2026-03-15_18-59-09','2026-03-21_14-09-58','2026-03-21_15-46-11','2026-03-22_15-37-55','2026-03-22_18-31-29']:#on,off,off,on,on,N/A,N/A,on,on,on
             stim_on_oe,isi_on_oe,freeze_time=debug_freeze_session(exp_datetime,stim_on_oe,isi_on_oe)
         if video_file is None:
@@ -1008,6 +1020,13 @@ def align_async_signals(oe_folder, json_file):
                     trial_type_interest=extract_state_specific_trials(this_event,meta_info)
                 else:
                     trial_type_interest= np.ones(num_stim, dtype=bool)
+                # v_interest=velocity_tbt[trial_type_interest,:]
+                # x_value=np.tile(np.arange(v_interest.shape[1]),(v_interest.shape[0],1))
+                # fig2, (ax, ax1) = plt.subplots(nrows=2, ncols=1, figsize=(36, 14), tight_layout=True)
+                # ax.plot(np.arange(v_interest.shape[1]),np.mean(v_interest,axis=0))
+                # ax1.scatter(x_value,v_interest,s=0.2)
+                # png_name=f'velocity_{this_event}.png'
+                # fig2.savefig(oe_folder / png_name)
             else:
                 events_time, transition_index=extract_event_time(this_event,analysis_methods,time_window,stim_on_oe=stim_on_oe,isi_on_oe=isi_on_oe,oe_camera_time=None,s2w_index=None,w2s_index=None,n2t_index=None,walk_states=None,travel_distance_fbf=None,turn_states=None,turn_ccw=None,turn_cw=None)
                 print("this file does not have behavioural data so can not extract state specific trial. Analyse all trials instead.")
@@ -1104,6 +1123,7 @@ if __name__ == "__main__":
     #thisDir = r"Y:\GN26019\260301\choices\session2\2026-03-01_15-59-22"
     #thisDir = r"Y:\GN26019\260301\choices\session1\2026-03-01_14-41-31"
     #thisDir = r"Y:\GN26038\260407\choices\session1\2026-04-07_11-55-17"
+    #thisDir = r"Y:\GN26042\260412\looming\session2\2026-04-12_15-51-11"
     thisDir = r"Y:\GN26042\260412\looming\session1\2026-04-12_14-23-36"
     #thisDir = r"Y:\GN26019\260301\spontaneous\session1\2026-03-01_14-10-06"
     #thisDir = r"Y:\GN26012\260208\sweeping\session1\2026-02-08_14-33-58"

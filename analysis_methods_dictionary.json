@@ -32,17 +32,26 @@
     "event_of_interest": [
         "stim_onset",
         "walking_trials",
-        "stationary_trials",
-        "stop_onset",
-        "walk_onset"
+        "stationary_trials"
     ],
     "stim_variables": [
-        "LocustTexture1",
+        "PolarBeginR1",
+        "R1",
         "A1",
-        "R1"
+        "Duration"
     ],
-    "zeta_variables1": [],
-    "zeta_variables2": [],
+    "zeta_variables1": [
+        19.5,
+        0.0,
+        1.0,
+        4.0
+    ],
+    "zeta_variables2": [
+        19.5,
+        0.0,
+        0.0,
+        4.0
+    ],
     "exp_place": "Zball",
     "experiment_name": "looming",
     "temperature_data_options": "trial",
@@ -72,7 +81,7 @@
     "load_experiment_condition_from_database": true,
     "select_animals_by_condition": false,
     "analysis_by_stimulus_type": true,
-    "stationary_phase_before_motion": false,
+    "stationary_phase_before_motion": true,
     "camera_fps": 100,
     "trackball_radius": 5,
     "monitor_fps": 144,
@@ -83,8 +92,8 @@
         30
     ],
     "analysis_window": [
-        -1,
-        5
+        -2,
+        4
     ],
     "prestim_duration": 60,
     "duration_for_optomotor_index": 0,
