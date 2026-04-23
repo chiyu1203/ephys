@@ -12,6 +12,7 @@ from functools import reduce
 # if version('scipy')<'1.13.0':
 #     from scipy.signal import medfilt,convolve, gaussian
 # else:
+
 from scipy.signal import medfilt,convolve
 from scipy.signal.windows import gaussian
 from zetapy import zetatest,zetatest2
@@ -64,6 +65,26 @@ n_jobs = n_cpus - 4
 global_job_kwargs = dict(n_jobs=n_jobs, chunk_duration="1s", progress_bar=True)
 # global_job_kwargs = dict(n_jobs=16, chunk_duration="5s", progress_bar=False)
 si.set_global_job_kwargs(**global_job_kwargs)
+
+
+import bisect
+
+def get_filtered_indices(elements, time_windows):
+    """
+    Returns the indices (in the original array) of elements
+    that are NOT in any time window.
+    """
+    sorted_windows = sorted(time_windows, key=lambda w: w[0])
+    starts = [w[0] for w in sorted_windows]
+
+    def is_in_any_window(element):
+        idx = bisect.bisect_right(starts, element) - 1
+        if idx >= 0 and sorted_windows[idx][0] <= element <= sorted_windows[idx][1]:
+            return True
+        return False
+
+    return [i for i, el in enumerate(elements) if not is_in_any_window(el)]
+
 
 def build_mask(meta_info, stim_variables, zeta_variables, base_mask=None):
     conditions = [meta_info[var] == val for var, val in zip(stim_variables, zeta_variables)]
@@ -1009,6 +1030,7 @@ def align_async_signals(oe_folder, json_file):
     #         ax2.set_xticks([time_window[0],round(time_window[0]/2),0,round(time_window[1]/2),time_window[1]])
     #     png_name = f"unit{this_id}_{event_of_interest}_peth_naptest.png"
     #     fig2.savefig(oe_folder / png_name)
+    analyse_spontaneous_activity=True
     for this_event in event_of_interest:
         if trial_file is None:
             events_time, transition_index=extract_event_time(this_event,analysis_methods,time_window,stim_on_oe=None,isi_on_oe=None,oe_camera_time=oe_camera_time,s2w_index=s2w_index,w2s_index=w2s_index,n2t_index=n2t_index,walk_states=walk_states,travel_distance_fbf=travel_distance_fbf,turn_states=turn_states,turn_ccw=turn_ccw,turn_cw=turn_cw)
@@ -1038,6 +1060,16 @@ def align_async_signals(oe_folder, json_file):
                 trial_type_interest=extract_state_specific_trials(this_event,meta_info)
             else:
                 trial_type_interest= np.ones(num_stim, dtype=bool)
+        if analyse_spontaneous_activity and this_event in ["stop_onset","walk_straight_onset","turn_ccw_onset","turn_cw_onset","walk_onset","turn_onset"] and "stim_on_oe" in locals():
+            time_wondow_list=[]
+            for this_point in stim_on_oe:
+                t_tuple=(this_point+time_window[0],this_point+time_window[1])
+                time_wondow_list.append(t_tuple)
+            filtered_index = get_filtered_indices(events_time, time_wondow_list)
+            test=np.array(filtered_index)
+            events_time=events_time[test]
+            transition_index=transition_index[test]
+            
         if type(trial_type_interest)==list:
             print('analyse spiking activity alone or spiking activity modulated by a long behavioural states')
         elif type(transition_index)==list:
