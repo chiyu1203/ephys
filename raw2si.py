@@ -192,7 +192,8 @@ def get_preprocessed_recording(oe_folder,analysis_methods):
                 probe_map_file_name="P2_RHD2132_openEphys_mapping.json"
                 probe_name= "ASSY-37-P-2"
             elif probe_type == "H6D":
-                probe_map_file_name="H6D_RHD2164_openEphys_mapping_noshank.prb"
+                probe_map_file_name="H6D_RHD2164_openEphys_mapping.prb"
+                #probe_map_file_name="H6D_RHD2164_openEphys_mapping.json"
                 probe_name= "ASSY-77-H6D"
                 #stacked_probes = pi.read_probeinterface("H6D_RHD2164_openEphys_mapping.json")
                 #stacked_probes = pi.read_prb("H6D_RHD2164_openEphys_mapping_noshank.prb")
@@ -204,11 +205,10 @@ def get_preprocessed_recording(oe_folder,analysis_methods):
                 probe_map_file_name="H5_stacked_probes_2D.prb"
                 probe_name= "ASSY-77-H5"
 
-            
             if probe_map_file_name.endswith('prb'):
                 stacked_probes =  pi.read_prb(probe_map_file_name)
-                probe_data = stacked_probes.probes
-                #probe = probegroup.probes[0]
+                for i in range(len(stacked_probes.probes)):
+                    stacked_probes.probes[i].set_shank_ids([f"{i}"]*stacked_probes.probes[i].get_contact_count())
             else:
                 stacked_probes = pi.read_probeinterface(probe_map_file_name)
                 probe_data = stacked_probes.probes[0]
@@ -234,24 +234,18 @@ def get_preprocessed_recording(oe_folder,analysis_methods):
             probe_data.wiring_to_device(connector_type)
             probe_map_file_name='XXX.json'
         
-        print(probe_data)
+        #print(probe_data)
         # drop AUX channels here
         if probe_map_file_name.endswith('prb'):
-            #raw_rec = raw_rec.set_probegroup(probe_data, group_mode="by_shank")#shank information is not saved in prb
-            # probe = Probe(si_units="um")
-            # channel_positions = np.load(phy_path / "channel_positions.npy")
-            # probe.set_contacts(channel_positions)
-            # probe.set_device_channel_indices(range(probe.get_contact_count()))
-            raw_rec = raw_rec.set_probegroup(probe_data[0])
-            
-            #raw_rec = raw_rec.set_probegroup(stacked_probes)
+            raw_rec = raw_rec.set_probegroup(stacked_probes,group_mode='by_shank')
+            #raw_rec = raw_rec.set_probe(stacked_probes.probes[0],group_mode='by_shank') ## in the case of 1 shank probe this is fine
         else:
             raw_rec = raw_rec.set_probe(probe_data,group_mode='by_shank')
         raw_rec.annotate(
             description=f"Dataset of {this_experimenter}"
         )  # should change here for something related in the future
         ################ estimate motion with LFP band ################
-
+        #print(raw_rec.get_channel_locations())
         #As we do not analyse LFP data, there was no need to correct motion based on LFP band. However, this estimation can be good to validate the result from spike-band based motion estimation
         # https://spikeinterface.readthedocs.io/en/latest/how_to/drift_with_lfp.html
         lfp_drift_estimation=False
@@ -661,7 +655,6 @@ if __name__ == "__main__":
     #thisDir = r"Y:\GN26010\260201\density\session1\2026-02-01_15-32-08"
     #thisDir = r"Y:\GN26011\260207\sweeping\session3\2026-02-07_18-23-41"
     #thisDir = r"Y:\GN26022\260314\sweeping\session1\2026-03-14_15-29-04"
-    thisDir = r"C:\Users\neuroPC\Documents\Open Ephys\2026-04-11_17-22-53"
     #thisDir = r"Y:\GN26005\260117\looming\session1\2026-01-17_16-03-04"
     #thisDir = r"Y:\GN26006\260118\looming\session1\2026-01-18_14-14-20"
     json_file = "./analysis_methods_dictionary.json"
