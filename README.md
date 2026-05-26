@@ -1,4 +1,4 @@
-### ephys
+# ephys
 General anaconda environment for all setups and data analyses
 
 Install the latest anaconda version for your operating system (https://www.anaconda.com/products/individual).
@@ -13,6 +13,11 @@ Then installing spikeinterface and other dependencies. Then installing other dep
 
 ````
 pip install spikeinterface[full,widgets] zarr docker cuda-python numcodecs hdbscan ipympl spikeinterface-gui PySide6 pynapple zetapy
+````
+[optional] to use dredge for motion correction, torch is needed. Below is an instruction to install torch from pytorch. 
+````
+pip3 install torch --index-url https://download.pytorch.org/whl/cu118
+#here for more information https://pypi.org/project/torch/
 ````
 
 [optional] ibllib has many plotting functions You can either install it via pip or to install it from source. Below is the version I forked from the source
@@ -52,7 +57,9 @@ phy template-gui params.py
 ````
 **e.g. D:\Open Ephys\2025-02-23_20-39-04\phy_KS4>phy template-gui params.py**
 
-# data collection (doing a 3 hour recording with a 32-channel probe generates data at around 25 GB, double check if neuroPC has enough capacity before starting a session, a 80-min recording with 128 channels results in 40 GB)
+
+# data collection 
+(doing a 3 hour recording with a 32-channel probe generates data at around 25 GB, double check if neuroPC has enough capacity before starting a session, a 80-min recording with 128 channels results in 40 GB)
 
 # Setting up Surround displays
 Surround displays are used to create panorama view. To set up surround displays, go to NVIDIA Control Panel with all 4 displays on and click Configure Surround, PhysX. Then click Configure, where you can specify which display to use and their relative position. In the case of 5840 * 1080 bezel corrected resolution, click on 5760 *1080 first resolution first and then add 40 Bezels value to each border (V1, V2). Note: it is possible to set the Refresh Rate to 240 Hz, however, we dont have/need that much fast camera and our computer has the closed-loop VR system to work on already so why bother.
@@ -137,13 +144,13 @@ Press **Esc** to stop the Unity file (this seems to take around 10 mins to save 
 
 The fundamental difference between mult-camera filming or not is whether to use arduino to trigger the camera. Thus, if only using one camera to capture the behaviour or when synchronising camera shutter is not important, then use feature file that does not come with **_hw**. The rest of the step should be more or less the same.
 
-## analysis methods
+# analysis methods
 
 The analysis methods are organised into a json file, which is created from a python file. This json file tells the notebook and python script how to analysis the data (with some boolean options) and include meta information of the experiment that is not included during data collection phase. 
 
 Therefore, each project (or each experiment) has its own json file. Below explains what those analysis methods are about.
 
-# The following is used in raw2si.py and spike_curation.py  
+## The following is used in raw2si.py and spike_curation.py  
 
     "experimenter": "chiyu",
 
@@ -182,7 +189,7 @@ Therefore, each project (or each experiment) has its own json file. Below explai
     
     "load_sorting_file": false,
 
-# The following is used in spike_curation.py  
+## The following is used in spike_curation.py  
     
     "save_analyser_to_disc": true,
     
@@ -198,7 +205,7 @@ Therefore, each project (or each experiment) has its own json file. Below explai
     
     "export_report": false,
 
-# The following is used in decode_spikes.py
+## The following is used in decode_spikes.py
 
     "load_raw_trial_info": false,
 
@@ -210,7 +217,7 @@ Therefore, each project (or each experiment) has its own json file. Below explai
     
     "experiment_name": "coherence",
 
-# The following is used in analyse animal's behaviour
+## The following is used in analyse animal's behaviour
 
     "overwrite_curated_dataset": true, whether to overwrite the existing pickle file or not, which is generated from fictrac. If True, then the programme will overwrite the pickle file
 
