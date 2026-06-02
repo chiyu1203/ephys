@@ -254,6 +254,8 @@ def si2phy(thisDir, json_file):
     sorter_suffix = generate_sorter_suffix(this_sorter)
     result_folder_name = "results" + sorter_suffix
     sorting_folder_name = "sorting" + sorter_suffix
+    sorting_saving_path=Path(oe_folder / sorting_folder_name)
+    sorting_saving_path.mkdir(parents=True, exist_ok=True)
     analyser_folder_name = "analyser" + sorter_suffix
     phy_folder_name = "phy" + sorter_suffix
     report_folder_name = "report" + sorter_suffix
@@ -263,7 +265,7 @@ def si2phy(thisDir, json_file):
     load_previous_methods=analysis_methods.get("load_previous_methods",False)
     export_to_phy=analysis_methods.get("export_to_phy")
     if load_previous_methods:
-        previous_methods_file=find_file(oe_folder / sorting_folder_name, "analysis_methods_dictionary_backup.json")
+        previous_methods_file=find_file(sorting_saving_path, "analysis_methods_dictionary_backup.json")
         if previous_methods_file!=None:
             with open(previous_methods_file, "r") as f:
                 print(f"load analysis methods from previous file {previous_methods_file}")
@@ -325,7 +327,7 @@ def si2phy(thisDir, json_file):
         )
 
     elif (
-        oe_folder / sorting_folder_name
+        sorting_saving_path
     ).is_dir() or use_kilosort_standalone:  # need to double check the difference between sorting_folder_name and result_folder_name
         print(
             "create a sorting_analyser with fresh sorted spikes from automatic sorters"
@@ -354,13 +356,11 @@ def si2phy(thisDir, json_file):
                 kilosort_result_folder_name= oe_folder / ks_folder_name / f'shank_{shank_of_interest}'
             else:
                 kilosort_result_folder_name= oe_folder / ks_folder_name
-            sorting_analyzer=se.read_kilosort_as_analyzer(kilosort_result_folder_name)
+            sorting_analyzer=se.read_kilosort_as_analyzer(kilosort_result_folder_name,recording_for_analysis)
             sorting_analyzer.set_temporary_recording(recording_for_analysis)
-            export_to_phy=False
-            postprocess_with_unwhitening_recording=True
         else:
             sorting_spikes = si.load_extractor(
-                oe_folder / sorting_folder_name
+                sorting_saving_path
             )  # this acts quite similar than above one line.
             if remove_excess_spikes:
                 sorting_spikes=scur.remove_duplicated_spikes(sorting_spikes,censored_period_ms=0.3,method="keep_first_iterative")
@@ -417,7 +417,7 @@ def si2phy(thisDir, json_file):
     noise_neuron_labels = scur.auto_label_units(sorting_analyzer = sorting_analyzer,repo_id ="SpikeInterface/UnitRefine_noise_neural_classifier",trust_model=True) #or ['numpy.dtype']
     # Apply the noise/not-noise model
     noise_units = noise_neuron_labels[noise_neuron_labels['prediction']=='noise']
-    #noise_units.to_csv(oe_folder / sorting_folder_name/'predicted_noise_units.csv')
+    #noise_units.to_csv(sorting_saving_path/'predicted_noise_units.csv')
     print(noise_units)
     analyzer_neural = sorting_analyzer.remove_units(noise_units.index)
     # Apply the sua/mua model
@@ -427,7 +427,7 @@ def si2phy(thisDir, json_file):
         trust_model=True,
     )
     all_labels = pd.concat([sua_mua_labels, noise_units]).sort_index()
-    all_labels.to_csv(oe_folder / sorting_folder_name/'predicted_sua_mua.csv')
+    all_labels.to_csv(sorting_saving_path/'predicted_sua_mua.csv')
 
     if (analysis_methods.get("load_curated_spikes") == True
         and (oe_folder / phy_folder_name).is_dir()):
@@ -478,8 +478,10 @@ def si2phy(thisDir, json_file):
     sw.plot_quality_metrics(sorting_analyzer, include_metrics=["isi_violations_ratio","snr","rp_contamination","firing_rate","sd_ratio"])
     ax = sw.plot_unit_templates(sorting_analyzer, backend="matplotlib")
     fig_name = f"preview_unit_template.png"
-    fig_dir = oe_folder / sorting_folder_name/ fig_name
-    ax.figure.savefig(fig_dir)
+    ax.figure.savefig(sorting_saving_path/fig_name)
+    json_string = json.dumps(analysis_methods, indent=1)
+    with open(sorting_saving_path / "analysis_methods_dictionary_backup.json", "w") as f:
+        f.write(json_string)
 
     if analysis_methods.get("export_report") == True:
         sep.export_report(
@@ -492,7 +494,10 @@ if __name__ == "__main__":
     #thisDir = r"Y:\GN25019\250524\2025-05-24_15-11-49"
     #thisDir = r"Y:\GN25060\251130\coherence\session1\2025-11-30_14-25-01"
     #thisDir = r"Y:\GN25070\251228\looming\sessoin1\2025-12-28_13-48-28"
-    thisDir = r"Y:\GN26038\260407\choices\session2\2026-04-07_12-56-56"
+    #thisDir = r"Y:\GN26038\260407\choices\session2\2026-04-07_12-56-56"
+    #thisDir = r"Y:\GN26045\260418\looming\session1\2026-04-18_18-50-24"
+    #thisDir = r"Y:\GN26063\260523\spontaneous\session1\2026-05-23_10-18-50"
+    thisDir = r"Y:\GN26042\260412\looming\session1\2026-04-12_14-23-36"
     json_file = "./analysis_methods_dictionary.json"
     ##Time the function
     tic = time.perf_counter()
