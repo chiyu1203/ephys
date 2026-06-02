@@ -52,9 +52,11 @@ def AP_band_drift_estimation(group,recording_saved,oe_folder,analysis_methods,wi
     motion_folder = oe_folder / f"motion_shank{group}"
     motion_info_list=[]
     motion_corrector_tuple=("dredge","rigid_fast","kilosort_like")
+    if analysis_methods.get("probe_type")=="H5_stacked":
+        probe_ymax_ymin=[-100,600]
+    else:
+        probe_ymax_ymin=[-100,400]
     #motion_corrector_tuple=("dredge","kilosort_like")
-    #motion_corrector_tuple=("rigid_fast","kilosort_like")
-    #motion_corrector_tuple=("rigid_fast")
     if skip_motion_correction:
         print(
             "skipp correct motion/drift"
@@ -66,6 +68,7 @@ def AP_band_drift_estimation(group,recording_saved,oe_folder,analysis_methods,wi
             motion_corrector_params = spre.get_motion_parameters_preset(motion_corrector)
             print(f"start doing motion correction or loading existing motion correction file with this corrector {motion_corrector}")
             motion_corrector_params['estimate_motion_kwargs'].update({"win_step_um":win_step_um,"win_scale_um":win_scale_um})
+            motion_corrector_params['interpolate_motion_kwargs'].update({"border_mode":'force_zeros'})
             detection_threshold=8.0
             motion_corrector_params['detect_kwargs'].update({'detect_threshold': detection_threshold})
             # dredge_preset_params = spre.get_motion_parameters_preset("dredge")
@@ -77,6 +80,7 @@ def AP_band_drift_estimation(group,recording_saved,oe_folder,analysis_methods,wi
                     motion=motion_info["motion"],
                     #temporal_bins=motion_info["temporal_bins"],
                     #spatial_bins=motion_info["spatial_bins"],
+                    border_mode="force_zeros"
                 )
                 # border_mode="remove_channels",
                 # spatial_interpolation_method="kriging",
@@ -93,7 +97,8 @@ def AP_band_drift_estimation(group,recording_saved,oe_folder,analysis_methods,wi
                     output_motion=True,
                     output_motion_info=True,
                     detect_kwargs=motion_corrector_params['detect_kwargs'],
-                    estimate_motion_kwargs=motion_corrector_params['estimate_motion_kwargs']
+                    estimate_motion_kwargs=motion_corrector_params['estimate_motion_kwargs'],
+                    interpolate_motion_kwargs=motion_corrector_params['interpolate_motion_kwargs']
                 )
                 print(f"can not find folder {test_folder}, so create one when correcting motion")
             else:
@@ -106,14 +111,16 @@ def AP_band_drift_estimation(group,recording_saved,oe_folder,analysis_methods,wi
                     output_motion=False,
                     output_motion_info=False,
                     detect_kwargs=motion_corrector_params['detect_kwargs'],
-                    estimate_motion_kwargs=motion_corrector_params['estimate_motion_kwargs'])#interpolate_motion_kwargs={'border_mode' : 'force_extrapolate'},
+                    estimate_motion_kwargs=motion_corrector_params['estimate_motion_kwargs'],
+                    interpolate_motion_kwargs=motion_corrector_params['interpolate_motion_kwargs']
+                    )
                 print('recording is corrected but because overwrite_curated_dataset is false, output_motion and info are not generated')
             fig = plt.figure(figsize=(14, 8))
             sw.plot_motion_info(
                 motion_info,
                 recording_corrected,
                 figure=fig,
-                depth_lim=(0, 400),
+                depth_lim=(probe_ymax_ymin[0], probe_ymax_ymin[1]),
                 color_amplitude=True,
                 amplitude_cmap="inferno",
                 scatter_decimate=10,
@@ -165,7 +172,7 @@ def AP_band_drift_estimation(group,recording_saved,oe_folder,analysis_methods,wi
                         motion_info,
                         recording_corrected,
                         figure=fig,
-                        depth_lim=(0, 400),
+                        depth_lim=(probe_ymax_ymin[0], probe_ymax_ymin[1]),
                         color_amplitude=True,
                         amplitude_cmap="inferno",
                         scatter_decimate=10,
@@ -318,9 +325,6 @@ def run(thisDir, json_file):
             elif probe_type == "H10":
                 probe_name = "ASSY-77-H10"
                 connector_type="ASSY-77>Adpt.A64-Om32_2x-sm-cambridgeneurotech>RHD2164"
-            # elif probe_type == "P2":
-            #     probe_name = "ASSY-37-P-2"
-            #     connector_type="ASSY-116>RHD2132"
             else:
                 print("the name of probe not identified. stop the programme")
                 return
@@ -355,20 +359,12 @@ def run(thisDir, json_file):
     #win_scale_set=[100,150]
     #win_margin_set=[-150,0,150]
     #win_margin_set=[150,0]
-    # win_step_um":75.0,"
-    # win_scale_um":250.0
-    #win_step_set=[50,100,150]
-    #win_scale_set=[50,100,150,200,250]
-    recording_corrected_dict = {}
-    motion_ap_dict={}
     for group, sub_recording in recordings_dict.items():
         for win_scale_um in win_scale_set:
             for win_step_um in win_step_set:
                 #for win_margin_um in win_margin_set:
                 print(f"win_step_um={win_step_um}, win_scale_um={win_scale_um}")#,win_margin_um={win_margin_um}
                 _,_=AP_band_drift_estimation(group,sub_recording,oe_folder,analysis_methods,win_step_um,win_scale_um)
-        # recording_corrected_dict[group]=recording_corrected
-        # motion_ap_dict[group]=motion_ap_list
         
     return print("done testing motion correction")
 

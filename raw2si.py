@@ -74,6 +74,10 @@ def generate_sorter_suffix(this_sorter):
 def motion_correction_shankbyshank(recording_saved,oe_folder,analysis_methods):
     motion_corrector=analysis_methods.get("motion_corrector")
     probe_type = analysis_methods.get("probe_type")
+    if probe_type=="H5_stacked":
+        probe_ymax_ymin=[-100,600]
+    else:
+        probe_ymax_ymin=[-100,400]
     if probe_type=="P2":
         (win_step_um,win_scale_um)=(30,100)
     else:
@@ -115,12 +119,12 @@ def motion_correction_shankbyshank(recording_saved,oe_folder,analysis_methods):
             color_kargs = dict(alpha=0.2, s=2, c=c)
             peak_locations = motion_info["peak_locations"]
             ax1.scatter(peak_locations["x"][mask][sl], peak_locations["y"][mask][sl], **color_kargs)
-            ax1.set_ylim(-100, 400)
+            ax1.set_ylim(probe_ymax_ymin[0], probe_ymax_ymin[1])
             ax1.set_title('detected peak location')
             peak_locations2 = correct_motion_on_peaks(peaks, peak_locations, motion,recording_saved)
             sw.plot_probe_map(recording_saved, ax=ax2)
             ax2.scatter(peak_locations2["x"][mask][sl], peak_locations2["y"][mask][sl], **color_kargs)
-            ax2.set_ylim(-100, 400)
+            ax2.set_ylim(probe_ymax_ymin[0], probe_ymax_ymin[1])
             ax2.set_title('corrected peak location')
             peak_location_figure=test_folder/"corrected_peak_location.png"
             if peak_location_figure.exists() and analysis_methods.get("overwrite_curated_dataset")==False:
@@ -153,11 +157,7 @@ def get_preprocessed_recording(oe_folder,analysis_methods):
         this_experimenter = analysis_methods.get("experimenter")
         probe_type = analysis_methods.get("probe_type")
         plot_traces = analysis_methods.get("plot_traces")
-        #raw_rec = se.read_openephys(oe_folder, load_sync_timestamps=True)
-        #raw_rec = se.read_openephys(oe_folder, load_sync_timestamps=True,block_index=0,stream_id='0')
         raw_rec = se.read_openephys(oe_folder,block_index=0,stream_id='0')
-    # To show the start of recording time
-    # raw_rec.get_times()[0]
         save_event_timing(oe_folder)
         fs = raw_rec.get_sampling_frequency()
         if analysis_methods.get("load_raw_traces") == True:
@@ -192,12 +192,9 @@ def get_preprocessed_recording(oe_folder,analysis_methods):
                 probe_map_file_name="P2_RHD2132_openEphys_mapping.json"
                 probe_name= "ASSY-37-P-2"
             elif probe_type == "H6D":
-                probe_map_file_name="H6D_RHD2164_openEphys_mapping.prb"
-                #probe_map_file_name="H6D_RHD2164_openEphys_mapping.json"
+                #probe_map_file_name="H6D_RHD2164_openEphys_mapping.prb"
+                probe_map_file_name="H6D_RHD2164_openEphys_mapping.json"
                 probe_name= "ASSY-77-H6D"
-                #stacked_probes = pi.read_probeinterface("H6D_RHD2164_openEphys_mapping.json")
-                #stacked_probes = pi.read_prb("H6D_RHD2164_openEphys_mapping_noshank.prb")
-                #stacked_probes = pi.read_prb("H6D_RHD2164_openEphys_mapping.prb")
             elif probe_type == "H6D_2132":
                 probe_map_file_name="H6D_2_RHD2132_openEphys_mapping.json"
                 probe_name= "ASSY-77-H6D"
@@ -212,7 +209,8 @@ def get_preprocessed_recording(oe_folder,analysis_methods):
             else:
                 stacked_probes = pi.read_probeinterface(probe_map_file_name)
                 probe_data = stacked_probes.probes[0]
-
+            # added probe information but drop AUX channels here
+            raw_rec = raw_rec.set_probegroup(stacked_probes,group_mode='by_shank')
         else:              
             manufacturer = "cambridgeneurotech"
             if probe_type == "H5":
@@ -221,9 +219,6 @@ def get_preprocessed_recording(oe_folder,analysis_methods):
             elif probe_type == "H10":
                 probe_name = "ASSY-77-H10"
                 connector_type="ASSY-77>Adpt.A64-Om32_2x-sm-cambridgeneurotech>RHD2164"
-            # elif probe_type == "P2":
-            #     probe_name = "ASSY-37-P-2"
-            #     connector_type="ASSY-116>RHD2132"
             else:
                 print("the name of probe not identified. stop the programme")
                 return
@@ -233,19 +228,13 @@ def get_preprocessed_recording(oe_folder,analysis_methods):
             ]
             probe_data.wiring_to_device(connector_type)
             probe_map_file_name='XXX.json'
-        
-        #print(probe_data)
-        # drop AUX channels here
-        if probe_map_file_name.endswith('prb'):
-            raw_rec = raw_rec.set_probegroup(stacked_probes,group_mode='by_shank')
-            #raw_rec = raw_rec.set_probe(stacked_probes.probes[0],group_mode='by_shank') ## in the case of 1 shank probe this is fine
-        else:
+            # added probe information but drop AUX channels here
             raw_rec = raw_rec.set_probe(probe_data,group_mode='by_shank')
+                    
         raw_rec.annotate(
             description=f"Dataset of {this_experimenter}"
         )  # should change here for something related in the future
         ################ estimate motion with LFP band ################
-        #print(raw_rec.get_channel_locations())
         #As we do not analyse LFP data, there was no need to correct motion based on LFP band. However, this estimation can be good to validate the result from spike-band based motion estimation
         # https://spikeinterface.readthedocs.io/en/latest/how_to/drift_with_lfp.html
         lfp_drift_estimation=False
@@ -286,6 +275,11 @@ def get_preprocessed_recording(oe_folder,analysis_methods):
                     )
             elif probe_type == "H10":
                 broken_shank_ids=np.array(['CH1','CH2','CH3','CH4','CH5','CH6','CH7','CH8','CH9','CH10','CH11','CH12','CH13','CH14','CH15','CH16','CH17','CH18','CH19','CH20','CH21','CH22','CH23','CH24','CH25','CH26','CH27','CH28','CH29','CH30','CH31','CH32'])
+                recording_f = recording_f.remove_channels(
+                        broken_shank_ids
+                    )
+            elif probe_type == "H5_stacked":
+                broken_shank_ids=np.array(['CH35','CH59','CH37','CH57','CH39','CH55','CH41','CH52','CH43','CH54','CH45','CH48','CH47','CH64','CH50','CH62','CH82','CH110','CH83','CH109','CH84','CH108','CH85','CH103','CH86','CH102','CH87','CH89','CH88','CH97','CH104','CH98'])
                 recording_f = recording_f.remove_channels(
                         broken_shank_ids
                     )
@@ -657,6 +651,11 @@ if __name__ == "__main__":
     #thisDir = r"Y:\GN26022\260314\sweeping\session1\2026-03-14_15-29-04"
     #thisDir = r"Y:\GN26005\260117\looming\session1\2026-01-17_16-03-04"
     #thisDir = r"Y:\GN26006\260118\looming\session1\2026-01-18_14-14-20"
+    #thisDir = r"Y:\GN26065\260524\choices\session1\2026-05-24_12-01-27"#['CH49','CH29']['dead','noise']
+    #thisDir = r"Y:\GN26065\260524\sweeping\session1\2026-05-24_13-05-45"#['CH49','CH29']['dead','noise']
+    #thisDir = r"Y:\GN26065\260524\choices\session2\2026-05-24_14-09-13"#['CH49','CH29']['dead','noise']
+    #thisDir = r"Y:\GN26065\260524\coherence\session1\2026-05-24_15-25-01"#['CH49','CH29']['dead','noise']
+    #thisDir = r"Y:\GN26065\260524\spontaneous\session1\2026-05-24_11-32-54"#"CH29" started to become noisy after at least 10 mins
     json_file = "./analysis_methods_dictionary.json"
     ##Time the function
     tic = time.perf_counter()
