@@ -194,6 +194,8 @@ def plot_psth(spike_time_interest,cluster_id_interest,event_of_interest,events_t
 
     f=open(oe_folder/zeta_log_name,"w")
     for this_cluster_id in np.unique(cluster_id_interest):
+        # if this_cluster_id !=309:
+        #     continue
         these_spikes=spike_time_interest[np.where(cluster_id_interest==this_cluster_id)[0]]
         these_ids=np.ones(these_spikes.shape[0],dtype=int)*this_cluster_id
         tspikes = nap.Ts(these_spikes, time_units="s")
@@ -243,13 +245,21 @@ def plot_psth(spike_time_interest,cluster_id_interest,event_of_interest,events_t
                 cleanup_xticks=True
                 if cleanup_xticks:
                     #ax2.set_xticks([time_window[0],round(time_window[0]/2),0,round(time_window[1]/2),time_window[1]])
-                    ax2.set_xticks([-0.5,0,4,4.5])
+                    ax2.set_xticks([-2,0,5])
                 suffix = "_".join(f"{var}_{val}" for var, val in zip(stim_variables, id))
                 if len(stim_types.unique())==1:
                     png_name = f"unit{this_cluster_id}_{event_of_interest}_peth_stim_{stim_types.values[0]}_{suffix}.png"
                 else:
                     png_name = f"unit{this_cluster_id}_{event_of_interest}_peth_stim_all_{suffix}.png"
                 fig2.savefig(oe_folder / png_name)
+                # dblUseMaxDur=5
+                # t = time.time()
+                # dblZetaP,dZETA,_=zetatest(these_spikes,events_time,dblUseMaxDur,intResampNum,boolPlot=False)
+                # dblElapsedT2 = time.time() - t
+                # print(f"\n This unit {this_cluster_id}: Specified parameters,{stim_types.values[0]},{suffix} (elapsed time: {dblElapsedT2:.2f} s): \
+                #     \nzeta-test p-value: {dblZetaP}\nt-test p-value:{dZETA['dblMeanP']}")
+                # print(f"\n This unit {this_cluster_id}: Specified parameters,{stim_types.values[0]},{suffix} (elapsed time: {dblElapsedT2:.2f} s): \
+                #     \nzeta-test p-value: {dblZetaP}\nt-test p-value:{dZETA['dblMeanP']}",file=f)
         else:#Here to plot non-visual evoked activity
             peth = nap.compute_perievent(
             data=tspikes,
@@ -274,8 +284,8 @@ def plot_psth(spike_time_interest,cluster_id_interest,event_of_interest,events_t
             ax2.set(ylabel="Event #",xlabel=f"Time from {event_of_interest} (s)",xlim=(time_window[0], time_window[1]))
             fix_ylim=True
             if fix_ylim:
-                ax1.set_ylim([0,120])
-                ax1.set_yticks([0,120])
+                ax1.set_ylim([0,60])
+                ax1.set_yticks([0,60])
             cleanup_xticks=True
             if cleanup_xticks:
                 ax2.set_xticks([time_window[0],round(time_window[0]/2),0,round(time_window[1]/2),time_window[1]])
@@ -283,41 +293,79 @@ def plot_psth(spike_time_interest,cluster_id_interest,event_of_interest,events_t
             fig2.savefig(oe_folder / png_name)
 
         #run two-sample zeta test if stim duration is consistent and there are trials to compare
-        if len(zeta_variables1)==0 or len(zeta_variables2)==0 or event_of_interest in ["stop_onset","walk_straight_onset","turn_ccw_onset","turn_cw_onset","walk_onset","turn_onset"]:
-            continue
-        # if event_of_interest not in ["stop_onset","walk_straight_onset","turn_ccw_onset","turn_cw_onset","walk_onset","turn_onset"]:
-        if type(zeta_variables1)==list:
-            et1 = events_time[build_mask(meta_info, stim_variables, zeta_variables1, trial_type_interest)]
-            et2 = events_time[build_mask(meta_info, stim_variables, zeta_variables2, trial_type_interest)]
-            this_variable_duration=meta_info['Duration'][build_mask(meta_info, stim_variables, zeta_variables1, trial_type_interest)]
-        elif type(zeta_variables1)==int or type(zeta_variables1)==float:
-            et1=events_time[(meta_info[stim_variables] == zeta_variables1) & trial_type_interest]
-            et2=events_time[(meta_info[stim_variables] == zeta_variables2) & trial_type_interest]
-            this_variable_duration=meta_info['Duration'][meta_info[stim_variables] == zeta_variables1]
-        elif  zeta_variables1 in meta_info["stim_type"].unique() and zeta_variables2 in meta_info["stim_type"].unique():
-            et1=events_time[(meta_info["stim_type"] == zeta_variables1) & trial_type_interest]
-            et2=events_time[(meta_info["stim_type"] == zeta_variables2) & trial_type_interest]
-            this_variable_duration=meta_info['Duration'][meta_info["stim_type"] == zeta_variables1]
+        use_zeta2_test=True
+        if use_zeta2_test and len(zeta_variables2)>0:
+            if len(zeta_variables1)==0 or len(zeta_variables2)==0 or event_of_interest in ["stop_onset","walk_straight_onset","turn_ccw_onset","turn_cw_onset","walk_onset","turn_onset"]:
+                continue
+            # if event_of_interest not in ["stop_onset","walk_straight_onset","turn_ccw_onset","turn_cw_onset","walk_onset","turn_onset"]:
+            if type(zeta_variables1)==list:
+                et1 = events_time[build_mask(meta_info, stim_variables, zeta_variables1, trial_type_interest)]
+                et2 = events_time[build_mask(meta_info, stim_variables, zeta_variables2, trial_type_interest)]
+                this_variable_duration=meta_info['Duration'][build_mask(meta_info, stim_variables, zeta_variables1, trial_type_interest)]
+            elif type(zeta_variables1)==int or type(zeta_variables1)==float:
+                et1=events_time[(meta_info[stim_variables] == zeta_variables1) & trial_type_interest]
+                et2=events_time[(meta_info[stim_variables] == zeta_variables2) & trial_type_interest]
+                this_variable_duration=meta_info['Duration'][meta_info[stim_variables] == zeta_variables1]
+            elif  zeta_variables1 in meta_info["stim_type"].unique() and zeta_variables2 in meta_info["stim_type"].unique():
+                et1=events_time[(meta_info["stim_type"] == zeta_variables1) & trial_type_interest]
+                et2=events_time[(meta_info["stim_type"] == zeta_variables2) & trial_type_interest]
+                this_variable_duration=meta_info['Duration'][meta_info["stim_type"] == zeta_variables1]
+            else:
+                print("selected stimulus type does not exist in meta info")
+                continue
+            min_dblUseDur=5
+            #min_dblUseDur=1
+            # else:
+            #     continue
+            # unable to extract events_time from the reference variables yet
+                # et1=events_time[zeta_variables1]
+                # et2=events_time[zeta_variables2]
+                # [min_dblUseDur,this_variable_duration]=time_window
+            if et1.shape[0]==0 or et2.shape[0]==0 or this_variable_duration.unique().shape[0]>1:
+                print("the format of data is not compatible with zeta test")
+                continue
+            #dblUseMaxDur=min_dblUseDur+this_variable_duration.values[0]#
+            dblUseMaxDur=30
+            t = time.time()
+            dblZetaTwoSample2a,dZETA2a = zetatest2(these_spikes,et1,these_spikes,et2,dblUseMaxDur,intResampNum,boolPlot=False)
+            dblElapsedT6 = time.time() - t
+            print(f"\nIs neuron {this_cluster_id} responding differently to {zeta_variables1} and {zeta_variables2} stimuli? (elapsed time: {dblElapsedT6:.2f} s): \
+                \ntwo-sample zeta-test p-value: {dblZetaTwoSample2a}\nt-test p-value:{dZETA2a['dblMeanP']}",file=f)
         else:
-            print("selected stimulus type does not exist in meta info")
-            continue
-        #min_dblUseDur=min(ISI_duration)
-        min_dblUseDur=1
-        # else:
-        #     continue
-        # unable to extract events_time from the reference variables yet
-            # et1=events_time[zeta_variables1]
-            # et2=events_time[zeta_variables2]
-            # [min_dblUseDur,this_variable_duration]=time_window
-        if et1.shape[0]==0 or et2.shape[0]==0 or this_variable_duration.unique().shape[0]>1:
-            print("the format of data is not compatible with zeta test")
-            continue
-        dblUseMaxDur=min_dblUseDur+this_variable_duration.values[0]#
-        t = time.time()
-        dblZetaTwoSample2a,dZETA2a = zetatest2(these_spikes,et1,these_spikes,et2,dblUseMaxDur,intResampNum,boolPlot=False)
-        dblElapsedT6 = time.time() - t
-        print(f"\nIs neuron {this_cluster_id} responding differently to {zeta_variables1} and {zeta_variables2} stimuli? (elapsed time: {dblElapsedT6:.2f} s): \
-            \ntwo-sample zeta-test p-value: {dblZetaTwoSample2a}\nt-test p-value:{dZETA2a['dblMeanP']}",file=f)
+            # if len(zeta_variables1)==0 or event_of_interest in ["stop_onset","walk_straight_onset","turn_ccw_onset","turn_cw_onset","walk_onset","turn_onset"]:
+            #     continue
+            # if type(zeta_variables1)==list:
+            #     et1 = events_time[build_mask(meta_info, stim_variables, zeta_variables1, trial_type_interest)]
+            #     this_variable_duration=meta_info['Duration'][build_mask(meta_info, stim_variables, zeta_variables1, trial_type_interest)]
+            # elif type(zeta_variables1)==int or type(zeta_variables1)==float:
+            #     et1=events_time[(meta_info[stim_variables] == zeta_variables1) & trial_type_interest]
+            #     this_variable_duration=meta_info['Duration'][meta_info[stim_variables] == zeta_variables1]
+            # elif  zeta_variables1 in meta_info["stim_type"].unique():
+            #     et1=events_time[(meta_info["stim_type"] == zeta_variables1) & trial_type_interest]
+            #     this_variable_duration=meta_info['Duration'][meta_info["stim_type"] == zeta_variables1]
+            # else:
+            #     print("selected stimulus type does not exist in meta info")
+            #     continue
+            min_dblUseDur=min(ISI_duration)
+            #min_dblUseDur=1
+            # else:
+            #     continue
+            # unable to extract events_time from the reference variables yet
+                # et1=events_time[zeta_variables1]
+                # et2=events_time[zeta_variables2]
+                # [min_dblUseDur,this_variable_duration]=time_window
+            # if et1.shape[0]==0 or this_variable_duration.unique().shape[0]>1:
+            #     print("the format of data is not compatible with zeta test")
+            #     continue
+            # this_variable_duration=0
+            # dblUseMaxDur=5
+            # t = time.time()
+            # dblZetaP,dZETA,dRate=zetatest(these_spikes,events_time,dblUseMaxDur,intResampNum,boolPlot=False)
+            # dblElapsedT2 = time.time() - t
+            # print(f"\n This unit {this_cluster_id}: Specified parameters,{stim_types.values[0]},{suffix} (elapsed time: {dblElapsedT2:.2f} s): \
+            #     \nzeta-test p-value: {dblZetaP}\nt-test p-value:{dZETA['dblMeanP']}")
+            # print(f"\n This unit {this_cluster_id}: Specified parameters,{stim_types.values[0]},{suffix} (elapsed time: {dblElapsedT2:.2f} s): \
+            #     \nzeta-test p-value: {dblZetaP}\nt-test p-value:{dZETA['dblMeanP']}",file=f)
     f.close()
     return fig2,f
         
@@ -614,6 +662,9 @@ def align_async_signals(oe_folder, json_file):
     camera_fps = analysis_methods.get("camera_fps")
     trackball_radius=analysis_methods.get("trackball_radius")
     filtering_method=analysis_methods.get("filtering_method")
+    analyse_spontaneous_activity=analysis_methods.get("analyse_spontaneous_activity")
+    use_bombcell_labeling=analysis_methods.get("use_bombcell_labeling")
+    include_MUA=analysis_methods.get("include_MUA")
     yaw_axis=analysis_methods.get("yaw_axis")
     smooth_window_length = round(0.5*camera_fps)
     smooth_window_length = smooth_window_length if np.mod(smooth_window_length, 2) == 1 else smooth_window_length + 1
@@ -818,7 +869,12 @@ def align_async_signals(oe_folder, json_file):
     if analysis_methods.get("motion_corrector")=="kilosort_default" or analysis_methods.get("motion_corrector")=="testing":
         #main_foler_name='kilosort4_ThU13_ThL11'
         #main_foler_name='kilosort4'
-        main_foler_name='kilosort4_motion_corrected'
+        #main_foler_name='kilosort4_motion_corrected'
+        main_foler_name='kilosort4_motion_corrected_9_8'
+        #main_foler_name='kilosort4_motion_corrected_13_12'
+        #main_foler_name='kilosort4_motion_corrected_23_12'
+        #main_foler_name='kilosort4_motion_corrected_33_12'
+        #main_foler_name='kilosort4_motion_corrected_43_12'
         #main_foler_name='kilosort4_ThU18_ThL17_T0_T1500'
         #main_foler_name='kilosort4_T0_T1500'
         merged_units=False
@@ -831,20 +887,26 @@ def align_async_signals(oe_folder, json_file):
             ks_path= oe_folder/f"{main_foler_name}{folder_suffix}"
         spike_clusters=np.load(ks_path/"spike_clusters.npy")
         spike_times=np.load(ks_path/"spike_times.npy")/30000.0#this is the default sampling frequency in openEphys
-        cluster_group=pd.read_csv(ks_path/"cluster_group.tsv", sep='\t',header=0)
-        if analysis_methods.get("include_MUA") == True:
-            mask= np.isin(spike_clusters,cluster_group.loc[(cluster_group['group'].reset_index(drop=True)=='mua') | (cluster_group['group'].reset_index(drop=True)=='good')].values)
+        if use_bombcell_labeling:
+            label_file_name="cluster_bc_unitType.tsv"
+            label_column_name='bc_unitType'
         else:
-            mask= np.isin(spike_clusters,cluster_group.loc[cluster_group['group']=='good']['cluster_id'].values)
+            label_file_name="cluster_group.tsv"
+            label_column_name='group'
+        cluster_group=pd.read_csv(ks_path/label_file_name, sep='\t',header=0)
+        if include_MUA:
+            mask= np.isin(spike_clusters,cluster_group.loc[cluster_group[label_column_name].str.match("non-soma",case=False)|cluster_group[label_column_name].str.match("good",case=False)|cluster_group[label_column_name].str.match("mua",case=False)].values)# not sure why I used re-index in the past.
+        else:
+            mask= np.isin(spike_clusters,cluster_group.loc[cluster_group[label_column_name].str.match("good",case=False)]['cluster_id'].values)
 
         cluster_id_interest=spike_clusters[mask]
         spike_time_interest=spike_times[mask]
-        for this_unit in np.unique(cluster_id_interest):
-            spike_time_temp=spike_time_interest[cluster_id_interest==this_unit]
-            #duplicated_spikes=sc.find_duplicated_spikes(spike_time_temp,censored_period=0.0001,seed=0)
-            duplicated_spikes=sc.find_duplicated_spikes(spike_time_temp,censored_period=0.0015,seed=0)#we had to introduce a refractory period (tref = 1.5 ms) to replicate the nonlinear relation between the peak instantaneous firing rate frequency f0 and current over a large fraction of the LGMD firing range (Fig. 5B, gray trace).
-            spike_time_interest=np.delete(spike_time_interest, duplicated_spikes)
-            cluster_id_interest=np.delete(cluster_id_interest, duplicated_spikes)
+        # for this_unit in np.unique(cluster_id_interest):
+        #     spike_time_temp=spike_time_interest[cluster_id_interest==this_unit]
+        #     #duplicated_spikes=sc.find_duplicated_spikes(spike_time_temp,censored_period=0.0001,seed=0)
+        #     duplicated_spikes=sc.find_duplicated_spikes(spike_time_temp,censored_period=0.0015,seed=0)#we had to introduce a refractory period (tref = 1.5 ms) to replicate the nonlinear relation between the peak instantaneous firing rate frequency f0 and current over a large fraction of the LGMD firing range (Fig. 5B, gray trace).
+        #     spike_time_interest=np.delete(spike_time_interest, duplicated_spikes)
+        #     cluster_id_interest=np.delete(cluster_id_interest, duplicated_spikes)
     else:
         recording_saved = get_preprocessed_recording(oe_folder,analysis_methods)
         if (
@@ -859,7 +921,7 @@ def align_async_signals(oe_folder, json_file):
             sorting_spikes = sorting_analyzer.sorting
             unit_labels = sorting_spikes.get_property("quality")
         else:
-            if analysis_methods.get("include_MUA") == True:
+            if include_MUA:
                 cluster_group_interest = ["noise"]
             else:
                 cluster_group_interest = ["noise", "mua"]
@@ -1030,7 +1092,7 @@ def align_async_signals(oe_folder, json_file):
     #         ax2.set_xticks([time_window[0],round(time_window[0]/2),0,round(time_window[1]/2),time_window[1]])
     #     png_name = f"unit{this_id}_{event_of_interest}_peth_naptest.png"
     #     fig2.savefig(oe_folder / png_name)
-    analyse_spontaneous_activity=True
+
     for this_event in event_of_interest:
         if trial_file is None:
             events_time, transition_index=extract_event_time(this_event,analysis_methods,time_window,stim_on_oe=None,isi_on_oe=None,oe_camera_time=oe_camera_time,s2w_index=s2w_index,w2s_index=w2s_index,n2t_index=n2t_index,walk_states=walk_states,travel_distance_fbf=travel_distance_fbf,turn_states=turn_states,turn_ccw=turn_ccw,turn_cw=turn_cw)
@@ -1088,8 +1150,10 @@ def align_async_signals(oe_folder, json_file):
         if analysis_methods.get("plot_psth",False):
             if trial_file is None:
                 _,_=plot_psth(spike_time_interest,cluster_id_interest,this_event,events_time,analysis_methods,oe_folder,time_window)
+                #_,_=plot_psth(spike_time_interest,cluster_id_interest,this_event,events_time,analysis_methods,ks_path,time_window)
             else:
-                _,_=plot_psth(spike_time_interest,cluster_id_interest,this_event,events_time,analysis_methods,oe_folder,time_window,meta_info,trial_type_interest)
+                #_,_=plot_psth(spike_time_interest,cluster_id_interest,this_event,events_time,analysis_methods,oe_folder,time_window,meta_info,trial_type_interest)
+                _,_=plot_psth(spike_time_interest,cluster_id_interest,this_event,events_time,analysis_methods,ks_path,time_window,meta_info,trial_type_interest)
     json_string = json.dumps(analysis_methods, indent=1)
     with open(oe_folder / "ephys_analysis_methods_backup.json", "w") as f:
         f.write(json_string)
@@ -1153,10 +1217,10 @@ if __name__ == "__main__":
     #thisDir = r"Y:\GN26012\260208\spontaneous\session1\2026-02-08_13-56-52"
     #thisDir = r"Y:\GN26018\260228\spontaneous\session2\2026-02-28_21-58-44"
     #thisDir = r"Y:\GN26019\260301\choices\session2\2026-03-01_15-59-22"
-    #thisDir = r"Y:\GN26019\260301\choices\session1\2026-03-01_14-41-31"
+    thisDir = r"Y:\GN26019\260301\choices\session1\2026-03-01_14-41-31"
     #thisDir = r"Y:\GN26038\260407\choices\session1\2026-04-07_11-55-17"
     #thisDir = r"Y:\GN26042\260412\looming\session2\2026-04-12_15-51-11"
-    thisDir = r"Y:\GN26042\260412\looming\session1\2026-04-12_14-23-36"
+    #thisDir = r"Y:\GN26042\260412\looming\session1\2026-04-12_14-23-36"
     #thisDir = r"Y:\GN26019\260301\spontaneous\session1\2026-03-01_14-10-06"
     #thisDir = r"Y:\GN26012\260208\sweeping\session1\2026-02-08_14-33-58"
     #thisDir =r"Y:\GN25029\250729\looming\session1\2025-07-29_15-22-54"

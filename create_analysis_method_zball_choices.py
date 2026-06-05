@@ -18,6 +18,8 @@ behaviour_methods = {
     "load_experiment_condition_from_database": True,
     "select_animals_by_condition": False,
     "analysis_by_stimulus_type": True,
+    "analyse_spontaneous_activity": True,
+    "use_bombcell_labeling": True,
     "stationary_phase_before_motion": False,
     "yaw_axis":"z",
     "camera_fps": 100,
@@ -28,7 +30,7 @@ behaviour_methods = {
     "interval_duration": [20,30,40],
     "analysis_window": [
         -2,
-        10
+        5
     ],
     "event_of_interest": [
         "stim_onset",
