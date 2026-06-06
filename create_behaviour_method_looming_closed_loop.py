@@ -25,6 +25,9 @@ behaviour_methods = {
     "load_experiment_condition_from_database": True,
     "select_animals_by_condition": False,
     "analysis_by_stimulus_type": True,
+    "analyse_spontaneous_activity": False,
+    "use_bombcell_labeling": True,
+    "stationary_phase_before_motion": True,
     "duration_for_optomotor_index": 0,
     "camera_fps": 100,
     "trackball_radius": 5,
@@ -33,6 +36,31 @@ behaviour_methods = {
     "interval_duration": [30],
     "analysis_window": [-1,5],
     "prestim_duration": 60,
+    "event_of_interest": [
+        "stim_onset",
+        "walking_trials",
+        "stationary_trials"
+    ],
+    "stim_variables": [
+        "PolarBeginR1",
+        "R1",
+        "A1",
+        "Duration"
+    ],
+    "zeta_variables1": [
+        19.5,
+        0.0,
+        1.0,
+        4.0
+    ],
+    "zeta_variables2": [
+        19.5,
+        0.0,
+        0.0,
+        4.0
+    ],
+
+
 }  # plue value representing clockwise, counterclockwise is minus, then the rest is coherence leve
 json_file = f"./{file_name}"
 if isinstance(json_file, dict):

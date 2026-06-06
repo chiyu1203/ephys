@@ -18,18 +18,20 @@ behaviour_methods = {
     "load_experiment_condition_from_database": True,
     "select_animals_by_condition": False,
     "analysis_by_stimulus_type": True,
+    "analyse_spontaneous_activity": False,
+    "use_bombcell_labeling": True,
     "stationary_phase_before_motion": True,
     "duration_for_optomotor_index": 0,
     "yaw_axis":"z",
     "camera_fps": 100,
     "trackball_radius": 5,
     "monitor_fps": 144,
-    "prestim_duration": 200,
-    "stim_duration": [1,6],
-    "interval_duration": [5,10,15],
+    "prestim_duration": 60,
+    "stim_duration": [1,8],
+    "interval_duration": [10,15,20],
     "analysis_window": [
         -2,
-        6
+        9
     ],
     "event_of_interest": [
     "stim_onset",
