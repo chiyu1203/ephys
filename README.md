@@ -20,6 +20,16 @@ pip3 install torch --index-url https://download.pytorch.org/whl/cu118
 #here for more information https://pypi.org/project/torch/
 ````
 
+Here is the installation for mac users
+
+````
+pip install uv
+uv pip install spikeinterface zarr docker numcodecs hdbscan ipympl spikeinterface-gui PySide6 pynapple zetapy bombcell
+pip3 install torch torchvision 
+````
+
+Note install packages via uv is not necessary but it can speed up the installation process
+
 [optional] ibllib has many plotting functions You can either install it via pip or to install it from source. Below is the version I forked from the source
 
 Note: ibllib use scipy 1.12 but installing one of these packages **zarr docker cuda-python numcodecs hdbscan** 
