@@ -8,26 +8,27 @@ Open the anaconda prompt and create a virtual environment via conda. Note: both 
 ````
 conda create --name ephys python=3.12
 conda activate ephys
+pip install uv
 ````
 Then installing spikeinterface and other dependencies. Then installing other dependencies. (open ephys python tool is for loading timestamp; zarr and numcodesc for compressing data; ipympl is for interactive plots on Jupyter notebook. Pyside 6 is for spikeinterface-gui )
 
 ````
-pip install spikeinterface[full,widgets] zarr docker cuda-python numcodecs hdbscan ipympl spikeinterface-gui PySide6 pynapple zetapy
+uv pip install spikeinterface[full,widgets] zarr docker numcodecs hdbscan ipympl spikeinterface-gui PySide6 pynapple zetapy nemos bombcell jupyterlab notebook pytest
 ````
-[optional] to use dredge for motion correction, torch is needed. Below is an instruction to install torch from pytorch. 
+[optional] to use dredge for motion correction, torch is needed. Below is instructions to install torch from pytorch. 
+
+Windows
 ````
+uv pip install cuda-python
 pip3 install torch --index-url https://download.pytorch.org/whl/cu118
 #here for more information https://pypi.org/project/torch/
 ````
-
-[optional] ibllib has many plotting functions You can either install it via pip or to install it from source. Below is the version I forked from the source
-
-Note: ibllib use scipy 1.12 but installing one of these packages **zarr docker cuda-python numcodecs hdbscan** 
-needs scipy 1.13 so I hopes there is no conflict between them 
-
+MacOS
 ````
-pip install git+https://github.com/chiyu1203/ibllib.git
+pip3 install torch torchvision 
 ````
+
+Note install packages via uv is not necessary but it can speed up the installation process
 
 If you have a good GPU and wants to install kilosort. Here is the instruction under python 3.11.
 ````
@@ -37,11 +38,6 @@ pip3 install torch --index-url https://download.pytorch.org/whl/cu118
 #conda install pytorch pytorch-cuda=11.8 -c pytorch -c nvidia
 ````
 Note: kilosort updates frequently so that spikeinterface can not always catch up with that. Therefore, I kept a seperate virtual environment dedicated for kilosort in case I want to use it standalone or use its GUI.
-
-Probably dont need the packages below anymore
-````
-conda install --yes -c conda-forge -v ipython jupyter pytest
-````
 
 If you want to use [phy](https://github.com/cortex-lab/phy) for manual curation of spike sorting, create a seperate virtual environment and install it via this command
 ````
