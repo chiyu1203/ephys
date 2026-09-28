@@ -29,8 +29,12 @@ global_job_kwargs = dict(n_jobs=n_jobs, chunk_duration="5s", progress_bar=False)
 si.set_global_job_kwargs(**global_job_kwargs)
 current_working_directory = Path.cwd()
 parent_dir = current_working_directory.resolve().parents[0]
+if sys.platform =="darwin":
+    utilities_string="/utilities"
+else:
+    utilities_string="\\utilities"
 sys.path.insert(
-    0, str(parent_dir) + "\\utilities"
+    0, str(parent_dir) + utilities_string
 )  ## 0 means search for new dir first and 1 means search for sys.path first
 from useful_tools import find_file
 
@@ -656,6 +660,7 @@ if __name__ == "__main__":
     #thisDir = r"Y:\GN26065\260524\choices\session2\2026-05-24_14-09-13"#['CH49','CH29']['dead','noise']
     #thisDir = r"Y:\GN26065\260524\coherence\session1\2026-05-24_15-25-01"#['CH49','CH29']['dead','noise']
     #thisDir = r"Y:\GN26065\260524\spontaneous\session1\2026-05-24_11-32-54"#"CH29" started to become noisy after at least 10 mins
+    thisDir = "/Users/chiyu_lee/OpenEphys/GN26042/260412/looming/session1/2026-04-12_14-23-36"
     json_file = "./analysis_methods_dictionary.json"
     ##Time the function
     tic = time.perf_counter()

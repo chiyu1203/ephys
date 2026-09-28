@@ -52,10 +52,16 @@ from raw2si import save_event_timing
 # import packages outside this directory
 current_working_directory = Path.cwd()
 parent_dir = current_working_directory.resolve().parents[0]
+if sys.platform =="darwin":
+    utilities_string="/utilities"
+    bonfic_string="/bonfic"
+else:
+    utilities_string="\\utilities"
+    bonfic_string="\\bonfic"
 sys.path.insert(
-    0, str(parent_dir) + "\\utilities"
+    0, str(parent_dir) + utilities_string
 )  ## 0 means search for new dir first and 1 means search for sys.path first
-sys.path.insert(0, str(parent_dir) + "\\bonfic")
+sys.path.insert(0, str(parent_dir) + bonfic_string)
 from useful_tools import find_file
 from data_cleaning import sorting_trial_info, load_fictrac_data_file,euclidean_distance
 from analyse_stimulus_evoked_response import classify_trial_type,preprocess_tracking_data,identify_behavioural_states,generate_index_points,analysis_stim_evoked_response_combo
@@ -179,7 +185,7 @@ def plot_event_locked_behavioural_metrics(oe_folder, event_of_interest, time_loc
 def plot_psth(spike_time_interest,cluster_id_interest,event_of_interest,events_time,analysis_methods,oe_folder,time_window,meta_info=None,trial_type_interest=None):
     stim_variables = analysis_methods.get("stim_variables",['Duration'])
     ISI_duration = analysis_methods.get("interval_duration")
-    intResampNum = 500 
+    intResampNum = 10000 
     zeta_variables1=analysis_methods.get("zeta_variables1",[])
     zeta_variables2=analysis_methods.get("zeta_variables2",[])
     if len(zeta_variables1)>0:
@@ -252,14 +258,6 @@ def plot_psth(spike_time_interest,cluster_id_interest,event_of_interest,events_t
                 else:
                     png_name = f"unit{this_cluster_id}_{event_of_interest}_peth_stim_all_{suffix}.png"
                 fig2.savefig(oe_folder / png_name)
-                # dblUseMaxDur=5
-                # t = time.time()
-                # dblZetaP,dZETA,_=zetatest(these_spikes,events_time,dblUseMaxDur,intResampNum,boolPlot=False)
-                # dblElapsedT2 = time.time() - t
-                # print(f"\n This unit {this_cluster_id}: Specified parameters,{stim_types.values[0]},{suffix} (elapsed time: {dblElapsedT2:.2f} s): \
-                #     \nzeta-test p-value: {dblZetaP}\nt-test p-value:{dZETA['dblMeanP']}")
-                # print(f"\n This unit {this_cluster_id}: Specified parameters,{stim_types.values[0]},{suffix} (elapsed time: {dblElapsedT2:.2f} s): \
-                #     \nzeta-test p-value: {dblZetaP}\nt-test p-value:{dZETA['dblMeanP']}",file=f)
         else:#Here to plot non-visual evoked activity
             peth = nap.compute_perievent(
             data=tspikes,
@@ -313,59 +311,16 @@ def plot_psth(spike_time_interest,cluster_id_interest,event_of_interest,events_t
             else:
                 print("selected stimulus type does not exist in meta info")
                 continue
-            min_dblUseDur=5
-            #min_dblUseDur=1
-            # else:
-            #     continue
-            # unable to extract events_time from the reference variables yet
-                # et1=events_time[zeta_variables1]
-                # et2=events_time[zeta_variables2]
-                # [min_dblUseDur,this_variable_duration]=time_window
+            min_dblUseDur=time_window[1]#because in most of my experiments, the inter-stimulus interval is quite long so only stimulus duration is long enough for the zeta test.
             if et1.shape[0]==0 or et2.shape[0]==0 or this_variable_duration.unique().shape[0]>1:
                 print("the format of data is not compatible with zeta test")
                 continue
-            #dblUseMaxDur=min_dblUseDur+this_variable_duration.values[0]#
-            dblUseMaxDur=30
             t = time.time()
-            dblZetaTwoSample2a,dZETA2a = zetatest2(these_spikes,et1,these_spikes,et2,dblUseMaxDur,intResampNum,boolPlot=False)
+            dblZetaTwoSample2a,dZETA2a = zetatest2(these_spikes,et1,these_spikes,et2,min_dblUseDur,intResampNum,direct_quantile=True)
             dblElapsedT6 = time.time() - t
             print(f"\nIs neuron {this_cluster_id} responding differently to {zeta_variables1} and {zeta_variables2} stimuli? (elapsed time: {dblElapsedT6:.2f} s): \
-                \ntwo-sample zeta-test p-value: {dblZetaTwoSample2a}\nt-test p-value:{dZETA2a['dblMeanP']}",file=f)
-        else:
-            # if len(zeta_variables1)==0 or event_of_interest in ["stop_onset","walk_straight_onset","turn_ccw_onset","turn_cw_onset","walk_onset","turn_onset"]:
-            #     continue
-            # if type(zeta_variables1)==list:
-            #     et1 = events_time[build_mask(meta_info, stim_variables, zeta_variables1, trial_type_interest)]
-            #     this_variable_duration=meta_info['Duration'][build_mask(meta_info, stim_variables, zeta_variables1, trial_type_interest)]
-            # elif type(zeta_variables1)==int or type(zeta_variables1)==float:
-            #     et1=events_time[(meta_info[stim_variables] == zeta_variables1) & trial_type_interest]
-            #     this_variable_duration=meta_info['Duration'][meta_info[stim_variables] == zeta_variables1]
-            # elif  zeta_variables1 in meta_info["stim_type"].unique():
-            #     et1=events_time[(meta_info["stim_type"] == zeta_variables1) & trial_type_interest]
-            #     this_variable_duration=meta_info['Duration'][meta_info["stim_type"] == zeta_variables1]
-            # else:
-            #     print("selected stimulus type does not exist in meta info")
-            #     continue
-            min_dblUseDur=min(ISI_duration)
-            #min_dblUseDur=1
-            # else:
-            #     continue
-            # unable to extract events_time from the reference variables yet
-                # et1=events_time[zeta_variables1]
-                # et2=events_time[zeta_variables2]
-                # [min_dblUseDur,this_variable_duration]=time_window
-            # if et1.shape[0]==0 or this_variable_duration.unique().shape[0]>1:
-            #     print("the format of data is not compatible with zeta test")
-            #     continue
-            # this_variable_duration=0
-            # dblUseMaxDur=5
-            # t = time.time()
-            # dblZetaP,dZETA,dRate=zetatest(these_spikes,events_time,dblUseMaxDur,intResampNum,boolPlot=False)
-            # dblElapsedT2 = time.time() - t
-            # print(f"\n This unit {this_cluster_id}: Specified parameters,{stim_types.values[0]},{suffix} (elapsed time: {dblElapsedT2:.2f} s): \
-            #     \nzeta-test p-value: {dblZetaP}\nt-test p-value:{dZETA['dblMeanP']}")
-            # print(f"\n This unit {this_cluster_id}: Specified parameters,{stim_types.values[0]},{suffix} (elapsed time: {dblElapsedT2:.2f} s): \
-            #     \nzeta-test p-value: {dblZetaP}\nt-test p-value:{dZETA['dblMeanP']}",file=f)
+                \ntwo-sample zeta-test p-value: {dblZetaTwoSample2a}\nt-test p-value:{dZETA2a['zeta_p_value']}",file=f)#if direct_quantile is true, zeta_p_value is reported. Otherwise, dblMeanP is reported'
+            #removed the option to do one-sample zeta test because my experiments are all two samples.
     f.close()
     return fig2,f
         
@@ -869,8 +824,8 @@ def align_async_signals(oe_folder, json_file):
     if analysis_methods.get("motion_corrector")=="kilosort_default" or analysis_methods.get("motion_corrector")=="testing":
         #main_foler_name='kilosort4_ThU13_ThL11'
         #main_foler_name='kilosort4'
-        #main_foler_name='kilosort4_motion_corrected'
-        main_foler_name='kilosort4_motion_corrected_9_8'
+        main_foler_name='kilosort4_motion_corrected'
+        #main_foler_name='kilosort4_motion_corrected_9_8'
         #main_foler_name='kilosort4_motion_corrected_13_12'
         #main_foler_name='kilosort4_motion_corrected_23_12'
         #main_foler_name='kilosort4_motion_corrected_33_12'
@@ -1217,7 +1172,8 @@ if __name__ == "__main__":
     #thisDir = r"Y:\GN26012\260208\spontaneous\session1\2026-02-08_13-56-52"
     #thisDir = r"Y:\GN26018\260228\spontaneous\session2\2026-02-28_21-58-44"
     #thisDir = r"Y:\GN26019\260301\choices\session2\2026-03-01_15-59-22"
-    thisDir = r"Y:\GN26019\260301\choices\session1\2026-03-01_14-41-31"
+    #thisDir = r"Y:\GN26019\260301\choices\session1\2026-03-01_14-41-31"
+    thisDir = "/Users/chiyu_lee/OpenEphys/GN26042/260412/looming/session1/2026-04-12_14-23-36"
     #thisDir = r"Y:\GN26038\260407\choices\session1\2026-04-07_11-55-17"
     #thisDir = r"Y:\GN26042\260412\looming\session2\2026-04-12_15-51-11"
     #thisDir = r"Y:\GN26042\260412\looming\session1\2026-04-12_14-23-36"

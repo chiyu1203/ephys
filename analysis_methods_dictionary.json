@@ -30,26 +30,24 @@
     "include_MUA": false,
     "plot_psth": true,
     "event_of_interest": [
-        "walk_onset",
-        "turn_onset",
-        "stop_onset"
+        "stim_onset"
     ],
     "stim_variables": [
         "PolarBeginR1",
-        "PolarEndR1",
+        "R1",
         "A1",
         "Duration"
     ],
     "zeta_variables1": [
         19.5,
-        3.5,
+        0,
         1.0,
         4.0
     ],
     "zeta_variables2": [
         19.5,
-        35.5,
-        1.0,
+        0,
+        0,
         4.0
     ],
     "exp_place": "Zball",
@@ -88,14 +86,14 @@
     "trackball_radius": 5,
     "monitor_fps": 144,
     "stim_duration": [
-        5
+        4
     ],
     "interval_duration": [
         30
     ],
     "analysis_window": [
-        -2,
-        2
+        -1,
+        5
     ],
     "prestim_duration": 60,
     "duration_for_optomotor_index": 0,

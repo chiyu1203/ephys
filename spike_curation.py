@@ -12,7 +12,6 @@ import numpy as np
 import matplotlib.pyplot as plt
 from spikeinterface.widgets import plot_sorting_summary
 from estimate_drift_motion import AP_band_drift_estimation, LFP_band_drift_estimation
-from brainbox.plot import peri_event_time_histogram, driftmap_color, driftmap
 import pandas as pd
 import spikeinterface.widgets as sw
 import matplotlib as mpl
@@ -27,8 +26,12 @@ global_job_kwargs = dict(n_jobs=n_jobs, chunk_duration="2s", progress_bar=True)
 si.set_global_job_kwargs(**global_job_kwargs)
 current_working_directory = Path.cwd()
 parent_dir = current_working_directory.resolve().parents[0]
+if sys.platform =="darwin":
+    utilities_string="/utilities"
+else:
+    utilities_string="\\utilities"
 sys.path.insert(
-    0, str(parent_dir) + "\\utilities"
+    0, str(parent_dir) + utilities_string
 )  ## 0 means search for new dir first and 1 means search for sys.path first
 from useful_tools import find_file
 """
