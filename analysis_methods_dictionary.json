@@ -27,27 +27,27 @@
     "overwrite_existing_phy": true,
     "load_curated_spikes": false,
     "export_report": false,
-    "include_MUA": false,
+    "include_MUA": true,
     "plot_psth": true,
     "event_of_interest": [
         "stim_onset"
     ],
     "stim_variables": [
         "PolarBeginR1",
-        "R1",
+        "PolarEndR1",
         "A1",
         "Duration"
     ],
     "zeta_variables1": [
         19.5,
-        0,
+        3.5,
         1.0,
         4.0
     ],
     "zeta_variables2": [
         19.5,
-        0,
-        0,
+        35.5,
+        1.0,
         4.0
     ],
     "exp_place": "Zball",
@@ -80,7 +80,7 @@
     "select_animals_by_condition": false,
     "analysis_by_stimulus_type": true,
     "analyse_spontaneous_activity": true,
-    "use_bombcell_labeling": false,
+    "use_bombcell_labeling": true,
     "stationary_phase_before_motion": true,
     "camera_fps": 100,
     "trackball_radius": 5,
