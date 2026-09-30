@@ -209,6 +209,8 @@ def plot_psth(spike_time_interest,cluster_id_interest,event_of_interest,events_t
             for id, entries in meta_info.groupby(stim_variables):
                 these_events=events_time[entries.index][trial_type_interest[entries.index]]
                 stim_types=entries['stim_type'][trial_type_interest[entries.index]]
+                if stim_types.values[0] in ["combo_size","combo_colour"]:
+                    time_window[1]=entries['Duration'][trial_type_interest[entries.index]].values[0]
                 if these_events.shape[0]<1:
                     print("too few trials to plot a meaningful PSTH. Skip this/these variable(s)")
                     continue
@@ -244,11 +246,11 @@ def plot_psth(spike_time_interest,cluster_id_interest,event_of_interest,events_t
                 ax1.axvline(0.0,color="black")
                 ax2.plot(peth.to_tsd(), "|", markersize=1, color="black", mew=1)
                 ax2.set(ylabel="Event #",xlabel=f"Time from {event_of_interest} (s)",xlim=(time_window[0], time_window[1]))
-                fix_ylim=True
+                fix_ylim=False
                 if fix_ylim:
                     ax1.set_ylim([0, 120])
                     ax1.set_yticks([0,120])
-                cleanup_xticks=True
+                cleanup_xticks=False
                 if cleanup_xticks:
                     #ax2.set_xticks([time_window[0],round(time_window[0]/2),0,round(time_window[1]/2),time_window[1]])
                     ax2.set_xticks([-2,0,5])
@@ -675,7 +677,22 @@ def align_async_signals(oe_folder, json_file):
         else:
             pd_on_oe=np.load(one_pd_file)[0]
             pd_off_oe=np.load(one_pd_file)[1]
-        if experiment_name in ['looming',"receding","conflict","sweeping","flashing","choices"]:
+        if experiment_name == "combo":
+            pd_on_oe=pd_on_oe[preStim_duration<pd_on_oe]
+            pd_off_oe=pd_off_oe[preStim_duration<pd_off_oe]
+            num_stim_colour=meta_info[meta_info["stim_type"]=="combo_colour"].shape[0]
+            stim_on_colour=pd_on_oe[:num_stim_colour]
+            stim_off_colour=pd_off_oe[:num_stim_colour]
+            num_stim_size=meta_info[meta_info["stim_type"]=="combo_size"].shape[0]
+            if pd_off_oe[num_stim_colour:][0]<pd_on_oe[num_stim_colour:][0] and pd_on_oe[num_stim_colour:][0]-pd_off_oe[num_stim_colour:][0]<0.8:
+                stim_off_size=pd_on_oe[num_stim_colour+1::2]
+                stim_on_size=pd_on_oe[num_stim_colour::2]         
+            else:
+                stim_off_size=pd_off_oe[num_stim_colour+1::2]
+                stim_on_size=pd_off_oe[num_stim_colour::2]
+            stim_on_oe =np.concat([stim_on_colour,stim_on_size])
+            isi_on_oe =np.concat([stim_off_colour,stim_off_size])
+        elif experiment_name in ['looming',"receding","conflict","sweeping","flashing","choices"]:
             if 'PreMovDuration' in meta_info.columns:
                 if meta_info['PreMovDuration'].unique()==0:
                     pd_on_oe=pd_on_oe[preStim_duration<pd_on_oe]
@@ -824,10 +841,10 @@ def align_async_signals(oe_folder, json_file):
     if analysis_methods.get("motion_corrector")=="kilosort_default" or analysis_methods.get("motion_corrector")=="testing":
         #main_foler_name='kilosort4_ThU13_ThL11'
         #main_foler_name='kilosort4'
-        main_foler_name='kilosort4_motion_corrected'
+        #main_foler_name='kilosort4_motion_corrected'
         #main_foler_name='kilosort4_motion_corrected_9_8'
         #main_foler_name='kilosort4_motion_corrected_13_12'
-        #main_foler_name='kilosort4_motion_corrected_23_12'
+        main_foler_name='kilosort4_motion_corrected_23_19'
         #main_foler_name='kilosort4_motion_corrected_33_12'
         #main_foler_name='kilosort4_motion_corrected_43_12'
         #main_foler_name='kilosort4_ThU18_ThL17_T0_T1500'
@@ -1173,7 +1190,8 @@ if __name__ == "__main__":
     #thisDir = r"Y:\GN26018\260228\spontaneous\session2\2026-02-28_21-58-44"
     #thisDir = r"Y:\GN26019\260301\choices\session2\2026-03-01_15-59-22"
     #thisDir = r"Y:\GN26019\260301\choices\session1\2026-03-01_14-41-31"
-    thisDir = "/Users/chiyu_lee/OpenEphys/GN26042/260412/looming/session1/2026-04-12_14-23-36"
+    #thisDir = "/Users/chiyu_lee/OpenEphys/GN26042/260412/looming/session1/2026-04-12_14-23-36"
+    thisDir = "/Users/chiyu_lee/OpenEphys/GN26063/260523/sweeping/session1/2026-05-23_11-45-39"
     #thisDir = r"Y:\GN26038\260407\choices\session1\2026-04-07_11-55-17"
     #thisDir = r"Y:\GN26042\260412\looming\session2\2026-04-12_15-51-11"
     #thisDir = r"Y:\GN26042\260412\looming\session1\2026-04-12_14-23-36"
