@@ -94,7 +94,7 @@ Note: The downside of removing the gut is that the head would become a big dry h
 
 12. Once a good spot is found, remove or turn off the microscope and check the sound of spikes. When everything is ready, position the central monitor and turn off  micromanipulator to remove additional electrical noise.
 
-13. The procedure of the recording without using fictrac: Passive viewing experiment is (1) start bonsai workflow (2) start recording on OpenEphys (3) start the stimulus with keypress **S**. In the case of spontanous experiment: (0) connect OpenEphys TTL channel 2 to Basler camera's TTL input (see closed loop experiment for details) (1) start recording on OpenEphys  (2)  start bonsai to activate the camera
+13. The procedure of the recording without using fictrac version 2.1.1 (build data: Nov 11 2023): Passive viewing experiment is (1) start bonsai workflow (2) start recording on OpenEphys (3) start the stimulus with keypress **S**. In the case of spontanous experiment: (0) connect OpenEphys TTL channel 2 to Basler camera's TTL input (see closed loop experiment for details) (1) start recording on OpenEphys  (2)  start bonsai to activate the camera
 
 14. get PFA, PBS and trypsin ready when the recording is finishing or when pulling out of the electrode back (no need to dilute PFA but trypsin is stored in 10x)
 
